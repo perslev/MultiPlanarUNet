@@ -211,6 +211,8 @@ def create_folders(folders):
     else:
         folders = list(folders)
         for f in folders:
+            if f is None:
+                continue
             if not os.path.exists(f):
                 os.mkdir(f)
 
