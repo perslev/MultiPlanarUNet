@@ -1,0 +1,171 @@
+from MultiViewUNet.logging import ScreenLogger
+from MultiViewUNet.image.auditor import Auditor
+import numpy as np
+import os
+
+
+"""
+A collection of functions that prepares data for feeding to various models in
+the MultiViewUNet.models packages. All functions should follow the following
+specification:
+
+f(hparams, just_one, logger, base_path), return train, val, hparams
+
+and return an object of type keras.Sequence feeding valid train and validation
+inputs to the model. Should also return the hparams object for clarity.
+"""
+
+
+def _base_loader_func(hparams, just_one, no_val, logger, mtype):
+    from MultiViewUNet.image import ImagePairLoader
+
+    # Get logger
+    logger = logger or ScreenLogger()
+
+    # Get data loaders
+    train_data = ImagePairLoader(logger=logger, **hparams["train_data"])
+    val_data = ImagePairLoader(logger=logger, **hparams["val_data"])
+
+    # Audit
+    auditor = Auditor(train_data.image_paths + val_data.image_paths, logger,
+                      dim_3d=hparams["build"].get("dim") or 64)
+
+    # Fill hparams with audited values, if not specified manually
+    auditor.fill(hparams, mtype)
+
+    # Add augmented data?
+    if hparams["aug_data"]["add_aug"]:
+        for data in hparams["aug_data"]["datasets"].values():
+            logger("\n[*] Adding augmented data with weight ", data["sample_weight"])
+            train_data.add_augmented_images(ImagePairLoader(logger=logger, **data))
+
+    if just_one:
+        # For testing purposes, run only on one train and one val image?
+        logger("[**NOTTICE**] Only running on first train & val samples.")
+        train_data.images = [train_data.images[0]]
+        val_data.images = [val_data.images[0]]
+    if no_val:
+        # Run without performing validation (even if specified in param file)
+        val_data.images = []
+
+    # Set queue object if necessary
+    train_data.set_queue(hparams["train_data"].get("max_load"))
+    val_data.set_queue(hparams["val_data"].get("max_load"))
+
+    return train_data, val_data, logger, auditor
+
+
+def compute_class_weights(train_data, hparams):
+    if hparams["fit"]["class_weights"] is True:
+        # If train data is queued, unload each image after class counting
+        unload = bool(train_data.queue)
+
+        # Compute the class weights and also return the counts
+        weights, counts = train_data.get_class_weights(as_array=True,
+                                                       return_counts=True,
+                                                       unload=unload)
+        hparams["fit"]["class_weights"] = weights
+        hparams["fit"]["class_counts"] = counts
+
+
+def prepare_for_multi_view_unet(hparams, just_one=False, no_val=False,
+                                continue_training=False, logger=None,
+                                base_path='./'):
+
+    # Load the data
+    train_data, val_data, logger, auditor = _base_loader_func(hparams, just_one, no_val, logger, "2d")
+
+    # Dump auditor for testing use
+    import pickle
+    with open(os.path.join(base_path, "auditor.pickle"), "wb") as out_f:
+        pickle.dump(auditor, out_f)
+
+    # Log views
+    views = hparams["fit"]["views"]
+    if not continue_training:
+        # Remove images folder if existing
+        if os.path.exists(os.path.join(base_path, "images")):
+            import shutil
+            shutil.rmtree(os.path.join(base_path, "images"))
+
+        if isinstance(views, int):
+            from MultiViewUNet.interpolation.sample_grid import get_random_views, get_angle
+            from itertools import combinations
+            logger("Generating %i random views..." % views)
+
+            # Weight by median sample resolution along each axis
+            res = np.median(auditor.info["pixdims"], axis=0)
+            logger("[OBS] Weighting random views by median res: %s" % res)
+
+            N = views
+            found = False
+            min_angle = 60
+            tries = 0
+            while not found:
+                tries += 1
+                views = get_random_views(N, dim=3, pos_z=True, weights=res)
+                angles = [get_angle(v1, v2) for v1, v2 in combinations(views, 2)]
+                found = np.all(np.asarray(angles) > min_angle)
+                min_angle -= 1
+
+            hparams["fit"]["views"] = views
+        else:
+            if not hparams["fit"]["intrp_style"] == "iso_live" \
+                    or hparams["fit"]["noise_mode"] == "pre_added":
+                logger("[Note] Pre-adding noise to views (SD: %s)" %
+                       hparams["fit"]["noise_sd"])
+                # Apply noise to views
+                from MultiViewUNet.utils import add_noise_to_views
+                hparams["fit"]["views"] = add_noise_to_views(hparams["fit"]["views"],
+                                                             hparams["fit"]["noise_sd"])
+                hparams["fit"]["noise_sd"] = False
+        logger("View SD:     %s" % hparams["fit"].get("noise_sd"))
+
+        # Save views
+        np.savez(os.path.join(base_path, "views"), hparams["fit"]["views"])
+
+        # Plot views
+        from MultiViewUNet.utils.plotting import plot_views
+        plot_views(views, os.path.join(base_path, "views.png"))
+    else:
+        # Fetch views from last session
+        view_path = os.path.join(base_path, "views.npz")
+        hparams["fit"]["views"] = np.load(view_path)["arr_0"]
+
+    # Print views in use
+    logger("Views:       N=%i" % len(hparams["fit"]["views"]))
+    logger("             %s" % ((" " * 13).join([str(v) + "\n" for v in hparams["fit"]["views"]])))
+
+    # Get keras.Sequence generators for training images
+    logger("Preparing views...")
+    train = train_data.get_views(n_classes=hparams["build"]["n_classes"],
+                                 is_validation=False, **hparams["fit"])
+    val = val_data.get_views(n_classes=hparams["build"]["n_classes"],
+                             is_validation=True, **hparams["fit"])
+
+    # Compute class weights if specified, added to hparams
+    compute_class_weights(train_data, hparams)
+    logger("Class weights: %s" % hparams["fit"].get("class_weights"))
+    logger("Class counts: %s" % hparams["fit"].get("class_counts"))
+
+    return train, val, hparams
+
+
+def prepare_for_3d_unet(hparams, just_one=False, no_val=False, logger=None,
+                        continue_training=None, base_path="./"):
+
+    # Load the data
+    train_data, val_data, logger, auditor = _base_loader_func(hparams, just_one, no_val, logger, "3d")
+
+    # Get 3D patch sequence generators
+    train = train_data.get_views(n_classes=hparams["build"]["n_classes"],
+                                 **hparams["fit"])
+    val = val_data.get_views(n_classes=hparams["build"]["n_classes"],
+                             is_validation=True, **hparams["fit"])
+
+    # Compute class weights if specified, added to hparams
+    compute_class_weights(train_data, hparams)
+    logger("Class weights: %s" % hparams["fit"].get("class_weights"))
+    logger("Class counts: %s" % hparams["fit"].get("class_counts"))
+
+    return train, val, hparams
