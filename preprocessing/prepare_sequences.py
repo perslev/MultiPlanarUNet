@@ -1,4 +1,5 @@
 from MultiViewUNet.logging import ScreenLogger
+from MultiViewUNet.image import ImagePairLoader
 from MultiViewUNet.image.auditor import Auditor
 import numpy as np
 import os
@@ -9,7 +10,9 @@ A collection of functions that prepares data for feeding to various models in
 the MultiViewUNet.models packages. All functions should follow the following
 specification:
 
-f(hparams, just_one, logger, base_path), return train, val, hparams
+f(hparams, just_one, no_val, logger, mtype, base_path), 
+--> return train, val, hparams
+See function docstrings for further description 
 
 and return an object of type keras.Sequence feeding valid train and validation
 inputs to the model. Should also return the hparams object for clarity.
@@ -17,9 +20,37 @@ inputs to the model. Should also return the hparams object for clarity.
 
 
 def _base_loader_func(hparams, just_one, no_val, logger, mtype):
-    from MultiViewUNet.image import ImagePairLoader
+    """
+    Base loader function used for all models. This function performs a series
+    of actions:
 
-    # Get logger
+    1) Loads train, val and test data according to hparams
+    2) Performs a hparam audit on the training + validation images
+    3) If any audited parameters were not manually specified, updates the
+       hparams dict with the audited values and updates the YAML file on disk
+    4) If just_one, discards all but the first training and validation images
+    5) Initializes a ImageQueue object on the training and validation data
+       if needed.
+
+    Args:
+        hparams:   A MultiViewUNet.train.YAMLHParams object
+        just_one:  A bool specifying whether to keep only the first train and
+                   validation samples (for quick testing purposes)
+        no_val:    A bool specifying whether to omit validation data entirely
+                   Note: This setting applies even if validation data is
+                   specified in the YAMLHparams object
+        logger:    A MultiViewUNet.logger object
+        mtype:     A string identifier for the dimensionality of the model,
+                   currently either '2d' or '3d' (upper/lower ignored)
+
+    Returns:
+        train_data: An ImagePairLoader object storing the training images
+        val_data:   An ImagePairLoader object storing the validation images, or
+                    an 'empty' ImagePairLoader storing no images if no_val=True
+        logger:     The passed logger object or a ScreenLogger object
+        auditor:    An auditor object storing statistics on the training data
+    """
+    # Get basic ScreenLogger if no logger is passed
     logger = logger or ScreenLogger()
 
     # Get data loaders
