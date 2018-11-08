@@ -38,6 +38,7 @@ def get_argparser():
     parser.add_argument("--wait_for", type=str, default="",
                         help="Waiting for PID to terminate before starting "
                              "training process.")
+    parser.add_argument("--dice_weight", type=str, default="Simple")
     return parser
 
 
@@ -87,6 +88,7 @@ if __name__ == "__main__":
     continue_training = args["continue_training"]
     eval_prob = args["eval_prob"]
     await_PID = args["wait_for"]
+    dice_weight = args["dice_weight"]
     print("Fitting fusion model for project-folder: %s" % basedir)
 
     # Wait for PID?
@@ -177,6 +179,7 @@ if __name__ == "__main__":
     # Define fusion model (named 'org' to store reference to orgiginal model if
     # multi gpu model is created below)
     fusion_model_org = FusionModel(n_inputs=len(views), n_classes=n_classes,
+                                   weight=dice_weight,
                                    logger=logger, verbose=False)
 
     # from MultiViewUNet.utils.utils import set_bias_weights
