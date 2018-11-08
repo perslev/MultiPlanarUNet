@@ -1,5 +1,4 @@
 from MultiViewUNet.logging import ScreenLogger
-from MultiViewUNet.image import ImagePairLoader
 from MultiViewUNet.image.auditor import Auditor
 import numpy as np
 import os
@@ -50,6 +49,8 @@ def _base_loader_func(hparams, just_one, no_val, logger, mtype):
         logger:     The passed logger object or a ScreenLogger object
         auditor:    An auditor object storing statistics on the training data
     """
+    from MultiViewUNet.image import ImagePairLoader
+
     # Get basic ScreenLogger if no logger is passed
     logger = logger or ScreenLogger()
 
