@@ -43,14 +43,15 @@ class FusionLayer(Layer):
 
 
 class FusionModel(Model):
-    def __init__(self, n_inputs, n_classes, logger=None, verbose=True):
+    def __init__(self, n_inputs, n_classes, weight="Simple", logger=None,
+                 verbose=True):
 
         # Set Logger object
         self.logger = logger or ScreenLogger()
 
         # Set loss
-        self.loss = GeneralizedDiceLoss(n_classes, "Simple", logger=logger,
-                                        sparse=True)
+        self.loss = GeneralizedDiceLoss(n_classes, type_weight=weight,
+                                        logger=logger, sparse=True)
 
         # Init model
         super().__init__(*self.init_model(n_inputs, n_classes))
