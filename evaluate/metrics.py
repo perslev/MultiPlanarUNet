@@ -23,7 +23,7 @@ def dice(y_true, y_pred, smooth=1.0):
 
 
 def dice_all(y_true, y_pred, smooth=1.0, n_classes=None, ignore_zero=True,
-             skip_if_no_y=True):
+             skip_if_no_y=False):
     """
     Calculates the Soerensen dice coefficients for all unique classes
     """
