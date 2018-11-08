@@ -11,7 +11,7 @@ def get_free_gpus():
     try:
         output = check_output(["nvidia-smi"], universal_newlines=True)
         gpus = np.array(re.findall(r"[|][ ]{1,5}(\d)[ ]{1,5}", output))
-        free = list(map(lambda x: int(x) is 0, re.findall(r"(\d)+MiB[ ]?\/[ ]?\d+MiB", output)))
+        free = list(map(lambda x: int(x) is 0, re.findall(r"(\d+)MiB[ ]?\/[ ]?\d+MiB", output)))
         return list(gpus[free])
     except FileNotFoundError as e:
         print("[ERROR] nvidia-smi is not installed.")
