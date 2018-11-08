@@ -214,11 +214,11 @@ class GeneralizedDiceLoss(object):
         intersect = tf.reduce_sum(one_hot * prediction, axis=0, keepdims=True)
         seg_vol = tf.reduce_sum(prediction, axis=0, keepdims=True)
 
-        if self.type_weight == 'Square':
+        if self.type_weight.lower() == 'square':
             weights = tf.reciprocal(tf.square(ref_vol))
-        elif self.type_weight == 'Simple':
+        elif self.type_weight.lower() == 'simple':
             weights = tf.reciprocal(ref_vol)
-        elif self.type_weight == 'Uniform':
+        elif self.type_weight.lower() == 'uniform':
             weights = tf.ones_like(ref_vol)
         else:
             raise ValueError("The variable type_weight \"{}\""
