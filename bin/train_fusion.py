@@ -143,7 +143,7 @@ if __name__ == "__main__":
         exit(0)
 
     # Load validation data
-    images = ImagePairLoader(**hparams["val_data"])
+    images = ImagePairLoader(**hparams["val_data"], logger=logger)
     is_validation = {m.id: True for m in images}
 
     # Define random sets of images to train on simul. (cant be all due
@@ -156,7 +156,7 @@ if __name__ == "__main__":
         logger("Adding %i training images to set" % diff)
 
         # Load the training data and pick diff images
-        train = ImagePairLoader(**hparams["train_data"])
+        train = ImagePairLoader(**hparams["train_data"], logger=logger)
         indx = np.random.choice(np.arange(len(train)), diff, replace=diff > len(train))
 
         # Add the images to the image set set
