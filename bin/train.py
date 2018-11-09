@@ -67,15 +67,8 @@ def get_preprocessing_func(model):
         raise ValueError("Unsupported model type '%s'" % model)
 
 
-def run(base_path, gpu_mon, num_GPUs):
-    # Extract command line settings
-    continue_training = args["continue_training"]
-    force_gpu = args["force_GPU"]
-    just_one = args["just_one"]
-    no_val = args["no_val"]
-    no_im = args["no_images"]
-    debug = args["debug"]
-    await_PID = args["wait_for"]
+def run(base_path, gpu_mon, num_GPUs, continue_training, force_GPU, just_one,
+        no_val, no_images, debug, wait_for, **kwargs):
 
     from MultiViewUNet.train import Trainer, YAMLHParams
     from MultiViewUNet.models import model_initializer
@@ -85,9 +78,9 @@ def run(base_path, gpu_mon, num_GPUs):
     validate_hparams(hparams)
 
     # Wait for PID?
-    if await_PID:
+    if wait_for:
         from MultiViewUNet.utils import await_PIDs
-        await_PIDs(await_PID)
+        await_PIDs(wait_for)
 
     # Prepare Sequence generators and potential model specific hparam changes
     f = get_preprocessing_func(hparams["build"].get("model_class_name"))
@@ -97,11 +90,11 @@ def run(base_path, gpu_mon, num_GPUs):
 
     if gpu_mon:
         # Wait for free GPU
-        if not force_gpu:
+        if not force_GPU:
             gpu_mon.await_and_set_free_GPU(N=num_GPUs, sleep_seconds=120)
         else:
-            gpu_mon.set_GPUs = force_gpu
-            num_GPUs = len(force_gpu.split(","))
+            gpu_mon.set_GPUs = force_GPU
+            num_GPUs = len(force_GPU.split(","))
         gpu_mon.stop()
 
     # Build new model (or continue training an existing one)
@@ -111,7 +104,7 @@ def run(base_path, gpu_mon, num_GPUs):
     # Initialize weights in final layer?
     # This will bias the softmax output layer to output class confidences
     # equal to the class frequency
-    if hparams["build"].get("biased_output_layer"):
+    if not continue_training and hparams["build"].get("biased_output_layer"):
         from MultiViewUNet.utils.utils import set_bias_weights
         set_bias_weights(layer=org_model.layers[-1],
                          train_loader=train.image_pair_loader,
@@ -142,7 +135,7 @@ def run(base_path, gpu_mon, num_GPUs):
         k.set_session(tfdbg.LocalCLIDebugWrapperSession(k.get_session()))
 
     # Fit the model
-    _ = trainer.fit(train, val, hparams=hparams, no_im=no_im, **hparams["fit"])
+    _ = trainer.fit(train, val, hparams=hparams, no_im=no_images, **hparams["fit"])
 
     # Save final model weights (usually not used, but maybe....?)
     if not os.path.exists("%s/model" % base_path):
@@ -155,12 +148,25 @@ def run(base_path, gpu_mon, num_GPUs):
     from MultiViewUNet.utils.plotting import plot_training_curves
     try:
         plot_training_curves(os.path.join(base_path, "logs", "training.csv"),
-                             os.path.join(base_path, "logs",
-                                          "learning_curve.png"),
+                             os.path.join(base_path, "logs", "learning_curve.png"),
                              logy=True)
     except Exception as e:
         logger("Could not plot learning curves due to error:")
         logger(e)
+
+
+def remove_previous_session(base_path):
+    import shutil
+    # Remove old files and directories of logs, images etc if existing
+    paths = [os.path.join(base_path, p) for p in ("images", "logs",
+                                                  "tensorboard", "views.npz",
+                                                  "views.png",
+                                                  "auditor.pickle")]
+    for p in filter(os.path.exists, paths):
+        if os.path.isdir(p):
+            shutil.rmtree(p)
+        else:
+            os.remove(p)
 
 
 if __name__ == "__main__":
@@ -170,33 +176,41 @@ if __name__ == "__main__":
     args = vars(get_argparser().parse_args())
     base_path = os.path.abspath(args["project_dir"])
     overwrite = args["overwrite"]
+    continue_training = args["continue_training"]
     num_GPUs = args["num_GPUs"]
+
+    if continue_training and overwrite:
+        raise ValueError("Cannot both continue training and overwrite the "
+                         "previous training session. Remove the --overwrite "
+                         "flag if trying to continue a previous training "
+                         "session.")
 
     # Check path
     validate_path(base_path)
-    print("Fitting model in path:\n%s" % base_path)
+    if overwrite:
+        remove_previous_session(base_path)
 
     # Define Logger object
     # Also checks if the model in the project folder has already been fit
     from MultiViewUNet.logging import Logger
     try:
-        logger = Logger(base_path, print_to_screen=True, overwrite_existing=overwrite)
+        logger = Logger(base_path, print_to_screen=True,
+                        overwrite_existing=continue_training)
     except OSError:
         print("\n[*] A training session at '%s' already exists."
               "\n    Use the --overwrite flag to overwrite." % base_path)
         sys.exit(0)
+    logger("Fitting model in path:\n%s" % base_path)
 
-    # Import GPUMonitor and start process (forks, therefor called early)
-    from MultiViewUNet.utils.system import GPUMonitor
-
-    # Initialize GPUMonitor in separate fork now before memory builds up
     if num_GPUs >= 0:
+        # Initialize GPUMonitor in separate fork now before memory builds up
+        from MultiViewUNet.utils.system import GPUMonitor
         gpu_mon = GPUMonitor(logger)
     else:
         gpu_mon = None
 
     try:
-        run(base_path, gpu_mon, num_GPUs)
+        run(base_path=base_path, gpu_mon=gpu_mon, **args)
     except Exception as e:
         gpu_mon.stop()
         raise e
