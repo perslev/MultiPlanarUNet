@@ -96,6 +96,29 @@ def get_last_model(model_dir):
         return os.path.join(model_dir, "model_weights.h5"), 0
 
 
+def get_lr_at_epoch(epoch, log_dir):
+    log_path = os.path.join(log_dir, "training.csv")
+    if not os.path.exists(log_path):
+        raise OSError("No training.csv file found at %s" % log_dir)
+    import pandas as pd
+    df = pd.read_csv(log_path)
+    possible_names = ("lr", "LR", "learning_rate", "LearningRate")
+    in_df = [l in df.columns for l in possible_names].index(True)
+    col_name = possible_names[in_df]
+    return float(df[col_name][int(epoch)]), col_name
+
+
+def clear_csv_after_epoch(epoch, csv_file):
+    import pandas as pd
+    df = pd.read_csv(csv_file)
+    # Remove any trailing runs and remove after 'epoch'
+    df = df[np.flatnonzero(df["epoch"] == 0)[-1]:]
+    df = df[:epoch+1]
+    # Save again
+    with open(csv_file, "w") as out_f:
+        out_f.write(df.to_csv(index=False))
+
+
 def set_bias_weights(layer, train_loader, class_counts=None, logger=None):
     if layer.activation.__name__ != "softmax":
         raise ValueError("Setting output layer bias currently only supported "
