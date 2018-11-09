@@ -15,6 +15,7 @@ class IsotrophicLiveViewSequence(Sequence):
 
         # Validation or training batch generator?
         self.is_validation = is_validation
+        self.first_call = True
 
         # Set logger or default print
         self.logger = logger or ScreenLogger()

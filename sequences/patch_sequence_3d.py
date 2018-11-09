@@ -41,6 +41,7 @@ class PatchSequence3D(Sequence):
         # Box dimension and image dim
         self.dim = dim
         self.sparse = sparse
+        self.first_call = True
 
         # Various attributes
         self.n_classes = n_classes
@@ -153,8 +154,11 @@ class PatchSequence3D(Sequence):
         """
         Used by keras.fit_generator to fetch mini-batches during training
         """
-        # Initialize new RNG
-        np.random.seed()
+        if self.first_call:
+            # Initialize new RNG if first call within this process scope
+            # Note this is only required (and only works) for multiprocessing
+            np.random.seed()
+            self.first_call = False
 
         # Store how many slices has fg so far
         has_fg = 0
