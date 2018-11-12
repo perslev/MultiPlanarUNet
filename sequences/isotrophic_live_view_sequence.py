@@ -1,11 +1,11 @@
-from tensorflow.keras.utils import Sequence
+from MultiViewUNet.sequences import BaseSequence
 from MultiViewUNet.utils import get_class_weights as gcw
 from MultiViewUNet.logging import ScreenLogger
 from MultiViewUNet.preprocessing import reshape_add_axis, one_hot_encode_y
 import numpy as np
 
 
-class IsotrophicLiveViewSequence(Sequence):
+class IsotrophicLiveViewSequence(BaseSequence):
     def __init__(self, image_pair_loader, sample_dim, batch_size, n_classes,
                  real_space_span=None, noise_sd=0., force_all_fg="auto",
                  fg_batch_fraction=0.50, label_crop=None, logger=None,
@@ -15,7 +15,6 @@ class IsotrophicLiveViewSequence(Sequence):
 
         # Validation or training batch generator?
         self.is_validation = is_validation
-        self.first_call = True
 
         # Set logger or default print
         self.logger = logger or ScreenLogger()

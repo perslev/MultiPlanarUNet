@@ -96,11 +96,8 @@ class IsotrophicLiveViewSequence3D(IsotrophicLiveViewSequence):
         """
         Used by keras.fit_generator to fetch mini-batches during training
         """
-        if self.first_call:
-            # Initialize new RNG if first call within this process scope
-            # Note this is only required (and only works) for multiprocessing
-            np.random.seed()
-            self.first_call = False
+        # If multiprocessing, set unique seed for this particular process
+        self.seed()
 
         # Store how many slices has fg so far
         has_fg = 0

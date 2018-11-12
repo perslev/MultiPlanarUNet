@@ -1,4 +1,4 @@
-from tensorflow.keras.utils import Sequence
+from MultiViewUNet.sequences import BaseSequence
 from MultiViewUNet.preprocessing import one_hot_encode_y
 from MultiViewUNet.logging import ScreenLogger
 from MultiViewUNet.interpolation.linalg import mgrid_to_points
@@ -28,7 +28,7 @@ def center_expand(im, target_dim, bg_value, random=True):
     return cim
 
 
-class PatchSequence3D(Sequence):
+class PatchSequence3D(BaseSequence):
     def __init__(self, image_pair_loader, dim, n_classes, batch_size, is_validation=False,
                  label_crop=None, fg_batch_fraction=0.33, logger=None, bg_val=0.,
                  sparse=False, no_log=False, **kwargs):
@@ -41,7 +41,6 @@ class PatchSequence3D(Sequence):
         # Box dimension and image dim
         self.dim = dim
         self.sparse = sparse
-        self.first_call = True
 
         # Various attributes
         self.n_classes = n_classes
@@ -154,11 +153,8 @@ class PatchSequence3D(Sequence):
         """
         Used by keras.fit_generator to fetch mini-batches during training
         """
-        if self.first_call:
-            # Initialize new RNG if first call within this process scope
-            # Note this is only required (and only works) for multiprocessing
-            np.random.seed()
-            self.first_call = False
+        # If multiprocessing, set unique seed for this particular process
+        self.seed()
 
         # Store how many slices has fg so far
         has_fg = 0
