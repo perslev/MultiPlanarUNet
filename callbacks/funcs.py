@@ -22,7 +22,7 @@ def init_callback_objects(callbacks, logger):
 
     cb_objs = []
     cb_dict = {}
-    for callback in callbacks:
+    for i, callback in enumerate(callbacks):
         if not isinstance(callback, dict):
             # CB already initialized
             cb = callback
@@ -33,6 +33,8 @@ def init_callback_objects(callbacks, logger):
             kwargs = callback["kwargs"]
             cls_name = callback["class_name"]
             start_from = callback.get("start_from")
+            if callback.get("pass_logger"):
+                kwargs["logger"] = logger
             if cls_name in dir(tfcb):
                 cb = tfcb.__dict__[cls_name](**kwargs)
             elif cls_name in dir(tcb):
@@ -48,7 +50,7 @@ def init_callback_objects(callbacks, logger):
 
         cb_objs.append(cb)
         cb_dict[cls_name] = cb
-        logger("[*] Using callback: %s(%s)" % (cb.__class__.__name__,
-                                               ", ".join(["%s=%s" % (a, kwargs[a]) for a in kwargs])))
+        logger("[%i] Using callback: %s(%s)" % (i+1, cb.__class__.__name__,
+                                                ", ".join(["%s=%s" % (a, kwargs[a]) for a in kwargs])))
 
     return cb_objs, cb_dict

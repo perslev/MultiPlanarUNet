@@ -9,6 +9,7 @@ from MultiViewUNet.utils.plotting import imshow_with_label_overlay, imshow
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor
 
 
@@ -57,6 +58,57 @@ class DelayedCallback(object):
             self.logger("[%s] Not active at epoch %i - will be at %i" %
                         (self.callback.__class__.__name__,
                          epoch+1, self.start_from))
+
+
+class TrainTimer(Callback):
+    """
+    Appends train timing information to the log.
+    If called prior to tf.keras.callbacks.CSVLogger this information will
+    be written to disk.
+    """
+    def __init__(self, logger=None, verbose=1):
+        super().__init__()
+        self.logger = logger or ScreenLogger()
+        self.verbose = bool(verbose)
+
+        # Timing attributes
+        self.train_begin_time = None
+        self.prev_epoch_time = None
+
+    @staticmethod
+    def parse_dtime(tdelta, fmt):
+        # https://stackoverflow.com/questions/8906926/
+        # formatting-python-timedelta-objects/17847006
+        d = {"days": tdelta.days}
+        d["hours"], rem = divmod(tdelta.seconds, 3600)
+        d["minutes"], d["seconds"] = divmod(rem, 60)
+        return fmt.format(**d)
+
+    def on_train_begin(self, logs=None):
+        self.train_begin_time = datetime.now()
+
+    def on_epoch_begin(self, epoch, logs=None):
+        self.prev_epoch_time = datetime.now()
+
+    def on_epoch_end(self, epoch, logs=None):
+        # Compute epoch execution time
+        end_time = datetime.now()
+        epoch_min = (end_time - self.prev_epoch_time).seconds / 60.0
+        train_time = end_time - self.train_begin_time
+
+        # Update attributes
+        self.prev_epoch_time = end_time
+
+        # Add to logs
+        logs["epochMin"] = "{:.3s}".format(str(epoch_min))
+        logs["trainTime"] = self.parse_dtime(train_time,
+                                             "{days:02}d:{hours:02}h:"
+                                             "{minutes:02}m:{seconds:02}s")
+
+        if self.verbose:
+            self.logger("[TrainTimer] Epoch time: %s minutes "
+                        "- Total train time: %s"
+                        % (logs["epochMin"], logs["trainTime"]))
 
 
 class FGBatchBalancer(Callback):

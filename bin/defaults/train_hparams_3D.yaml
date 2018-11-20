@@ -31,6 +31,13 @@ __CB_es: &ES
   class_name: "EarlyStopping"
   kwargs: {monitor: 'val_dice', min_delta: 0, patience: 15, verbose: 1 , mode: 'max'}
 
+__CB_timer: &TIMER
+  # Train timer callback
+  nickname: "timer"
+  class_name: "TrainTimer"
+  pass_logger: True
+  kwargs: {verbose: True}
+
 __CB_csv: &CSV
   # keras.CSVLogger
   nickname: "csv"
@@ -106,7 +113,7 @@ fit: &FIT
   # Leave empty or delete entirely if not
   augmenters: [
   {cls_name: "Elastic3D",
-   kwargs: {alpha: [100, 450], sigma: [20, 30], apply_prob: 0.333}}
+   kwargs: {alpha: [0, 450], sigma: [12, 25], apply_prob: 0.333}}
   ]
 
   # Loss function
@@ -133,4 +140,4 @@ fit: &FIT
   scaler: "RobustScaler"
 
   # Callbacks
-  callbacks: [*RLOP, *TB, *MCP_CLEAN, *ES, *CSV]
+  callbacks: [*RLOP, *TB, *MCP_CLEAN, *ES, *TIMER, *CSV]
