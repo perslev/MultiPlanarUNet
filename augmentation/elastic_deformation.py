@@ -36,9 +36,6 @@ def elastic_transform_2d(image, labels, alpha, sigma, bg_val=0.0):
                                                  bounds_error=False,
                                                  fill_value=bg_val,
                                                  dtype=np.float32))
-    lab_intrp = RegularGridInterpolator(coords, labels, method="nearest",
-                                        bounds_error=False, fill_value=0,
-                                        dtype=np.uint8)
 
     # Get random elastic deformations
     dx = gaussian_filter((np.random.rand(*shape) * 2 - 1), sigma,
@@ -57,7 +54,14 @@ def elastic_transform_2d(image, labels, alpha, sigma, bg_val=0.0):
         image[..., i] = intrp(indices).reshape(shape)
 
     # Interpolate labels
-    labels = lab_intrp(indices).reshape(shape).astype(labels.dtype)
+    if labels is not None:
+        lab_intrp = RegularGridInterpolator(coords, labels,
+                                            method="nearest",
+                                            bounds_error=False,
+                                            fill_value=0,
+                                            dtype=np.uint8)
+
+        labels = lab_intrp(indices).reshape(shape).astype(labels.dtype)
 
     # Interpolate and return in image shape
     return image, labels
@@ -97,10 +101,6 @@ def elastic_transform_3d(image, labels, alpha, sigma, bg_val=0.0):
                                                  fill_value=bg_val,
                                                  dtype=np.float32))
 
-    lab_intrp = RegularGridInterpolator(coords, labels, method="nearest",
-                                        bounds_error=False, fill_value=0,
-                                        dtype=np.uint8)
-
     # Get random elastic deformations
     dx = gaussian_filter((np.random.rand(*shape) * 2 - 1), sigma,
                          mode="constant", cval=0.) * alpha
@@ -121,7 +121,14 @@ def elastic_transform_3d(image, labels, alpha, sigma, bg_val=0.0):
         image[..., i] = intrp(indices).reshape(shape)
 
     # Interpolate labels
-    labels = lab_intrp(indices).reshape(shape)
+    if labels is not None:
+        lab_intrp = RegularGridInterpolator(coords, labels,
+                                            method="nearest",
+                                            bounds_error=False,
+                                            fill_value=0,
+                                            dtype=np.uint8)
+
+        labels = lab_intrp(indices).reshape(shape).astype(labels.dtype)
 
     # Interpolate and return in image shape
     return image, labels
