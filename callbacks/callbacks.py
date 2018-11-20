@@ -93,22 +93,24 @@ class TrainTimer(Callback):
     def on_epoch_end(self, epoch, logs=None):
         # Compute epoch execution time
         end_time = datetime.now()
-        epoch_min = (end_time - self.prev_epoch_time).seconds / 60.0
+        epoch_time = end_time - self.prev_epoch_time
         train_time = end_time - self.train_begin_time
 
         # Update attributes
         self.prev_epoch_time = end_time
 
         # Add to logs
-        logs["epochMin"] = "{:.3s}".format(str(epoch_min))
-        logs["trainTime"] = self.parse_dtime(train_time,
-                                             "{days:02}d:{hours:02}h:"
-                                             "{minutes:02}m:{seconds:02}s")
+        logs["trainTimeEpoch"] = self.parse_dtime(epoch_time,
+                                                  "{days:02}d:{hours:02}h:"
+                                                  "{minutes:02}m:{seconds:02}s")
+        logs["trainTimeTotal"] = self.parse_dtime(train_time,
+                                                  "{days:02}d:{hours:02}h:"
+                                                  "{minutes:02}m:{seconds:02}s")
 
         if self.verbose:
-            self.logger("[TrainTimer] Epoch time: %s minutes "
+            self.logger("[TrainTimer] Epoch time: %.1f minutes "
                         "- Total train time: %s"
-                        % (logs["epochMin"], logs["trainTime"]))
+                        % (epoch_time.total_seconds()/60, logs["trainTime"]))
 
 
 class FGBatchBalancer(Callback):
