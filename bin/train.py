@@ -60,7 +60,7 @@ def get_preprocessing_func(model):
     if model in ("UNet", "AutofocusUNet2D"):
         from MultiViewUNet.preprocessing import prepare_for_multi_view_unet
         return prepare_for_multi_view_unet
-    elif model in ("UNet3D", "STUNet3D", "AutofocusUNet3D"):
+    elif model in ("UNet3D", "STUNet3D", "AutofocusUNet3D", "PieceWiseSTUNet3D"):
         from MultiViewUNet.preprocessing import prepare_for_3d_unet
         return prepare_for_3d_unet
     else:
