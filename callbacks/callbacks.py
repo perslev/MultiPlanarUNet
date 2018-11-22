@@ -9,7 +9,7 @@ from MultiViewUNet.utils.plotting import imshow_with_label_overlay, imshow
 import numpy as np
 import os
 import matplotlib.pyplot as plt
-from datetime import datetime, timedelta
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
 
@@ -110,7 +110,8 @@ class TrainTimer(Callback):
         if self.verbose:
             self.logger("[TrainTimer] Epoch time: %.1f minutes "
                         "- Total train time: %s"
-                        % (epoch_time.total_seconds()/60, logs["trainTime"]))
+                        % (epoch_time.total_seconds()/60,
+                           logs["trainTimeTotal"]))
 
 
 class FGBatchBalancer(Callback):
