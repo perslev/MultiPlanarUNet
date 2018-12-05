@@ -56,22 +56,12 @@ def validate_hparams(hparams):
         assert hparams["build"]["out_activation"] == "linear"
 
 
-def get_preprocessing_func(model):
-    if model in ("UNet", "AutofocusUNet2D"):
-        from MultiViewUNet.preprocessing import prepare_for_multi_view_unet
-        return prepare_for_multi_view_unet
-    elif model in ("UNet3D", "STUNet3D", "AutofocusUNet3D", "PieceWiseSTUNet3D"):
-        from MultiViewUNet.preprocessing import prepare_for_3d_unet
-        return prepare_for_3d_unet
-    else:
-        raise ValueError("Unsupported model type '%s'" % model)
-
-
 def run(base_path, gpu_mon, num_GPUs, continue_training, force_GPU, just_one,
         no_val, no_images, debug, wait_for, **kwargs):
 
     from MultiViewUNet.train import Trainer, YAMLHParams
     from MultiViewUNet.models import model_initializer
+    from MultiViewUNet.preprocessing import get_preprocessing_func
 
     # Read in hyperparameters from YAML file
     hparams = YAMLHParams(base_path + "/train_hparams.yaml", logger=logger)

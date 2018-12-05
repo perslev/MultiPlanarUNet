@@ -4,6 +4,25 @@ import numpy as np
 import os
 
 
+def get_preprocessing_func(model):
+    """
+    Takes a model name (string) and returns a preparation function.
+
+    Args:
+        model: String representation of a MultiViewUNet.models model class
+
+    Returns:
+        A MultiViewUNet.preprocessing.data_preparation_funcs function
+    """
+    from MultiViewUNet.models import PREPARATION_FUNCS
+    if model in PREPARATION_FUNCS:
+        return PREPARATION_FUNCS[model]
+    else:
+        raise ValueError("Unsupported model type '%s'. "
+                         "Supported models: %s" % (model,
+                                                   PREPARATION_FUNCS.keys()))
+
+
 """
 A collection of functions that prepares data for feeding to various models in
 the MultiViewUNet.models packages. All functions should follow the following
@@ -87,7 +106,7 @@ def _base_loader_func(hparams, just_one, no_val, logger, mtype):
     return train_data, val_data, logger, auditor
 
 
-def compute_class_weights(train_data, hparams):
+def add_class_weights_to_hparams(train_data, hparams):
     if hparams["fit"]["class_weights"] is True:
         # If train data is queued, unload each image after class counting
         unload = bool(train_data.queue)
@@ -176,7 +195,7 @@ def prepare_for_multi_view_unet(hparams, just_one=False, no_val=False,
                              is_validation=True, **hparams["fit"])
 
     # Compute class weights if specified, added to hparams
-    compute_class_weights(train_data, hparams)
+    add_class_weights_to_hparams(train_data, hparams)
     logger("Class weights: %s" % hparams["fit"].get("class_weights"))
     logger("Class counts: %s" % hparams["fit"].get("class_counts"))
 
@@ -196,7 +215,7 @@ def prepare_for_3d_unet(hparams, just_one=False, no_val=False, logger=None,
                              is_validation=True, **hparams["fit"])
 
     # Compute class weights if specified, added to hparams
-    compute_class_weights(train_data, hparams)
+    add_class_weights_to_hparams(train_data, hparams)
     logger("Class weights: %s" % hparams["fit"].get("class_weights"))
     logger("Class counts: %s" % hparams["fit"].get("class_counts"))
 
