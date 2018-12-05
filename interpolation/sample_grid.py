@@ -129,7 +129,7 @@ def get_voxel_grid_real_space(images, append_ones=False):
     return points
 
 
-def get_random_views(N=1, dim=3, norm=np.random.normal, pos_z=True, weights=None):
+def get_random_views(N, dim=3, norm=np.random.normal, pos_z=True, weights=None):
     """
     http://en.wikipedia.org/wiki/N-sphere#Generating_random_points
     """

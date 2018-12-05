@@ -71,10 +71,10 @@ if __name__ == "__main__":
     min_val_images = 15
 
     # Approximate number of images in each sub-split of data
-    sub_size = 20
+    sub_size = 1
 
     # Fusion model training params
-    epochs = 10
+    epochs = 1
     fm_batch_size = 1000000
 
     # Early stopping params

@@ -217,16 +217,6 @@ def get_sample_weights(samples):
     return get_sample_weights_vectorizor(class_weights_dict)(samples)
 
 
-def change_coordinate_system(image, to_original=True):
-    if to_original:
-        image = np.swapaxes(image, 1, 2)
-        image = np.flip(image, -1)
-    else:
-        image = np.flip(image, -1)
-        image = np.swapaxes(image, 1, 2)
-    return image
-
-
 def create_folders(folders):
     if isinstance(folders, str):
         if not os.path.exists(folders):

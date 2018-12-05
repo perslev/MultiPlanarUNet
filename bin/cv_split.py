@@ -29,7 +29,7 @@ def get_parser():
                              "in sub-dir 'images' and labels in subdir 'labels"
                              "'. OBS: Augmented images must have identical "
                              "file name to the real image counterpart "
-                             "(leading changes in augmented file name is "
+                             "(leading changes in augmented file name are "
                              "accepted).")
     parser.add_argument("--copy", action="store_true",
                         help="Copy files to CV-subfolders instead of "
