@@ -171,8 +171,8 @@ def entry_func(args=None):
         image = all_images[image_id]
         image_pair_loader.images = [image]
 
-        seq = image_pair_loader.get_views(n_classes=n_classes, no_log=True,
-                                          **hparams["fit"])
+        seq = image_pair_loader.get_sequencer(n_classes=n_classes, no_log=True,
+                                              **hparams["fit"])
 
         if mode.lower() == "iso_live_3d":
             pred = pred_3D_iso(model=unet, sequence=seq, image=image,

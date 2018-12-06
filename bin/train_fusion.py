@@ -245,7 +245,7 @@ def entry_func(args=None):
                 # Load views
                 kwargs = hparams["fit"]
                 kwargs.update(hparams["build"])
-                seq = images.get_views(views=views, **kwargs)
+                seq = images.get_sequencer(views=views, **kwargs)
 
                 # Get voxel grid in real space
                 voxel_grid_real_space = get_voxel_grid_real_space(image)

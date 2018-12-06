@@ -388,7 +388,7 @@ class ImagePairLoader(object):
             # Log basic stats for the image
             image.log_image()
 
-    def get_views(self, intrp_style, is_validation=False, **kwargs):
+    def get_sequencer(self, intrp_style, is_validation=False, **kwargs):
         """
         Prepares the images of the ImagePairLoader for a MultiPlanar.sequence
         object. These generator-like objects pull data from ImagePairs during

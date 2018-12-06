@@ -43,7 +43,7 @@ def predict_single(image, model, hparams, verbose=1):
         kwargs["views"] = np.load(hparams.project_path + "/views.npz")["arr_0"]
 
         # Get sequence object
-        sequence = image_pair_loader.get_views(**kwargs)
+        sequence = image_pair_loader.get_sequencer(**kwargs)
 
         # Get voxel grid in real space
         voxel_grid_real_space = get_voxel_grid_real_space(image)
@@ -69,7 +69,7 @@ def predict_single(image, model, hparams, verbose=1):
                                                     voxel_grid_real_space,
                                                     method="nearest")
     else:
-        predicted = pred_3D_iso(model=model, sequence=image_pair_loader.get_views(**kwargs),
+        predicted = pred_3D_iso(model=model, sequence=image_pair_loader.get_sequencer(**kwargs),
                                 image=image, extra_boxes="3x", min_coverage=None)
 
     # Revert verbose mem

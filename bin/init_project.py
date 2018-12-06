@@ -15,6 +15,7 @@ def copy_yaml_and_set_data_dirs(in_path, out_path, data_dir):
                         line = line.replace("<<BASE_DIR_%s>>" % _type, "Null")
                 out_yaml.write(line)
 
+
 def get_parser():
     parser = ArgumentParser(description='Create a new project folder')
 

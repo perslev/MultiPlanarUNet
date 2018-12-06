@@ -189,10 +189,10 @@ def prepare_for_multi_view_unet(hparams, just_one=False, no_val=False,
 
     # Get keras.Sequence generators for training images
     logger("Preparing views...")
-    train = train_data.get_views(n_classes=hparams["build"]["n_classes"],
-                                 is_validation=False, **hparams["fit"])
-    val = val_data.get_views(n_classes=hparams["build"]["n_classes"],
-                             is_validation=True, **hparams["fit"])
+    train = train_data.get_sequencer(n_classes=hparams["build"]["n_classes"],
+                                     is_validation=False, **hparams["fit"])
+    val = val_data.get_sequencer(n_classes=hparams["build"]["n_classes"],
+                                 is_validation=True, **hparams["fit"])
 
     # Compute class weights if specified, added to hparams
     add_class_weights_to_hparams(train_data, hparams)
@@ -209,10 +209,10 @@ def prepare_for_3d_unet(hparams, just_one=False, no_val=False, logger=None,
     train_data, val_data, logger, auditor = _base_loader_func(hparams, just_one, no_val, logger, "3d")
 
     # Get 3D patch sequence generators
-    train = train_data.get_views(n_classes=hparams["build"]["n_classes"],
-                                 **hparams["fit"])
-    val = val_data.get_views(n_classes=hparams["build"]["n_classes"],
-                             is_validation=True, **hparams["fit"])
+    train = train_data.get_sequencer(n_classes=hparams["build"]["n_classes"],
+                                     **hparams["fit"])
+    val = val_data.get_sequencer(n_classes=hparams["build"]["n_classes"],
+                                 is_validation=True, **hparams["fit"])
 
     # Compute class weights if specified, added to hparams
     add_class_weights_to_hparams(train_data, hparams)
