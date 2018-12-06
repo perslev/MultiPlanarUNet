@@ -97,6 +97,10 @@ file named ```train_hparams.yaml```, which stores all hyperparameters. Any
 parameter in this file may be specified manually, but can all be set 
 automatically.
 
+**NOTE:** By default the ```init_project``` prepares a Multi Planar model. 
+However, note that a 3D model is also supported, which can be selected by 
+specifying the ```--model=3D``` flag (default=```---model=MultiPlanar```).
+
 **Training**\
 The model can now be trained as follows:
 
