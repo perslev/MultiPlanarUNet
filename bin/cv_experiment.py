@@ -169,10 +169,9 @@ def run_sub_experiment(split_dir, out_dir, script, hparams, GPUs, GPU_queue, loc
     GPU_queue.put(GPUs)
 
 
-if __name__ == "__main__":
-
+def entry_func(args=None):
     # Get parser
-    parser = vars(get_parser().parse_args())
+    parser = vars(get_parser().parse_args(args))
 
     # Get parser arguments
     cv_dir = os.path.abspath(parser["CV_dir"])
@@ -239,3 +238,7 @@ if __name__ == "__main__":
         stop_event.set()
     for t in procs:
         t.join()
+
+
+if __name__ == "__main__":
+    entry_func()

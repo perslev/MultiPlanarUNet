@@ -111,10 +111,10 @@ def save_nii_files(combined, image, nii_res_dir, save_only_pred):
         nib.save(nii, "%s/%s" % (p, fname))
 
 
-if __name__ == "__main__":
+def entry_func(args=None):
 
     # Get command line arguments
-    args = vars(get_argparser().parse_args())
+    args = vars(get_argparser().parse_args(args))
     base_dir = os.path.abspath(args["project_dir"])
     analytical = args["analytical"]
     majority = args["majority"]
@@ -395,3 +395,7 @@ if __name__ == "__main__":
     if not predict_mode:
         # Write final results
         save_all(results, detailed_res, out_dir)
+
+
+if __name__ == "__main__":
+    entry_func()

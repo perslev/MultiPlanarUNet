@@ -30,9 +30,9 @@ def get_argparser():
     return parser
 
 
-def validate_path(path):
-    if not os.path.exists(path) or \
-            not os.path.exists(os.path.join(path, "train_hparams.yaml")):
+def validate_path(base_path):
+    if not os.path.exists(base_path) or \
+            not os.path.exists(os.path.join(base_path, "train_hparams.yaml")):
         print("Path: %s is not a valid project folder.\n"
               "Make sure the folder exists and contains a "
               "'train_hparams.yaml' file." % base_path)
@@ -57,7 +57,7 @@ def validate_hparams(hparams):
 
 
 def run(base_path, gpu_mon, num_GPUs, continue_training, force_GPU, just_one,
-        no_val, no_images, debug, wait_for, **kwargs):
+        no_val, no_images, debug, wait_for, logger, **kwargs):
 
     from MultiViewUNet.train import Trainer, YAMLHParams
     from MultiViewUNet.models import model_initializer
@@ -159,11 +159,10 @@ def remove_previous_session(base_path):
             os.remove(p)
 
 
-if __name__ == "__main__":
-
+def entry_func(args=None):
     # Get settings
     # Project base path etc.
-    args = vars(get_argparser().parse_args())
+    args = vars(get_argparser().parse_args(args))
     base_path = os.path.abspath(args["project_dir"])
     overwrite = args["overwrite"]
     continue_training = args["continue_training"]
@@ -200,7 +199,11 @@ if __name__ == "__main__":
         gpu_mon = None
 
     try:
-        run(base_path=base_path, gpu_mon=gpu_mon, **args)
+        run(base_path=base_path, gpu_mon=gpu_mon, logger=logger, **args)
     except Exception as e:
         gpu_mon.stop()
         raise e
+
+
+if __name__ == "__main__":
+    entry_func()

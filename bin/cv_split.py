@@ -125,10 +125,10 @@ def _add_to_file_list_fallback(rel_image_path, image_path,
         out_f.write(abs_file_path + "\n")
 
 
-if __name__ == "__main__":
+def entry_func(args=None):
 
     # Get parser
-    parser = vars(get_parser().parse_args())
+    parser = vars(get_parser().parse_args(args))
 
     # Get arguments
     data_dir = os.path.abspath(parser["data_dir"])
@@ -271,3 +271,7 @@ if __name__ == "__main__":
             # Add the images
             add_images(augmented, aug_im_path, aug_label_path,
                        aug_im_dir, aug_lab_dir, move_func)
+
+
+if __name__ == "__main__":
+    entry_func()

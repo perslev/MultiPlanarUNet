@@ -15,14 +15,7 @@ def copy_yaml_and_set_data_dirs(in_path, out_path, data_dir):
                         line = line.replace("<<BASE_DIR_%s>>" % _type, "Null")
                 out_yaml.write(line)
 
-
-
-if __name__ == "__main__":
-
-    default_folder = os.path.split(os.path.abspath(__file__))[0] + "/defaults"
-    if not os.path.exists(default_folder):
-        raise OSError("Default path not found at %s" % default_folder)
-
+def get_parser():
     parser = ArgumentParser(description='Create a new project folder')
 
     # Define groups
@@ -41,8 +34,18 @@ if __name__ == "__main__":
     optional.add_argument("--data_dir", type=str, default=None,
                           help="Root data folder for the project")
 
+    return parser
+
+
+def entry_func(args=None):
+
+    default_folder = os.path.split(os.path.abspath(__file__))[0] + "/defaults"
+    if not os.path.exists(default_folder):
+        raise OSError("Default path not found at %s" % default_folder)
+
     # Parse arguments
-    args = vars(parser.parse_args())
+    parser = get_parser()
+    args = vars(parser.parse_args(args))
     path = os.path.abspath(args["root"])
     name = args["name"]
     preset = args["model"]
@@ -68,3 +71,7 @@ if __name__ == "__main__":
     copy_yaml_and_set_data_dirs(in_path=default_folder + "/%s.yaml" % yaml_path,
                                 out_path="%s/train_hparams.yaml" % folder_path,
                                 data_dir=data_dir)
+
+
+if __name__ == "__main__":
+    entry_func()

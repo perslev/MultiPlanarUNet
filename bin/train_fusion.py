@@ -42,7 +42,7 @@ def get_argparser():
     return parser
 
 
-def log():
+def log(logger, hparams, views, weights, fusion_weights):
     logger("N classes:       %s" % hparams["build"].get("n_classes"))
     logger("Scaler:          %s" % hparams["fit"].get("scaler"))
     logger("Crop:            %s" % hparams["fit"].get("crop_to"))
@@ -65,7 +65,7 @@ def make_sets(images, sub_size, N):
     return sets
 
 
-if __name__ == "__main__":
+def entry_func(args=None):
 
     # Minimum images in validation set before also using training images
     min_val_images = 15
@@ -82,7 +82,7 @@ if __name__ == "__main__":
     improve_delta = 0.0
 
     # Project base path
-    args = vars(get_argparser().parse_args())
+    args = vars(get_argparser().parse_args(args))
     basedir = os.path.abspath(args["project_dir"])
     overwrite = args["overwrite"]
     continue_training = args["continue_training"]
@@ -133,7 +133,7 @@ if __name__ == "__main__":
     create_folders(os.path.split(fusion_weights)[0])
 
     # Log a few things
-    log()
+    log(logger, hparams, views, weights, fusion_weights)
 
     # Check if exists already...
     if not overwrite and os.path.exists(fusion_weights):
@@ -355,3 +355,7 @@ if __name__ == "__main__":
         # Save fusion model weights
         # OBS: Must be original model if multi-gpu is performed!
         fusion_model_org.save_weights(fusion_weights)
+
+
+if __name__ == "__main__":
+    entry_func()

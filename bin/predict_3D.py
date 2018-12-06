@@ -64,10 +64,10 @@ def validate_folders(base_dir, data_dir, out_dir, overwrite):
         os.mkdir(out_dir)
 
 
-if __name__ == "__main__":
+def entry_func(args=None):
 
     # Get command line arguments
-    args = vars(get_argparser().parse_args())
+    args = vars(get_argparser().parse_args(args))
     base_dir = os.path.abspath(args["project_dir"])
     _file = args["f"]
     label = args["l"]
@@ -215,3 +215,7 @@ if __name__ == "__main__":
     if not predict_mode:
         # Write final results
         save_all_3D(results, detailed_res, out_dir)
+
+
+if __name__ == "__main__":
+    entry_func()
