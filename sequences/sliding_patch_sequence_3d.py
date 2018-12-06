@@ -1,5 +1,5 @@
 from . import PatchSequence3D
-from MultiViewUNet.interpolation.linalg import mgrid_to_points
+from MultiPlanarUNet.interpolation.linalg import mgrid_to_points
 import numpy as np
 
 

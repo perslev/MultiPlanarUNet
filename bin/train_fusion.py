@@ -1,15 +1,15 @@
-from MultiViewUNet.image import ImagePairLoader
-from MultiViewUNet.models import UNet, FusionModel
-from MultiViewUNet.train import YAMLHParams
-from MultiViewUNet.utils import await_and_set_free_gpu, get_best_model, \
+from MultiPlanarUNet.image import ImagePairLoader
+from MultiPlanarUNet.models import UNet, FusionModel
+from MultiPlanarUNet.train import YAMLHParams
+from MultiPlanarUNet.utils import await_and_set_free_gpu, get_best_model, \
                                 create_folders, highlighted, set_gpu
-from MultiViewUNet.utils.fusion import predict_volume, map_real_space_pred
-from MultiViewUNet.interpolation.sample_grid import get_voxel_grid_real_space
-from MultiViewUNet.logging import Logger
-from MultiViewUNet.evaluate import dice_all
-from MultiViewUNet.callbacks import ValDiceScores, PrintLayerWeights
+from MultiPlanarUNet.utils.fusion import predict_volume, map_real_space_pred
+from MultiPlanarUNet.interpolation.sample_grid import get_voxel_grid_real_space
+from MultiPlanarUNet.logging import Logger
+from MultiPlanarUNet.evaluate import dice_all
+from MultiPlanarUNet.callbacks import ValDiceScores, PrintLayerWeights
 from tensorflow.keras.optimizers import Adam
-from MultiViewUNet.evaluate.metrics import sparse_fg_precision, sparse_fg_recall
+from MultiPlanarUNet.evaluate.metrics import sparse_fg_precision, sparse_fg_recall
 
 from sklearn.utils import shuffle
 
@@ -23,9 +23,9 @@ import os
 
 def get_argparser():
     parser = ArgumentParser(description='Fit the fusion model stage of a '
-                                        'MultiViewUNet project')
+                                        'MultiPlanarUNet project')
     parser.add_argument("--project_dir", type=str, default="./",
-                        help='path to MultiViewUNet project folder')
+                        help='path to MultiPlanarUNet project folder')
     parser.add_argument("--overwrite", action='store_true',
                         help='overwrite previous fusion weights')
     parser.add_argument("--num_GPUs", type=int, default=1,
@@ -93,7 +93,7 @@ def entry_func(args=None):
 
     # Wait for PID?
     if await_PID:
-        from MultiViewUNet.utils import await_PIDs
+        from MultiPlanarUNet.utils import await_PIDs
         await_PIDs(await_PID)
 
     # Fetch GPU(s)
@@ -182,7 +182,7 @@ def entry_func(args=None):
                                    weight=dice_weight,
                                    logger=logger, verbose=False)
 
-    # from MultiViewUNet.utils.utils import set_bias_weights
+    # from MultiPlanarUNet.utils.utils import set_bias_weights
     # set_bias_weights(layer=fusion_model_org.layers[-1],
     #                  train_loader=images,
     #                  class_counts=hparams.get("class_counts"),

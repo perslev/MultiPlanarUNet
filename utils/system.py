@@ -2,8 +2,8 @@ from multiprocessing import Process, Event, Queue
 import time
 import os
 
-from MultiViewUNet.utils.utils import get_free_gpus, _get_free_gpu, set_gpu
-from MultiViewUNet.logging import ScreenLogger
+from MultiPlanarUNet.utils.utils import get_free_gpus, _get_free_gpu, set_gpu
+from MultiPlanarUNet.logging import ScreenLogger
 
 
 class GPUMonitor(Process):

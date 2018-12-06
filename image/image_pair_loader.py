@@ -11,7 +11,7 @@ import os
 import numpy as np
 
 from .image_pair import ImagePair
-from MultiViewUNet.logging import ScreenLogger
+from MultiPlanarUNet.logging import ScreenLogger
 
 
 class ImagePairLoader(object):
@@ -45,7 +45,7 @@ class ImagePairLoader(object):
                                 and 'label_subdir' sub-folders
             img_subdir:         Name of sub-folder storing .nii images files
             label_subdir:       Name of sub-folder storing .nii labels files
-            logger:             MultiViewUNet logger object
+            logger:             MultiPlanarUNet logger object
             sample_weight:      A float giving a global sample weight assigned
                                 to all images loaded by the ImagePairLoader
             predict_mode:       Boolean whether labels exist for the images.
@@ -109,7 +109,7 @@ class ImagePairLoader(object):
         """
         # Set dictionary pointing to images by ID
         if isinstance(max_load, int) and max_load < len(self):
-            from MultiViewUNet.image.image_queue import ImageQueue
+            from MultiPlanarUNet.image.image_queue import ImageQueue
 
             self.logger("OBS: Using max load %i" % max_load)
             self.queue = ImageQueue(max_load, self)
@@ -333,7 +333,7 @@ class ImagePairLoader(object):
         if self.predict_mode:
             raise ValueError("Cannot compute class weights without labels "
                              "(predict_mode=True) set for this ImagePairLoader")
-        from MultiViewUNet.utils import get_class_weights
+        from MultiPlanarUNet.utils import get_class_weights
         return get_class_weights(self, as_array, return_counts, unload)
 
     def get_maximum_real_dim(self):
@@ -344,14 +344,14 @@ class ImagePairLoader(object):
         Returns:
             A float
         """
-        from MultiViewUNet.interpolation.sample_grid import get_maximum_real_dim
+        from MultiPlanarUNet.interpolation.sample_grid import get_maximum_real_dim
         return np.max([get_maximum_real_dim(f.image_obj) for f in self])
 
     def set_normalizer(self, scaler, **kwargs):
         """
         Set and fit a scaler on all stored ImagePair objects.
         The scaler should be a sklearn preprocessing scaler, which will be
-        wrapped by the MultiViewUNet MultiChannelScaler object which will fit
+        wrapped by the MultiPlanarUNet MultiChannelScaler object which will fit
         (and apply when called) the scaler to each channel separately.
 
         Args:
@@ -390,7 +390,7 @@ class ImagePairLoader(object):
 
     def get_views(self, intrp_style, is_validation=False, **kwargs):
         """
-        Prepares the images of the ImagePairLoader for a MultiView.sequence
+        Prepares the images of the ImagePairLoader for a MultiPlanar.sequence
         object. These generator-like objects pull data from ImagePairs during
         training as needed. The sequences are specific to the model type (for
         instance 2D and 3D models have separate sequence classes) and may
@@ -403,7 +403,7 @@ class ImagePairLoader(object):
 
         Note: If the ImagePairLoader is queued with a ImageQueue object, the
         prep functions are not called immediately but by the queue object
-        when needed. See MultiViewUNet.image.image_queue
+        when needed. See MultiPlanarUNet.image.image_queue
 
         Args:
             intrp_style:   String identifier for the interpolation mode
@@ -422,7 +422,7 @@ class ImagePairLoader(object):
             list_of_aug_dicts = kwargs.get("augmenters")
             if list_of_aug_dicts:
                 self.logger("Using on-the-fly augmenters:")
-                from MultiViewUNet.augmentation import augmenters
+                from MultiPlanarUNet.augmentation import augmenters
                 for aug in list_of_aug_dicts:
                     aug_cls = augmenters.__dict__[aug["cls_name"]](**aug["kwargs"])
                     aug_list.append(aug_cls)
@@ -430,7 +430,7 @@ class ImagePairLoader(object):
 
         if intrp_style.lower() == "iso_live":
             # Isotrophic 2D plane sampling
-            from MultiViewUNet.sequences import IsotrophicLiveViewSequence2D
+            from MultiPlanarUNet.sequences import IsotrophicLiveViewSequence2D
 
             if not self.queue:
                 # Prepare and return Iso live view sequence object
@@ -453,7 +453,7 @@ class ImagePairLoader(object):
 
         elif intrp_style.lower() == "iso_live_3d":
             # Isotrophic 3D box sampling
-            from MultiViewUNet.sequences import IsotrophicLiveViewSequence3D
+            from MultiPlanarUNet.sequences import IsotrophicLiveViewSequence3D
 
             if not self.queue:
                 # Prepare and return Iso live view sequence object
@@ -476,7 +476,7 @@ class ImagePairLoader(object):
 
         elif intrp_style.lower() == "patches_3d":
             # Random selection of boxes
-            from MultiViewUNet.sequences import PatchSequence3D
+            from MultiPlanarUNet.sequences import PatchSequence3D
 
             if not self.queue:
                 self.set_normalizer(**kwargs)
@@ -495,7 +495,7 @@ class ImagePairLoader(object):
 
         elif intrp_style.lower() == "sliding_patches_3d":
             # Sliding window selection of boxes
-            from MultiViewUNet.sequences import SlidingPatchSequence3D
+            from MultiPlanarUNet.sequences import SlidingPatchSequence3D
 
             if not self.queue:
                 self.set_normalizer(**kwargs)

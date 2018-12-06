@@ -6,8 +6,8 @@ University of Copenhagen
 November 2017
 """
 
-from MultiViewUNet.logging import ScreenLogger
-from MultiViewUNet.utils.conv_arithmetics import compute_receptive_fields
+from MultiPlanarUNet.logging import ScreenLogger
+from MultiPlanarUNet.utils.conv_arithmetics import compute_receptive_fields
 
 from tensorflow.keras.models import Model
 from tensorflow.keras import regularizers
@@ -58,7 +58,7 @@ class UNet3D(Model):
             3D convolution layer instead of default N.
         l2_reg (float in [0, 1])
             L2 regularization on Conv3D weights
-        logger (MultiViewUNet.logging.Logger | ScreenLogger):
+        logger (MultiPlanarUNet.logging.Logger | ScreenLogger):
             MutliViewUNet.Logger object, logging to files or screen.
         """
         # Set logger or standard print wrapper

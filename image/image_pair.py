@@ -10,10 +10,10 @@ import os
 import numpy as np
 import nibabel as nib
 
-from MultiViewUNet.preprocessing import get_scaler
-from MultiViewUNet.logging import ScreenLogger
-from MultiViewUNet.interpolation.sample_grid import get_real_image_size, get_pix_dim
-from MultiViewUNet.interpolation.view_interpolator import ViewInterpolator
+from MultiPlanarUNet.preprocessing import get_scaler
+from MultiPlanarUNet.logging import ScreenLogger
+from MultiPlanarUNet.interpolation.sample_grid import get_real_image_size, get_pix_dim
+from MultiPlanarUNet.interpolation.view_interpolator import ViewInterpolator
 
 # w2 negative threshold is too strict for this data set
 nib.Nifti1Header.quaternion_threshold = -1e-6
@@ -46,7 +46,7 @@ class ImagePair(object):
                            truth label map exists
             sample_weight: A float value assigning an overall weight to the
                            image/label pair - used by some optimization schemas
-            logger:        A MultiViewUNet logger object writing to screen and
+            logger:        A MultiPlanarUNet logger object writing to screen and
                            /or a logfile on disk
             im_dtype:      A numpy data type that the image will be cast to
             lab_dtype:     A numpy data type that the labels will be cast to
@@ -237,7 +237,7 @@ class ImagePair(object):
     def prepare_for_iso_live(self, bg_value, bg_class, scaler):
         """
         Utility method preparing the ImagePair for usage in the iso_live
-        interpolation mode (see MultiViewUNet.image.ImagePairLoader class).
+        interpolation mode (see MultiPlanarUNet.image.ImagePairLoader class).
 
         Performs the following operations:
             1) Loads the image and labels if not already loaded (transparent)
@@ -351,7 +351,7 @@ class ImagePair(object):
     def set_scaler(self, scaler):
         """
         Sets a scaler on the ImagePair fit to the stored image
-        See MultiViewUNet.preprocessing.scaling
+        See MultiPlanarUNet.preprocessing.scaling
         """
         self.scaler = get_scaler(scaler=scaler).fit(self.image)
 

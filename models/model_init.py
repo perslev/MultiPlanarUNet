@@ -1,9 +1,9 @@
-from MultiViewUNet.logging import ScreenLogger
+from MultiPlanarUNet.logging import ScreenLogger
 import os
 
 
 def init_model(build_hparams, logger):
-    from MultiViewUNet import models
+    from MultiPlanarUNet import models
 
     # Build new model of the specified type
     cls_name = build_hparams["model_class_name"]
@@ -19,7 +19,7 @@ def model_initializer(hparams, continue_training, base_path, logger=None):
     model = init_model(hparams["build"], logger)
 
     if continue_training:
-        from MultiViewUNet.utils import get_last_model, get_lr_at_epoch, \
+        from MultiPlanarUNet.utils import get_last_model, get_lr_at_epoch, \
                                         clear_csv_after_epoch
         model_path, epoch = get_last_model(os.path.join(base_path, "model"))
         model.load_weights(model_path, by_name=True)

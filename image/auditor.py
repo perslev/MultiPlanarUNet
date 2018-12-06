@@ -1,6 +1,6 @@
-from MultiViewUNet.interpolation.sample_grid import get_real_image_size, get_pix_dim
-from MultiViewUNet.utils import highlighted
-from MultiViewUNet.logging import ScreenLogger
+from MultiPlanarUNet.interpolation.sample_grid import get_real_image_size, get_pix_dim
+from MultiPlanarUNet.utils import highlighted
+from MultiPlanarUNet.logging import ScreenLogger
 import nibabel as nib
 import numpy as np
 
@@ -31,8 +31,8 @@ class Auditor(object):
     See paper for a description of how the heuristic define those parameters
 
     ------
-    NOTE: This class allows for fully autonomous use of the 2D MultiViewUnet
-    and 3D UNet models when used with the MultiViewUNet.bin scrips.
+    NOTE: This class allows for fully autonomous use of the 2D MultiPlanarUNet
+    and 3D UNet models when used with the MultiPlanarUNet.bin scrips.
 
     NOTE: The heuristic is not guaranteed to be optimal for all problems.
     """
@@ -42,7 +42,7 @@ class Auditor(object):
         Args:
             nii_paths: Path to a folder storing a set of (typically training)
                        .nii/.nii.gz images to audit
-            logger: A MultiViewUNet logger object
+            logger: A MultiPlanarUNet logger object
             min_dim_2d: Minimum pixel dimension to use
             max_dim_2d: Maximum pixel dimension to use (usually GPU limited)
             dim_3d: Pixel dimensionality of the 3D model

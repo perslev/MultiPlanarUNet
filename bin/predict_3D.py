@@ -13,9 +13,9 @@ readline.parse_and_bind('tab: complete')
 
 
 def get_argparser():
-    parser = ArgumentParser(description='Predict using a MultiViewUNet model.')
+    parser = ArgumentParser(description='Predict using a MultiPlanarUNet model.')
     parser.add_argument("--project_dir", type=str, default="./",
-                        help='Path to MultiViewUNet project folder')
+                        help='Path to MultiPlanarUNet project folder')
     parser.add_argument("-f", help="Predict on a single file")
     parser.add_argument("-l", help="Optional single label file to use with -f")
     parser.add_argument("--data_dir", type=str, default=None,
@@ -50,7 +50,7 @@ def validate_folders(base_dir, data_dir, out_dir, overwrite):
         p = os.path.join(base_dir, p)
         if not os.path.exists(p):
             from sys import exit
-            print("[*] Invalid MultiViewUNet project folder: '%s'"
+            print("[*] Invalid MultiPlanarUNet project folder: '%s'"
                   "\n    Needed file/folder '%s' not found." % (base_dir, p))
             exit(0)
 
@@ -78,7 +78,7 @@ def entry_func(args=None):
         pass
 
     # Get settings from YAML file
-    from MultiViewUNet.train.hparams import YAMLHParams
+    from MultiPlanarUNet.train.hparams import YAMLHParams
     hparams = YAMLHParams(os.path.join(base_dir, "train_hparams.yaml"))
 
     # Set strides
@@ -107,14 +107,14 @@ def entry_func(args=None):
 
     # Import all needed modules (folder is valid at this point)
     import numpy as np
-    from MultiViewUNet.image import ImagePairLoader, ImagePair
-    from MultiViewUNet.models import UNet3D
-    from MultiViewUNet.utils import get_best_model, create_folders, \
+    from MultiPlanarUNet.image import ImagePairLoader, ImagePair
+    from MultiPlanarUNet.models import UNet3D
+    from MultiPlanarUNet.utils import get_best_model, create_folders, \
                                     pred_to_class, await_and_set_free_gpu, set_gpu
-    from MultiViewUNet.utils.fusion import predict_3D_patches, predict_3D_patches_binary, pred_3D_iso
-    from MultiViewUNet.logging import init_result_dict_3D, save_all_3D
-    from MultiViewUNet.evaluate import dice_all
-    from MultiViewUNet.bin.predict import save_nii_files
+    from MultiPlanarUNet.utils.fusion import predict_3D_patches, predict_3D_patches_binary, pred_3D_iso
+    from MultiPlanarUNet.logging import init_result_dict_3D, save_all_3D
+    from MultiPlanarUNet.evaluate import dice_all
+    from MultiPlanarUNet.bin.predict import save_nii_files
 
     # Fetch GPU(s)
     num_GPUs = args["num_GPUs"]
@@ -145,7 +145,7 @@ def entry_func(args=None):
     image_pair_loader.images = None
 
     """ Define UNet model """
-    from MultiViewUNet.models import model_initializer
+    from MultiPlanarUNet.models import model_initializer
     hparams["build"]["batch_size"] = 1
     unet = model_initializer(hparams, False, base_dir)
     model_path = get_best_model(base_dir + "/model")

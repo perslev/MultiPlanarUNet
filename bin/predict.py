@@ -13,9 +13,9 @@ readline.parse_and_bind('tab: complete')
 
 
 def get_argparser():
-    parser = ArgumentParser(description='Predict using a MultiViewUNet model.')
+    parser = ArgumentParser(description='Predict using a MultiPlanarUNet model.')
     parser.add_argument("--project_dir", type=str, default="./",
-                        help='Path to MultiViewUNet project folder')
+                        help='Path to MultiPlanarUNet project folder')
     parser.add_argument("-f", help="Predict on a single file")
     parser.add_argument("-l", help="Optional single label file to use with -f")
     parser.add_argument("--data_dir", type=str, default=None,
@@ -68,7 +68,7 @@ def validate_folders(base_dir, out_dir, overwrite):
         p = os.path.join(base_dir, p)
         if not os.path.exists(p):
             from sys import exit
-            print("[*] Invalid MultiViewUNet project folder: '%s'"
+            print("[*] Invalid MultiPlanarUNet project folder: '%s'"
                   "\n    Needed file/folder '%s' not found." % (base_dir, p))
             exit(0)
 
@@ -83,7 +83,7 @@ def validate_folders(base_dir, out_dir, overwrite):
 
 
 def save_nii_files(combined, image, nii_res_dir, save_only_pred):
-    from MultiViewUNet.utils import create_folders
+    from MultiPlanarUNet.utils import create_folders
     import nibabel as nib
     import os
 
@@ -126,7 +126,7 @@ def entry_func(args=None):
         raise ValueError("Cannot specify both --analytical and --majority.")
 
     # Get settings from YAML file
-    from MultiViewUNet.train.hparams import YAMLHParams
+    from MultiPlanarUNet.train.hparams import YAMLHParams
     hparams = YAMLHParams(os.path.join(base_dir, "train_hparams.yaml"))
 
     if not _file:
@@ -154,18 +154,18 @@ def entry_func(args=None):
     # Import all needed modules (folder is valid at this point)
     import numpy as np
     import nibabel as nib
-    from MultiViewUNet.image import ImagePairLoader, ImagePair
-    from MultiViewUNet.models import UNet, FusionModel
-    from MultiViewUNet.utils import await_and_set_free_gpu, get_best_model, \
+    from MultiPlanarUNet.image import ImagePairLoader, ImagePair
+    from MultiPlanarUNet.models import UNet, FusionModel
+    from MultiPlanarUNet.utils import await_and_set_free_gpu, get_best_model, \
                                     create_folders, pred_to_class, set_gpu
-    from MultiViewUNet.logging import init_result_dicts, save_all
-    from MultiViewUNet.evaluate import dice_all
-    from MultiViewUNet.utils.fusion import predict_volume, map_real_space_pred
-    from MultiViewUNet.interpolation.sample_grid import get_voxel_grid_real_space
+    from MultiPlanarUNet.logging import init_result_dicts, save_all
+    from MultiPlanarUNet.evaluate import dice_all
+    from MultiPlanarUNet.utils.fusion import predict_volume, map_real_space_pred
+    from MultiPlanarUNet.interpolation.sample_grid import get_voxel_grid_real_space
 
     # Wait for PID?
     if await_PID:
-        from MultiViewUNet.utils import await_PIDs
+        from MultiPlanarUNet.utils import await_PIDs
         await_PIDs(await_PID)
 
     # Set GPU device

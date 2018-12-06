@@ -3,7 +3,7 @@ import copy
 import numpy as np
 import pandas as pd
 
-from MultiViewUNet.utils import create_folders
+from MultiPlanarUNet.utils import create_folders
 
 
 def init_result_dict_3D(all_images, n_classes):

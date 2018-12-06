@@ -6,7 +6,7 @@ University of Copenhagen
 November 2017
 """
 
-from MultiViewUNet.logging import ScreenLogger
+from MultiPlanarUNet.logging import ScreenLogger
 
 # Import keras modules
 from tensorflow.keras.models import Model

@@ -28,9 +28,9 @@ def get_parser():
     optional.add_argument('--root', type=str, default=os.path.abspath("./"),
                           help='a path to the root folder in '
                                'which the project will be initialized')
-    optional.add_argument("--model", type=str, default="MultiView",
+    optional.add_argument("--model", type=str, default="MultiPlanar",
                           help="Specify a model type parameter file "
-                               "('MultiView', '3D')")
+                               "('MultiPlanar', '3D')")
     optional.add_argument("--data_dir", type=str, default=None,
                           help="Root data folder for the project")
 

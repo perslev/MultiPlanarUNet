@@ -1,5 +1,5 @@
-from MultiViewUNet.sequences.isotrophic_live_view_sequence import IsotrophicLiveViewSequence
-from MultiViewUNet.interpolation.sample_grid import sample_plane_at, get_bounding_sphere_real_radius
+from MultiPlanarUNet.sequences.isotrophic_live_view_sequence import IsotrophicLiveViewSequence
+from MultiPlanarUNet.interpolation.sample_grid import sample_plane_at, get_bounding_sphere_real_radius
 import numpy as np
 
 

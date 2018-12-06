@@ -4,10 +4,10 @@ import os
 
 
 def get_argparser():
-    parser = ArgumentParser(description='Fit a MultiViewUNet model defined in a project folder. '
+    parser = ArgumentParser(description='Fit a MultiPlanarUNet model defined in a project folder. '
                                         'Invoke "init_project" to start a new project.')
     parser.add_argument("--project_dir", type=str, default="./",
-                        help='path to MultiViewUNet project folder')
+                        help='path to MultiPlanarUNet project folder')
     parser.add_argument("--num_GPUs", type=int, default=1,
                         help="Number of GPUs to use for this job (default=1)")
     parser.add_argument("--force_GPU", type=str, default="")
@@ -59,9 +59,9 @@ def validate_hparams(hparams):
 def run(base_path, gpu_mon, num_GPUs, continue_training, force_GPU, just_one,
         no_val, no_images, debug, wait_for, logger, **kwargs):
 
-    from MultiViewUNet.train import Trainer, YAMLHParams
-    from MultiViewUNet.models import model_initializer
-    from MultiViewUNet.preprocessing import get_preprocessing_func
+    from MultiPlanarUNet.train import Trainer, YAMLHParams
+    from MultiPlanarUNet.models import model_initializer
+    from MultiPlanarUNet.preprocessing import get_preprocessing_func
 
     # Read in hyperparameters from YAML file
     hparams = YAMLHParams(base_path + "/train_hparams.yaml", logger=logger)
@@ -69,7 +69,7 @@ def run(base_path, gpu_mon, num_GPUs, continue_training, force_GPU, just_one,
 
     # Wait for PID?
     if wait_for:
-        from MultiViewUNet.utils import await_PIDs
+        from MultiPlanarUNet.utils import await_PIDs
         await_PIDs(wait_for)
 
     # Prepare Sequence generators and potential model specific hparam changes
@@ -95,7 +95,7 @@ def run(base_path, gpu_mon, num_GPUs, continue_training, force_GPU, just_one,
     # This will bias the softmax output layer to output class confidences
     # equal to the class frequency
     if not continue_training and hparams["build"].get("biased_output_layer"):
-        from MultiViewUNet.utils.utils import set_bias_weights
+        from MultiPlanarUNet.utils.utils import set_bias_weights
         set_bias_weights(layer=org_model.layers[-1],
                          train_loader=train.image_pair_loader,
                          class_counts=hparams.get("class_counts"),
@@ -135,7 +135,7 @@ def run(base_path, gpu_mon, num_GPUs, continue_training, force_GPU, just_one,
     org_model.save_weights(model_path)
 
     # Plot learning curves
-    from MultiViewUNet.utils.plotting import plot_training_curves
+    from MultiPlanarUNet.utils.plotting import plot_training_curves
     try:
         plot_training_curves(os.path.join(base_path, "logs", "training.csv"),
                              os.path.join(base_path, "logs", "learning_curve.png"),
@@ -181,7 +181,7 @@ def entry_func(args=None):
 
     # Define Logger object
     # Also checks if the model in the project folder has already been fit
-    from MultiViewUNet.logging import Logger
+    from MultiPlanarUNet.logging import Logger
     try:
         logger = Logger(base_path, print_to_screen=True,
                         overwrite_existing=continue_training)
@@ -193,7 +193,7 @@ def entry_func(args=None):
 
     if num_GPUs >= 0:
         # Initialize GPUMonitor in separate fork now before memory builds up
-        from MultiViewUNet.utils.system import GPUMonitor
+        from MultiPlanarUNet.utils.system import GPUMonitor
         gpu_mon = GPUMonitor(logger)
     else:
         gpu_mon = None

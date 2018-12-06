@@ -1,7 +1,7 @@
-from MultiViewUNet.sequences import BaseSequence
-from MultiViewUNet.utils import get_class_weights as gcw
-from MultiViewUNet.logging import ScreenLogger
-from MultiViewUNet.preprocessing import reshape_add_axis, one_hot_encode_y
+from MultiPlanarUNet.sequences import BaseSequence
+from MultiPlanarUNet.utils import get_class_weights as gcw
+from MultiPlanarUNet.logging import ScreenLogger
+from MultiPlanarUNet.preprocessing import reshape_add_axis, one_hot_encode_y
 import numpy as np
 
 

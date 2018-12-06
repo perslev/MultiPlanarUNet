@@ -2,8 +2,8 @@ import nibabel as nib
 import numpy as np
 import numpy.linalg as npl
 import random
-from MultiViewUNet.interpolation.linalg import mgrid_to_points, points_to_mgrid
-from MultiViewUNet.interpolation.linalg import get_rotation_matrix
+from MultiPlanarUNet.interpolation.linalg import mgrid_to_points, points_to_mgrid
+from MultiPlanarUNet.interpolation.linalg import get_rotation_matrix
 
 
 def get_pix_dim(nii_image):

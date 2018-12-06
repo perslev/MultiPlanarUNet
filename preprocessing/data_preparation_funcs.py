@@ -1,5 +1,5 @@
-from MultiViewUNet.logging import ScreenLogger
-from MultiViewUNet.image.auditor import Auditor
+from MultiPlanarUNet.logging import ScreenLogger
+from MultiPlanarUNet.image.auditor import Auditor
 import numpy as np
 import os
 
@@ -9,12 +9,12 @@ def get_preprocessing_func(model):
     Takes a model name (string) and returns a preparation function.
 
     Args:
-        model: String representation of a MultiViewUNet.models model class
+        model: String representation of a MultiPlanarUNet.models model class
 
     Returns:
-        A MultiViewUNet.preprocessing.data_preparation_funcs function
+        A MultiPlanarUNet.preprocessing.data_preparation_funcs function
     """
-    from MultiViewUNet.models import PREPARATION_FUNCS
+    from MultiPlanarUNet.models import PREPARATION_FUNCS
     if model in PREPARATION_FUNCS:
         return PREPARATION_FUNCS[model]
     else:
@@ -25,7 +25,7 @@ def get_preprocessing_func(model):
 
 """
 A collection of functions that prepares data for feeding to various models in
-the MultiViewUNet.models packages. All functions should follow the following
+the MultiPlanarUNet.models packages. All functions should follow the following
 specification:
 
 f(hparams, just_one, no_val, logger, mtype, base_path), 
@@ -51,13 +51,13 @@ def _base_loader_func(hparams, just_one, no_val, logger, mtype):
        if needed.
 
     Args:
-        hparams:   A MultiViewUNet.train.YAMLHParams object
+        hparams:   A MultiPlanarUNet.train.YAMLHParams object
         just_one:  A bool specifying whether to keep only the first train and
                    validation samples (for quick testing purposes)
         no_val:    A bool specifying whether to omit validation data entirely
                    Note: This setting applies even if validation data is
                    specified in the YAMLHparams object
-        logger:    A MultiViewUNet.logger object
+        logger:    A MultiPlanarUNet.logger object
         mtype:     A string identifier for the dimensionality of the model,
                    currently either '2d' or '3d' (upper/lower ignored)
 
@@ -68,7 +68,7 @@ def _base_loader_func(hparams, just_one, no_val, logger, mtype):
         logger:     The passed logger object or a ScreenLogger object
         auditor:    An auditor object storing statistics on the training data
     """
-    from MultiViewUNet.image import ImagePairLoader
+    from MultiPlanarUNet.image import ImagePairLoader
 
     # Get basic ScreenLogger if no logger is passed
     logger = logger or ScreenLogger()
@@ -140,7 +140,7 @@ def prepare_for_multi_view_unet(hparams, just_one=False, no_val=False,
             shutil.rmtree(os.path.join(base_path, "images"))
 
         if isinstance(views, int):
-            from MultiViewUNet.interpolation.sample_grid import get_random_views, get_angle
+            from MultiPlanarUNet.interpolation.sample_grid import get_random_views, get_angle
             from itertools import combinations
             logger("Generating %i random views..." % views)
 
@@ -166,7 +166,7 @@ def prepare_for_multi_view_unet(hparams, just_one=False, no_val=False,
                 logger("[Note] Pre-adding noise to views (SD: %s)" %
                        hparams["fit"]["noise_sd"])
                 # Apply noise to views
-                from MultiViewUNet.utils import add_noise_to_views
+                from MultiPlanarUNet.utils import add_noise_to_views
                 hparams["fit"]["views"] = add_noise_to_views(hparams["fit"]["views"],
                                                              hparams["fit"]["noise_sd"])
                 hparams["fit"]["noise_sd"] = False
@@ -176,7 +176,7 @@ def prepare_for_multi_view_unet(hparams, just_one=False, no_val=False,
         np.savez(os.path.join(base_path, "views"), hparams["fit"]["views"])
 
         # Plot views
-        from MultiViewUNet.utils.plotting import plot_views
+        from MultiPlanarUNet.utils.plotting import plot_views
         plot_views(views, os.path.join(base_path, "views.png"))
     else:
         # Fetch views from last session

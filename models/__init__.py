@@ -8,7 +8,7 @@ from .st_unet3D_picewise import PieceWiseSTUNet3D
 
 
 # Prepare a dictionary mapping from model names to data prep. functions
-from MultiViewUNet.preprocessing import data_preparation_funcs as dpf
+from MultiPlanarUNet.preprocessing import data_preparation_funcs as dpf
 
 PREPARATION_FUNCS = {
     "UNet": dpf.prepare_for_multi_view_unet,

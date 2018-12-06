@@ -72,7 +72,7 @@ def imshow_with_label_overlay(ax, image, label, channel=None, axis=None,
     Returns:
 
     """
-    from MultiViewUNet.utils import pred_to_class
+    from MultiPlanarUNet.utils import pred_to_class
 
     # Plot the image
     channel, axis, slice = imshow(ax, image, channel, axis, slice, im_cmap)

@@ -2,8 +2,8 @@ import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Layer
 from tensorflow.keras.initializers import constant
-from MultiViewUNet.logging import ScreenLogger
-from MultiViewUNet.evaluate.loss_functions import GeneralizedDiceLoss
+from MultiPlanarUNet.logging import ScreenLogger
+from MultiPlanarUNet.evaluate.loss_functions import GeneralizedDiceLoss
 
 
 def reg(W):

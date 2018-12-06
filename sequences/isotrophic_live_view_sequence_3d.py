@@ -1,6 +1,6 @@
-from MultiViewUNet.sequences.isotrophic_live_view_sequence import IsotrophicLiveViewSequence
-from MultiViewUNet.interpolation.sample_grid import sample_box, sample_box_at
-from MultiViewUNet.interpolation.linalg import mgrid_to_points
+from MultiPlanarUNet.sequences.isotrophic_live_view_sequence import IsotrophicLiveViewSequence
+from MultiPlanarUNet.interpolation.sample_grid import sample_box, sample_box_at
+from MultiPlanarUNet.interpolation.linalg import mgrid_to_points
 import numpy as np
 
 

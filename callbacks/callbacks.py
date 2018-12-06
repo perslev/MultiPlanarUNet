@@ -1,10 +1,10 @@
 import tensorflow as tf
 from tensorflow.keras.callbacks import Callback
 
-from MultiViewUNet.evaluate.metrics import dice_all
-from MultiViewUNet.utils import highlighted
-from MultiViewUNet.logging import ScreenLogger
-from MultiViewUNet.utils.plotting import imshow_with_label_overlay, imshow
+from MultiPlanarUNet.evaluate.metrics import dice_all
+from MultiPlanarUNet.utils import highlighted
+from MultiPlanarUNet.logging import ScreenLogger
+from MultiPlanarUNet.utils.plotting import imshow_with_label_overlay, imshow
 
 import numpy as np
 import os
@@ -20,7 +20,7 @@ class DividerLine(Callback):
     def __init__(self, logger=None):
         """
         Args:
-            logger: An instance of a MultiView Logger that prints to screen
+            logger: An instance of a MultiPlanar Logger that prints to screen
                     and/or file
         """
         super().__init__()
@@ -41,7 +41,7 @@ class DelayedCallback(object):
             callback:   A tf.keras callback
             start_from: Delay the activity of 'callback' until this epoch
                         'start_from'
-            logger:     An instance of a MultiView Logger that prints to screen
+            logger:     An instance of a MultiPlanar Logger that prints to screen
                         and/or file
         """
         self.logger = logger or ScreenLogger()
@@ -116,7 +116,7 @@ class TrainTimer(Callback):
 
 class FGBatchBalancer(Callback):
     """
-    MultiViewUNet callback.
+    MultiPlanarUNet callback.
 
     Sets the forced FG fraction in a batch at each epoch to 1-recall over the
     validation data at the previous epoch
@@ -124,11 +124,11 @@ class FGBatchBalancer(Callback):
     def __init__(self, train_data, val_data=None, logger=None):
         """
         Args:
-            train_data: A MultiViewUNet.sequence object representing the
+            train_data: A MultiPlanarUNet.sequence object representing the
                         training data
-            val_data:   A MultiViewUNet.sequence object representing the
+            val_data:   A MultiPlanarUNet.sequence object representing the
                         validation data
-            logger:     An instance of a MultiView Logger that prints to screen
+            logger:     An instance of a MultiPlanar Logger that prints to screen
                         and/or file
         """
         super().__init__()
@@ -172,7 +172,7 @@ class PrintLayerWeights(Callback):
                         per_epoch=True
             first:      Print the first 'first' elements of each weight matrix
             per_epoch:  Print after 'every' epoch instead of batch
-            logger:     An instance of a MultiView Logger that prints to screen
+            logger:     An instance of a MultiPlanar Logger that prints to screen
                         and/or file
         """
         super().__init__()
@@ -215,7 +215,7 @@ class Validation(Callback):
     """
     Validation computation callback.
 
-    Samples a number of validation batches from a MultiViewUNet.sequence object
+    Samples a number of validation batches from a MultiPlanarUNet.sequence object
     and computes dice coefficients for all non-background classes over all the
     batches. The gives a more accurate estimate of the dice scores compared to
     using the batch-wise computations of the default tf.keras validation.
@@ -234,11 +234,11 @@ class Validation(Callback):
     def __init__(self, val_sequence, steps, logger=None, verbose=True):
         """
         Args:
-            val_sequence: A MultiViewUNet.sequence object from which validation
+            val_sequence: A MultiPlanarUNet.sequence object from which validation
                           batches can be sampled via its __getitem__ method.
             steps:        Numer of batches to sample from val_sequences in each
                           validation epoch
-            logger:       An instance of a MultiView Logger that prints to screen
+            logger:       An instance of a MultiPlanar Logger that prints to screen
                           and/or file
             verbose:      Print progress to screen - OBS does not use Logger
         """
@@ -367,7 +367,7 @@ class ValDiceScores(Callback):
                              Labels must be integer targets (not one-hot)
             n_classes:       Number of classes, including background
             batch_size:      Batch size used for prediction
-            logger:          An instance of a MultiView Logger that prints to screen
+            logger:          An instance of a MultiPlanar Logger that prints to screen
                              and/or file
         """
         super().__init__()
@@ -407,7 +407,7 @@ class SaveOutputAs2DImage(Callback):
         """
         Args:
             layer:    A tf.keras layer
-            sequence: A MultiView.sequence object from which batches are
+            sequence: A MultiPlanar.sequence object from which batches are
                       sampled and pushed through the graph to output of layer
             model:    A tf.keras model object
             out_dir:  Path to directory (existing or non-existing) in which
@@ -479,9 +479,9 @@ class SavePredictionImages(Callback):
     def __init__(self, train_data, val_data, outdir='images'):
         """
         Args:
-            train_data: A MultiViewUNet.sequence object from which training
+            train_data: A MultiPlanarUNet.sequence object from which training
                         data can be sampled via the __getitem__ method.
-            val_data:   A MultiViewUNet.sequence object from which validation
+            val_data:   A MultiPlanarUNet.sequence object from which validation
                         data can be sampled via the __getitem__ method.
             outdir:     Path to directory (existing or non-existing) in which
                         images will be stored.

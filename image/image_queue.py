@@ -23,7 +23,7 @@ def _start(queue, stop_event):
 class ImageQueue(object):
     """
     Queue object handling loading ImagePair data from disk, preprocessing those
-    images and adding them to a queue from which MultiViewUNet.sequence objects
+    images and adding them to a queue from which MultiPlanarUNet.sequence objects
     can pull them for training
 
     The queue will store a maximum number of loaded ImagePairs at a given time.

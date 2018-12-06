@@ -3,7 +3,7 @@ import sys
 import os
 import numpy as np
 import random
-from MultiViewUNet.utils import create_folders
+from MultiPlanarUNet.utils import create_folders
 import argparse
 
 

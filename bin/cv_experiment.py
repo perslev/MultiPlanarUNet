@@ -1,8 +1,8 @@
 import os
 from multiprocessing import Process, Lock, Queue, Event
-from MultiViewUNet.utils import create_folders
-from MultiViewUNet.bin.init_project import copy_yaml_and_set_data_dirs
-from MultiViewUNet.logging import Logger
+from MultiPlanarUNet.utils import create_folders
+from MultiPlanarUNet.bin.init_project import copy_yaml_and_set_data_dirs
+from MultiPlanarUNet.logging import Logger
 import argparse
 import subprocess
 
@@ -51,7 +51,7 @@ def _get_GPU_sets(free_gpus, num_GPUs):
 
 
 def get_free_GPU_sets(num_GPUs):
-    from MultiViewUNet.utils.system import GPUMonitor
+    from MultiPlanarUNet.utils.system import GPUMonitor
     mon = GPUMonitor()
     free_gpus = sorted(mon.free_GPUs, key=lambda x: int(x))
     total_GPUs = len(free_gpus)
@@ -187,7 +187,7 @@ def entry_func(args=None):
 
     # Wait for PID?
     if await_PID:
-        from MultiViewUNet.utils import await_PIDs
+        from MultiPlanarUNet.utils import await_PIDs
         await_PIDs(await_PID)
 
     # Get number of GPUs per process

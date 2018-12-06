@@ -6,7 +6,7 @@ University of Copenhagen
 November 2017
 """
 
-from MultiViewUNet.logging import ScreenLogger
+from MultiPlanarUNet.logging import ScreenLogger
 
 # Import keras modules
 from tensorflow.keras.models import Model
@@ -51,7 +51,7 @@ class AutofocusUNet2D(Model):
             L1 regularization on Conv2D activities
         l2_reg (float in [0, 1])
             21 regularization on Conv2D weights
-        logger (MultiViewUNet.logging.Logger | ScreenLogger):
+        logger (MultiPlanarUNet.logging.Logger | ScreenLogger):
             MutliViewUNet.Logger object, logging to files or screen.
         """
         if not ((img_rows and img_cols) or dim):

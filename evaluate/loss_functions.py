@@ -1,6 +1,6 @@
 import tensorflow as tf
-from MultiViewUNet.logging import ScreenLogger
-from MultiViewUNet.utils import print_options_context
+from MultiPlanarUNet.logging import ScreenLogger
+from MultiPlanarUNet.utils import print_options_context
 from tensorflow.python.ops import array_ops
 
 

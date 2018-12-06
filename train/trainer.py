@@ -1,10 +1,10 @@
-# from MultiViewUNet.database import DBConnection
-from MultiViewUNet.callbacks import init_callback_objects
-from MultiViewUNet.logging import ScreenLogger
-from MultiViewUNet.evaluate import loss_functions
-from MultiViewUNet.evaluate import metrics as custom_metrics
-from MultiViewUNet.utils import pred_to_class
-from MultiViewUNet.callbacks import SavePredictionImages, Validation, FGBatchBalancer, DividerLine, SaveOutputAs2DImage, PrintLayerWeights
+# from MultiPlanarUNet.database import DBConnection
+from MultiPlanarUNet.callbacks import init_callback_objects
+from MultiPlanarUNet.logging import ScreenLogger
+from MultiPlanarUNet.evaluate import loss_functions
+from MultiPlanarUNet.evaluate import metrics as custom_metrics
+from MultiPlanarUNet.utils import pred_to_class
+from MultiPlanarUNet.callbacks import SavePredictionImages, Validation, FGBatchBalancer, DividerLine, SaveOutputAs2DImage, PrintLayerWeights
 from tensorflow.keras import optimizers, losses
 from tensorflow.keras import metrics as TF_metrics
 import matplotlib.pyplot as plt
@@ -243,7 +243,7 @@ class Trainer(object):
         self.logger("Number of batches:", len(val))
 
     def save_images(self, train, val):
-        from MultiViewUNet.utils.plotting import imshow_with_label_overlay
+        from MultiPlanarUNet.utils.plotting import imshow_with_label_overlay
         # Write a few images to disk
         im_path = os.path.join(self.logger.base_path, "images")
         if not os.path.exists(im_path):

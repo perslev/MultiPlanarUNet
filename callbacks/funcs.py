@@ -13,12 +13,12 @@ def init_callback_objects(callbacks, logger):
                    "kwargs": {<dict_with_kwargs>}}
                    ... or an already initialized callback object
                    (which will be skipped).
-        logger:    A MultiViewUNet logger object logging to screen and/or file
+        logger:    A MultiPlanarUNet logger object logging to screen and/or file
 
     Returns:
         A list of initialized callbacks
     """
-    from MultiViewUNet import callbacks as tcb
+    from MultiPlanarUNet import callbacks as tcb
 
     cb_objs = []
     cb_dict = {}

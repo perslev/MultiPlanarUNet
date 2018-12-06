@@ -1,9 +1,9 @@
 import numpy as np
-from MultiViewUNet.interpolation.regular_grid_interpolator import RegularGridInterpolator
+from MultiPlanarUNet.interpolation.regular_grid_interpolator import RegularGridInterpolator
 
-from MultiViewUNet.preprocessing import reshape_add_axis
-from MultiViewUNet.interpolation.linalg import mgrid_to_points, points_to_mgrid
-from MultiViewUNet.interpolation.sample_grid import get_voxel_grid, get_voxel_axes_real_space, get_voxel_grid_real_space
+from MultiPlanarUNet.preprocessing import reshape_add_axis
+from MultiPlanarUNet.interpolation.linalg import mgrid_to_points, points_to_mgrid
+from MultiPlanarUNet.interpolation.sample_grid import get_voxel_grid, get_voxel_axes_real_space, get_voxel_grid_real_space
 
 
 def predict_single(image, model, hparams, verbose=1):
@@ -29,7 +29,7 @@ def predict_single(image, model, hparams, verbose=1):
     kwargs["verbose"] = verbose
 
     # Create a ImagePairLoader with only the given file
-    from MultiViewUNet.image import ImagePairLoader
+    from MultiPlanarUNet.image import ImagePairLoader
     image_pair_loader = ImagePairLoader(predict_mode=True,
                                         single_file_mode=True,
                                         no_log=bool(verbose))

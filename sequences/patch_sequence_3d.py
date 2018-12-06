@@ -1,7 +1,7 @@
-from MultiViewUNet.sequences import BaseSequence
-from MultiViewUNet.preprocessing import one_hot_encode_y
-from MultiViewUNet.logging import ScreenLogger
-from MultiViewUNet.interpolation.linalg import mgrid_to_points
+from MultiPlanarUNet.sequences import BaseSequence
+from MultiPlanarUNet.preprocessing import one_hot_encode_y
+from MultiPlanarUNet.logging import ScreenLogger
+from MultiPlanarUNet.interpolation.linalg import mgrid_to_points
 import numpy as np
 
 

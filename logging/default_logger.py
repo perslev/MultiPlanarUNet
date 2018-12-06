@@ -3,7 +3,7 @@
 class ScreenLogger(object):
     """
     Minimal wrapper class around the built-in print function replicating some
-    functionality of the MultiViewUNet Logger class so that this class can be
+    functionality of the MultiPlanarUNet Logger class so that this class can be
     used in a similar fashion while only printing to screen and not a log file
     """
     def __init__(self, print_to_screen=True):

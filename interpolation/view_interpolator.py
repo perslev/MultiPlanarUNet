@@ -1,8 +1,8 @@
 import numpy as np
-from MultiViewUNet.interpolation.regular_grid_interpolator import RegularGridInterpolator
-from MultiViewUNet.logging import ScreenLogger
-from MultiViewUNet.interpolation.linalg import points_to_mgrid, mgrid_to_points
-from MultiViewUNet.interpolation.sample_grid import get_voxel_axes_real_space
+from MultiPlanarUNet.interpolation.regular_grid_interpolator import RegularGridInterpolator
+from MultiPlanarUNet.logging import ScreenLogger
+from MultiPlanarUNet.interpolation.linalg import points_to_mgrid, mgrid_to_points
+from MultiPlanarUNet.interpolation.sample_grid import get_voxel_axes_real_space
 
 
 def is_rot_mat(mat):

@@ -1,6 +1,6 @@
 import os
 import inspect
-from MultiViewUNet.utils.decorators import accepts
+from MultiPlanarUNet.utils.decorators import accepts
 
 
 class Logger(object):
@@ -29,7 +29,7 @@ class Logger(object):
         self.active_log_file = active_file or "log"
 
     def __repr__(self):
-        return "<MultiViewUNet.logging.Logger object>"
+        return "<MultiPlanarUNet.logging.Logger object>"
 
     def __str__(self):
         return "Logger(base_path=%s, print_to_screen=%s, " \

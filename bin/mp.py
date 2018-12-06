@@ -3,7 +3,7 @@ import os
 
 """
 Entry script redirecting all command line arguments to a specified script
-from the MultiViewUNet.bin folder.
+from the MultiPlanarUNet.bin folder.
 
 Usage:
 mp [script] [script args...]
@@ -11,7 +11,7 @@ mp [script] [script args...]
 
 
 def get_parser():
-    from MultiViewUNet import bin
+    from MultiPlanarUNet import bin
     import pkgutil
     mods = pkgutil.iter_modules(bin.__path__)
 
@@ -44,7 +44,7 @@ if __name__ == "__main__":
 
     # Import the script
     import importlib
-    mod = importlib.import_module(script, package="MultiViewUNet.bin")
+    mod = importlib.import_module(script, package="MultiPlanarUNet.bin")
 
     # Call entry function with remaining arguments
     mod.entry_func(parsed.args)
