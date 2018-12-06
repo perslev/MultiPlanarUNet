@@ -194,7 +194,7 @@ symlinked to their original position to safe storage.
 
 **Running a CV Experiment**\
 A cross-validation experiment can now be performed. On systems with multiple
-GPUs, each fold can be assigned a give number of the total pool of GPUs in 
+GPUs, each fold can be assigned a given number of the total pool of GPUs in 
 which case multiple folds will run in parallel and new once automatically start
 , when previous folds terminate.
 
@@ -220,12 +220,12 @@ details the ```mp``` commands (and optionally various arguments) to execute on
 each fold. For instance, a script file may look like:
 
 ```
-mp train --no_images
+mp train --no_images  # Do not save example segmentations
 mp train_fusion
 mp predict --out_dir predictions
 ```
 
-Execute the 5-CV experiment by running:
+We can now execute the 5-CV experiment by running:
 
 ```
 mp cv_experiment --CV_dir=./data_dir/views/5-CV \
@@ -238,11 +238,17 @@ Above, we assign 2 GPUs to each fold. On a system of 8 GPUs, 4 folds will be
 run in parallel. We set ```--monitor_GPUs_every=600``` to scan the system for 
 new free GPU resources every 600 seconds.
 
+The cv_experiment script will create a new project folder for each split 
+located at ```--out_dir``` (```CV_experiment/splits``` in this case). For each
+fold, each of the commands outlined in the ```script``` file will be launched
+one by one inside the respective project folder of the fold, so that the 
+predictions are stored in ```CV_experiment/splits/split0/predictions``` for 
+fold 0 etc.
+
 Afterwards, we may get a CV summary by invoking:
 
 ```
 mp summary
 ```
 
-... from inside the ```CV_experiment/splits``` folder, which stores the 
-training and evaluations for each of the 5 splits.
+... from inside the ```CV_experiment/splits``` folder.
