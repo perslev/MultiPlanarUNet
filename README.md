@@ -20,7 +20,8 @@ The base model is a just slightly modified 2D UNet (https://arxiv.org/abs/1505.0
 trained under a multi-planar framework. Specifically, the efficient 2D model is
 fed images sampled across multiple views onto the image volume simultaneously:
 
-![](resources/multi_planar_training.gif)
+[Multi Planar Animation](resources/multi_planar_training.gif)
+[Multi Planar Animation](resources/multi_view.mp4)
 
 At test-time, the model predict along each of the views and recreates a set of full segmentation volumes. 
 These volumes are majority voted into one using a learned function that weights
