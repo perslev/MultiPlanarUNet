@@ -236,7 +236,8 @@ mp cv_experiment --CV_dir=./data_dir/views/5-CV \
 
 Above, we assign 2 GPUs to each fold. On a system of 8 GPUs, 4 folds will be 
 run in parallel. We set ```--monitor_GPUs_every=600``` to scan the system for 
-new free GPU resources every 600 seconds.
+new free GPU resources every 600 seconds (otherwise, only GPUs that we 
+initially available will be cycled and new free ones will be ignored).
 
 The cv_experiment script will create a new project folder for each split 
 located at ```--out_dir``` (```CV_experiment/splits``` in this case). For each
