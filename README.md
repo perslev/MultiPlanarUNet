@@ -3,17 +3,18 @@
 This package implements fully autonomous deep learning based 
 segmentation of any 3D medical image volume. It uses a fixed 
 hyperparameter set and a fixed model topology, eliminating the need for
-conducting hyperparameter tuning experiments.
-
-This software may be used as-is and does not require deep learning expertise to
-get started. It may also serve as a strong baseline method for general purpose
-semantic segmentation of medical images.
+conducting hyperparameter tuning experiments. No manual involvement is 
+needed except for supplying the training data.
 
 The system has been evaluated on a wide range of tasks spanning organ and 
 pathology segmentation across tissue types and scanner modalities. 
 The model obtained a top-5 position at the 2018 Medical Segmentation Decathlon 
 (http://medicaldecathlon.com/) despite its simplicity and computational 
 efficiency.
+
+This software may be used as-is and does not require deep learning expertise to
+get started. It may also serve as a strong baseline method for general purpose
+semantic segmentation of medical images.
 
 ## Method
 The base model is a just slightly modified 2D UNet (https://arxiv.org/abs/1505.04597) 
@@ -45,6 +46,10 @@ mp --help
 # Launch the train script
 mp train [arguments passed to 'train'...]
 ```
+
+**NOTE:** You only need to specify the training data in the format described 
+below. Training, evaluation and prediction will be handled automatically if 
+using the above scripts.
 
 **Preparing the data**\
 In order to train a model to solve a specific task, a set of manually 
