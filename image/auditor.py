@@ -11,8 +11,12 @@ class Auditor(object):
     heuristically determined interpolation parameters for models working in
     isotropic scanner space coordinates.
 
+    If label paths are specified, also audits the number of target classes
+    for this segmentation task by sampling up to 50 images and noting the
+    number of unique classes across them.
+
     Suggested parameters are stored for both 2D and 3D models on this object
-    The selected parameters can be written to a MultiVieUNet.train.hparams
+    The selected parameters can be written to a MultiPlanarUnet.train.hparams
     object which in turn may write them to the train_hparams.yaml file on disk.
 
     The heuristic covers 3 parameters:
@@ -36,12 +40,15 @@ class Auditor(object):
 
     NOTE: The heuristic is not guaranteed to be optimal for all problems.
     """
-    def __init__(self, nii_paths, logger=None, min_dim_2d=128, max_dim_2d=512,
-                 dim_3d=64, span_percentile=75, res_percentile=25):
+    def __init__(self, nii_paths, nii_lab_paths=None, logger=None,
+                 min_dim_2d=128, max_dim_2d=512, dim_3d=64, span_percentile=75,
+                 res_percentile=25):
         """
         Args:
-            nii_paths: Path to a folder storing a set of (typically training)
+            nii_paths: A list of paths pointing to typically training and val
                        .nii/.nii.gz images to audit
+            nii_lab_paths: Optional paths pointing to .nii/.nii.gz label images
+                           from which target class number is inferred
             logger: A MultiPlanarUNet logger object
             min_dim_2d: Minimum pixel dimension to use
             max_dim_2d: Maximum pixel dimension to use (usually GPU limited)
@@ -54,6 +61,7 @@ class Auditor(object):
                             voxel resolutions recorded across images and axes.
         """
         self.nii_paths = nii_paths
+        self.nii_lab_paths = nii_lab_paths
         self.logger = logger or ScreenLogger()
 
         # Fetch basic information on the images
@@ -62,6 +70,10 @@ class Auditor(object):
         """ Set some attributes used for image sampling """
         assert np.all(np.array(self.info["n_channels"]) == self.info["n_channels"][0])
         self.n_channels = int(self.info["n_channels"][0])
+
+        # Number of classes
+        self.n_classes = self.info["n_classes"]
+        self.classes = self.info["classes"]
 
         # 2D
         real_space_span = np.percentile(self.info["real_sizes"], span_percentile)
@@ -80,16 +92,25 @@ class Auditor(object):
         self.total_memory_gib = self.total_memory_bytes/np.power(1024, 3)
 
         # Set hparams pattern
+        # These patterns map a Auditor attribute to the sub-field and name
+        # under this field in which the value should be stored in the
+        # train_hparams.yaml file
+        # Currently, these are specified broadly for 2D and 3D models
+        # TODO: Integrate this with the logic of the MultiPlanarUNet.models
+        # TODO: __init__.py file that already sets preprep functions for each
+        # TODO: model type.
         self.pattern_2d = {
             "real_space_span_2D": (["fit"], ["real_space_span"]),
             "sample_dim_2D": (["build", "fit"], ["dim", "sample_dim"]),
-            "n_channels": (["build"], ["n_channels"])
+            "n_channels": (["build"], ["n_channels"]),
+            "n_classes": (["build"], ["n_classes"])
         }
         self.pattern_3d = {
             "real_space_span_3D": (["fit"], ["real_space_span"]),
             "sample_dim_3D": (["build", "fit"], ["dim", "sample_dim"]),
             "real_box_span": (["fit"], ["real_box_dim"]),
-            "n_channels": (["build"], ["n_channels"])
+            "n_channels": (["build"], ["n_channels"]),
+            "n_classes": (["build"], ["n_classes"])
         }
 
         # Write to log
@@ -98,6 +119,11 @@ class Auditor(object):
     def log(self):
         self.logger(highlighted("\nAudit for %i images" % len(self.nii_paths)))
         self.logger("Total memory GiB:  %.3f" % self.total_memory_gib)
+        if self.n_classes is not None:
+            self.logger("\nClass Audit:\n"
+                        "Classes found:     %s\n"
+                        "Number of classes: %i" % (self.classes,
+                                                   self.n_classes))
         self.logger("\n2D:\n"
                     "Real space span:   %.3f\n"
                     "Sample dim:        %.3f" % (self.real_space_span_2D,
@@ -110,6 +136,20 @@ class Auditor(object):
                                                  self.real_box_span))
 
     def fill(self, hparams, model_type):
+        """
+        Add and write attributes stored in this Auditor object to the
+        YAMLHParams object and train_hparams.yaml file according to the
+        patterns self.pattern_2d and self.pattern_3d (see init)
+
+        Only attributes not already manually specified by the user will be
+        changed. See YAMLHParams.set_value().
+
+        Args:
+            hparams:     MultiPlanarUNet YAMLHParams object
+            model_type:  A string representing the model type and thus which
+                         pattern to apply. Must be either "2d" or "3d"
+                         (upper case tolerated)
+        """
         if model_type.lower() == "2d":
             pattern = self.pattern_2d
         elif model_type.lower() == "3d":
@@ -148,9 +188,9 @@ class Auditor(object):
         pixdims = []
         memory = []
 
-        for path in self.nii_paths:
+        for im_path in self.nii_paths:
             # Load the nii file without loading image data
-            im = nib.load(path)
+            im = nib.load(im_path)
 
             # Get image voxel shape
             shape = im.shape
@@ -171,11 +211,43 @@ class Auditor(object):
             # Calculate memory in bytes to store image
             memory.append(im.get_data_dtype().itemsize * np.prod(shape))
 
+        if self.nii_lab_paths is not None:
+            self.logger("Auditing number of target classes. This may take "
+                        "a while as data must be read from disk."
+                        "\n-- Note: avoid this by manually setting the "
+                        "n_classes attribute in train_hparams.yaml.")
+            # Select up to 50 random images and find the unique classes
+            lab_paths = np.random.choice(self.nii_lab_paths,
+                                         min(50, len(self.nii_lab_paths)),
+                                         replace=False)
+            classes = []
+            for l in lab_paths:
+                classes.append(np.unique(nib.load(l).get_data()))
+            classes = np.unique(classes)
+            n_classes = classes.shape[0]
+
+            # Make sure the classes start from 0 and step continuously by 1
+            c_min, c_max = np.min(classes), np.max(classes)
+            if c_min != 0:
+                raise ValueError("Invalid class audit - Class integers should"
+                                 " start from 0, found %i (classes found: %s)"
+                                 % (c_min, classes))
+            if n_classes != max(classes) + 1:
+                raise ValueError("Invalid class audit - Found %i classes, but"
+                                 " expected %i, as the largest class value"
+                                 " found was %i. Classes found: %s"
+                                 % (n_classes, c_max+1, c_max, classes))
+        else:
+            n_classes = None
+            classes = None
+
         info = {
             "shapes": shapes,
             "real_sizes": real_sizes,
             "pixdims": pixdims,
             "memory_bytes": memory,
-            "n_channels": channels
+            "n_channels": channels,
+            "n_classes": n_classes,
+            "classes": classes
         }
         return info
