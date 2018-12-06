@@ -1,7 +1,7 @@
 # Multi Planar UNet
 
 This package implements fully autonomous deep learning based 
-segmentation of any 3D medical image volume. It uses a fixed 
+segmentation of any 3D medical image. It uses a fixed 
 hyperparameter set and a fixed model topology, eliminating the need for
 conducting hyperparameter tuning experiments. No manual involvement is 
 needed except for supplying the training data.
