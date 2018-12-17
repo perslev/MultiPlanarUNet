@@ -36,15 +36,18 @@ def get_parser():
     return parser
 
 
-if __name__ == "__main__":
-
+def entry_func():
     # Get the script to execute, parse only first input
     parsed = get_parser().parse_args()
     script = parsed.script
 
     # Import the script
     import importlib
-    mod = importlib.import_module(script, package="MultiPlanarUNet.bin")
+    mod = importlib.import_module("MultiPlanarUNet.bin." + script)
 
     # Call entry function with remaining arguments
     mod.entry_func(parsed.args)
+
+
+if __name__ == "__main__":
+    entry_func()
