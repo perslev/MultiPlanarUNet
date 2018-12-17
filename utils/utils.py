@@ -217,6 +217,18 @@ def get_sample_weights(samples):
     return get_sample_weights_vectorizor(class_weights_dict)(samples)
 
 
+def random_split(X, y, fraction):
+    # Take random split of validation data
+    n_val = int(X.shape[0] * fraction)
+    val_ind = np.random.choice(np.arange(X.shape[0]), size=n_val)
+    X_val, y_val = X[val_ind], y[val_ind]
+
+    # Get inverse for training set
+    X, y = np.delete(X, val_ind, axis=0), np.delete(y, val_ind, axis=0)
+
+    return X, y, X_val, y_val
+
+
 def create_folders(folders):
     if isinstance(folders, str):
         if not os.path.exists(folders):
