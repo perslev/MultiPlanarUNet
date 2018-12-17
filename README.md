@@ -1,5 +1,42 @@
 # Multi Planar UNet
 
+## Quick Start
+**Installation**
+
+```
+git clone https://github.com/perslev/MultiPlanarUNet
+pip install -e MultiPlanarUNet
+```
+
+This package is still frequently updated and it is thus recommended to install 
+the package with PIP with the -e ('editable') flag so that the package can be 
+updated with recent changes on GitHub without re-installing:
+
+```
+cd MultiPlanarUNet
+git pull
+```
+
+**Usage**
+```
+usage: mp [script] [script args...]
+
+Multi Planar UNet (0.1.0)
+-------------------------
+Available scripts:
+- cv_experiment
+- cv_split
+- init_project
+- predict
+- predict_3D
+- summary
+- train
+- train_fusion
+- trim_channels
+...
+```
+
+# Overview
 This package implements fully autonomous deep learning based 
 segmentation of any 3D medical image. It uses a fixed 
 hyperparameter set and a fixed model topology, eliminating the need for

@@ -11,12 +11,14 @@ mp [script] [script args...]
 
 
 def get_parser():
-    from MultiPlanarUNet import bin
+    from MultiPlanarUNet import bin, __version__
     import pkgutil
     mods = pkgutil.iter_modules(bin.__path__)
 
+    ids = f"Multi Planar UNet ({__version__})"
+    sep = "-" * len(ids)
     usage = "mp [script] [script args...]\n\n" + \
-            "Multi Planar UNet\n-----------------\n" + \
+            f"{ids}\n{sep}\n" + \
             "Available scripts:\n"
 
     choices = []
