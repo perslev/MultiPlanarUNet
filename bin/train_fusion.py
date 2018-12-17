@@ -2,18 +2,18 @@ from MultiPlanarUNet.image import ImagePairLoader
 from MultiPlanarUNet.models import UNet, FusionModel
 from MultiPlanarUNet.train import YAMLHParams
 from MultiPlanarUNet.utils import await_and_set_free_gpu, get_best_model, \
-                                create_folders, highlighted, set_gpu
-from MultiPlanarUNet.utils.fusion import predict_volume, map_real_space_pred
+                                  create_folders, highlighted, set_gpu, \
+                                  random_split
+from MultiPlanarUNet.utils.fusion import predict_and_map, stack_collections
 from MultiPlanarUNet.interpolation.sample_grid import get_voxel_grid_real_space
 from MultiPlanarUNet.logging import Logger
-from MultiPlanarUNet.evaluate import dice_all
 from MultiPlanarUNet.callbacks import ValDiceScores, PrintLayerWeights
+from MultiPlanarUNet.evaluate.metrics import sparse_fg_precision, \
+                                             sparse_fg_recall
+
 from tensorflow.keras.optimizers import Adam
-from MultiPlanarUNet.evaluate.metrics import sparse_fg_precision, sparse_fg_recall
-
+from tensorflow.keras.callbacks import CSVLogger, EarlyStopping
 from sklearn.utils import shuffle
-
-from keras.callbacks import CSVLogger, EarlyStopping
 
 from argparse import ArgumentParser
 import random
@@ -65,6 +65,103 @@ def make_sets(images, sub_size, N):
     return sets
 
 
+def _run_fusion_training(sets, logger, hparams, min_val_images, is_validation,
+                         views, n_classes, unet, fusion_model_org, fusion_model,
+                         early_stopping, fm_batch_size, epochs):
+
+    for _round, _set in enumerate(sets):
+        s = "Set %i/%i:\n%s" % (_round + 1, len(sets), _set)
+        logger("\n%s" % highlighted(s))
+
+        # Reload data
+        images = ImagePairLoader(**hparams["val_data"])
+        if len(images) < min_val_images:
+            images.add_images(ImagePairLoader(**hparams["train_data"]))
+
+        # Get list of ImagePair objects to run on
+        image_set_dict = {m.id: m for m in images if m.id in _set}
+
+        # Fetch points from the set images
+        points_collection = []
+        targets_collection = []
+        N_im = len(image_set_dict)
+        for num_im, image_id in enumerate(list(image_set_dict.keys())):
+            logger("")
+            logger(
+                highlighted("(%i/%i) Running on %s (%s)" % (num_im + 1, N_im,
+                                                            image_id, "val" if
+                                                            is_validation[
+                                                                image_id] else "train")))
+
+            # Set the current ImagePair
+            image = image_set_dict[image_id]
+            images.images = [image]
+
+            # Load views
+            kwargs = hparams["fit"]
+            kwargs.update(hparams["build"])
+            seq = images.get_sequencer(views=views, **kwargs)
+
+            # Get voxel grid in real space
+            voxel_grid_real_space = get_voxel_grid_real_space(image)
+
+            # Get array to store predictions across all views
+            targets = image.labels.reshape(-1, 1)
+            points = np.empty(shape=(len(targets), len(views), n_classes),
+                              dtype=np.float32)
+            points.fill(np.nan)
+
+            # Predict on all views
+            for k, v in enumerate(views):
+                print("\n%s" % "View: %s" % v)
+                points[:, k, :] = predict_and_map(model=unet,
+                                                  seq=seq,
+                                                  image=image,
+                                                  view=v,
+                                                  voxel_grid_real_space=voxel_grid_real_space,
+                                                  n_planes='same+20')
+
+            # Clean up a bit
+            del image_set_dict[image_id]
+            del image  # Should be GC at this point anyway
+
+            # add to collections
+            points_collection.append(points)
+            targets_collection.append(targets)
+
+        # Stack points into one matrix
+        logger("Stacking points...")
+        X, y = stack_collections(points_collection, targets_collection)
+
+        print("Getting validation set...")
+        X, y, X_val, y_val = random_split(X, y, 0.20)
+
+        # Shuffle train
+        print("Shuffling training set...")
+        X, y = shuffle(X, y)
+
+        # Prepare dice score callback for validation data
+        val_cb = ValDiceScores((X_val, y_val), n_classes, 50000, logger)
+
+        # Callbacks
+        cbs = [val_cb,
+               CSVLogger(filename="logs/fusion_training.csv",
+                         separator=",", append=True),
+               PrintLayerWeights(fusion_model_org.layers[-1], every=1,
+                                 first=1000, per_epoch=True, logger=logger)]
+
+        es = EarlyStopping(monitor='val_dice', min_delta=0.0,
+                           patience=early_stopping, verbose=1, mode='max')
+        cbs.append(es)
+
+        # Start training
+        try:
+            fusion_model.fit(X, y, batch_size=fm_batch_size,
+                             epochs=epochs, callbacks=cbs, verbose=1)
+        except KeyboardInterrupt:
+            pass
+
+
 def entry_func(args=None):
 
     # Minimum images in validation set before also using training images
@@ -74,12 +171,11 @@ def entry_func(args=None):
     sub_size = 1
 
     # Fusion model training params
-    epochs = 1
+    epochs = 10
     fm_batch_size = 1000000
 
     # Early stopping params
     early_stopping = 4
-    improve_delta = 0.0
 
     # Project base path
     args = vars(get_argparser().parse_args(args))
@@ -182,12 +278,6 @@ def entry_func(args=None):
                                    weight=dice_weight,
                                    logger=logger, verbose=False)
 
-    # from MultiPlanarUNet.utils.utils import set_bias_weights
-    # set_bias_weights(layer=fusion_model_org.layers[-1],
-    #                  train_loader=images,
-    #                  class_counts=hparams.get("class_counts"),
-    #                  logger=logger)
-
     if continue_training:
         fusion_model_org.load_weights(fusion_weights)
         print("\n[OBS] CONTINUED TRAINING FROM:\n", fusion_weights)
@@ -217,136 +307,10 @@ def entry_func(args=None):
     fusion_model_org._log()
 
     try:
-        for _round, _set in enumerate(sets):
-            s = "Set %i/%i:\n%s" % (_round+1, len(sets), _set)
-            logger("\n%s" % highlighted(s))
-
-            # Reload data
-            images = ImagePairLoader(**hparams["val_data"])
-            if len(images) < min_val_images:
-                images.add_images(ImagePairLoader(**hparams["train_data"]))
-
-            # Get list of ImagePair objects to run on
-            image_set_dict = {m.id: m for m in images if m.id in _set}
-
-            # Fetch points from the set images
-            points_collection = []
-            targets_collection = []
-            N_im = len(image_set_dict)
-            for num_im, image_id in enumerate(list(image_set_dict.keys())):
-                logger("")
-                logger(highlighted("(%i/%i) Running on %s (%s)" % (num_im+1, N_im,
-                                                                   image_id, "val" if is_validation[image_id] else "train")))
-
-                # Set the current ImagePair
-                image = image_set_dict[image_id]
-                images.images = [image]
-
-                # Load views
-                kwargs = hparams["fit"]
-                kwargs.update(hparams["build"])
-                seq = images.get_sequencer(views=views, **kwargs)
-
-                # Get voxel grid in real space
-                voxel_grid_real_space = get_voxel_grid_real_space(image)
-
-                # Get array to store predictions across all views
-                targets = image.labels.reshape(-1, 1)
-                points = np.empty(shape=(len(targets), len(views), n_classes),
-                                  dtype=np.float32)
-                points.fill(np.nan)
-
-                # Predict on all views
-                for k, v in enumerate(views):
-                    logger("\n%s" % highlighted("View: %s" % v))
-
-                    # Sample planes from the image at grid_real_space grid
-                    # in real space (scanner RAS) coordinates.
-                    X, y, grid, inv_basis = seq.get_view_from(image.id, v,
-                                                              n_planes='same+20')
-
-                    # Predict on volume using model
-                    pred = predict_volume(unet, X, axis=2,
-                                          batch_size=seq.batch_size)
-
-                    # Map the real space coordiante predictions to nearest
-                    # real space coordinates defined on voxel grid
-                    points[:, k, :] = map_real_space_pred(pred, grid, inv_basis,
-                                                          voxel_grid_real_space,
-                                                          method="nearest").reshape(-1, n_classes)
-
-                    if np.random.rand() <= eval_prob:
-                        # Print dice scores
-                        logger("Computing evaluations...")
-                        logger("View dice scores:   ", dice_all(y, pred.argmax(-1),
-                                                                ignore_zero=False))
-                        logger("Mapped dice scores: ", dice_all(targets,
-                                                                points[:, k, :].argmax(-1),
-                                                                ignore_zero=False))
-                    else:
-                        logger("Skipping evaluation for this view... "
-                               "(eval_prob=%.3f)" % eval_prob)
-
-                # Clean up a bit
-                del image_set_dict[image_id]
-                del image  # Should be GC at this point anyway
-
-                # add to collections
-                points_collection.append(points)
-                targets_collection.append(targets)
-
-            # Stack points into one matrix
-            logger("Stacking points...")
-            n_points = sum([x.shape[0] for x in points_collection])
-            X = np.empty(shape=(n_points, len(views), n_classes),
-                         dtype=points_collection[0].dtype)
-            y = np.empty(shape=(n_points, 1),
-                         dtype=targets_collection[0].dtype)
-
-            c = 0
-            len_collection = len(points_collection)
-            for i in range(len_collection):
-                print("  %i/%i" % (i+1, len_collection),
-                      end="\r", flush=True)
-                Xs = points_collection.pop()
-                X[c:c+len(Xs)] = Xs
-                y[c:c+len(Xs)] = targets_collection.pop()
-                c += len(Xs)
-            print("")
-
-            # Take random split of validation data
-            n_val = int(n_points*0.20)
-            val_ind = np.random.choice(np.arange(n_points), size=n_val)
-            X_val, y_val = X[val_ind], y[val_ind]
-
-            # Get inverse for training
-            print("Getting validation set...")
-            X, y = np.delete(X, val_ind, axis=0), np.delete(y, val_ind, axis=0)
-
-            # Shuffle train
-            print("Shuffling...")
-            X, y = shuffle(X, y)
-
-            # Prepare dice score callback for validation data
-            val_cb = ValDiceScores((X_val, y_val), n_classes, 50000, logger)
-
-            # Callbacks
-            cbs = [val_cb,
-                   CSVLogger(filename="logs/fusion_training.csv",
-                             separator=",", append=True),
-                   PrintLayerWeights(fusion_model_org.layers[-1], every=1,
-                                     first=1000, per_epoch=True, logger=logger)]
-
-            es = EarlyStopping(monitor='val_dice', min_delta=improve_delta,
-                               patience=early_stopping, verbose=1, mode='max')
-            cbs.append(es)
-
-            # Start training
-            try:
-                fusion_model.fit(X, y, batch_size=fm_batch_size,
-                                 epochs=epochs, callbacks=cbs, verbose=1)
-            except KeyboardInterrupt:
-                pass
+        _run_fusion_training(sets, logger, hparams, min_val_images,
+                             is_validation, views, n_classes, unet,
+                             fusion_model_org, fusion_model,
+                             early_stopping, fm_batch_size, epochs)
     except KeyboardInterrupt:
         pass
     finally:
