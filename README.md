@@ -32,7 +32,6 @@ Available scripts:
 - summary
 - train
 - train_fusion
-- trim_channels
 ...
 ```
 
