@@ -50,7 +50,9 @@ def entry_func(args=None):
     path = os.path.abspath(args["root"])
     name = args["name"]
     preset = args["model"]
-    data_dir = os.path.abspath(args["data_dir"])
+    data_dir = args["data_dir"]
+    if data_dir:
+        data_dir = os.path.abspath(data_dir)
 
     # Validate project path and create folder
     if not os.path.exists(path):

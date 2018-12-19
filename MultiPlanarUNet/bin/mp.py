@@ -15,19 +15,23 @@ def get_parser():
     import pkgutil
     mods = pkgutil.iter_modules(bin.__path__)
 
-    ids = f"Multi Planar UNet ({__version__})"
+    ids = "Multi Planar UNet (%s)".format(__version__)
     sep = "-" * len(ids)
-    usage = "mp [script] [script args...]\n\n" + \
-            f"{ids}\n{sep}\n" + \
-            "Available scripts:\n"
+    usage = ("mp [script] [script args...]\n\n"
+             "%s\n%s\n"
+             "Available scripts:\n") % (ids, sep)
 
     choices = []
     file_name = os.path.split(os.path.abspath(__file__))[-1]
     for m in mods:
-        if m.name == file_name[:-3] or m.ispkg:
+        if isinstance(m, tuple):
+            name, ispkg = m[1], m[2]
+        else:
+            name, ispkg = m.name, m.ispkg
+        if name == file_name[:-3] or ispkg:
             continue
-        usage += "- " + m.name + "\n"
-        choices.append(m.name)
+        usage += "- " + name + "\n"
+        choices.append(name)
 
     # Top level parser
     parser = argparse.ArgumentParser(usage=usage)
