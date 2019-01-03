@@ -31,7 +31,7 @@ def get_parser():
                                'which the project will be initialized')
     optional.add_argument("--model", type=str, default="MultiPlanar",
                           help="Specify a model type parameter file "
-                               "('MultiPlanar', '3D')")
+                               "('MultiPlanar', '3D', 'MultiTask')")
     optional.add_argument("--data_dir", type=str, default=None,
                           help="Root data folder for the project")
 
@@ -68,12 +68,14 @@ def entry_func(args=None):
             os.makedirs("%s/%s" % (path, name))
 
     # Get yaml path
-    yaml_path = ("train_hparams" + "_%s" % preset).rstrip("_")
+    from glob import glob
+    yaml_paths = glob(os.path.join(default_folder, preset, "*.yaml"))
 
     # Write file
-    copy_yaml_and_set_data_dirs(in_path=default_folder + "/%s.yaml" % yaml_path,
-                                out_path="%s/train_hparams.yaml" % folder_path,
-                                data_dir=data_dir)
+    for p in yaml_paths:
+        copy_yaml_and_set_data_dirs(in_path=p,
+                                    out_path=os.path.join(folder_path, os.path.split(p)[-1]),
+                                    data_dir=data_dir)
 
 
 if __name__ == "__main__":
