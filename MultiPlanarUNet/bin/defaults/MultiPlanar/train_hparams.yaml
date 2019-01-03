@@ -20,7 +20,6 @@ __CB_mcp_clean: &MCP_CLEAN
   # Model checkpoint
   nickname: "mcp_clean"
   class_name: "ModelCheckPointClean"
-  start_from: 30
   kwargs: {filepath: "./model/@epoch_{epoch:02d}_val_dice_{val_dice:.5f}.h5",
            monitor: "val_dice", save_best_only: true, save_weights_only: true,
            verbose: 1, mode: "max"}
@@ -78,32 +77,27 @@ build: &BUILD
   #
   # Hyperparameters passed to the Model.build and __init__ methods
   #
-  model_class_name: "UNet3D"
-  dim: Null
+  model_class_name: "UNet"
   n_classes: Null
   n_channels: Null
-  complexity_factor: 1
+  dim: Null
+  complexity_factor: 2
   out_activation: "softmax"
   l1_reg: False
   l2_reg: False
   biased_output_layer: True
-  depth: 3
+  depth: 4
 
 fit: &FIT
   #
   # Hyperparameters passed to the Trainer object
   #
 
-  # One of:
-  # pre_rotate :
-  # live       :
-  # iso_live   :
-  intrp_style: 'iso_live_3d'
+  # Views
+  views: 6
   noise_sd: 0.1
-
-  sample_dim: Null
   real_space_span: Null
-  real_box_dim: Null
+  intrp_style: 'iso_live'
 
   # Use class weights?
   class_weights: False
@@ -112,13 +106,13 @@ fit: &FIT
   # On-the-fly augmentation?
   # Leave empty or delete entirely if not
   augmenters: [
-  {cls_name: "Elastic3D",
-   kwargs: {alpha: [0, 450], sigma: [12, 25], apply_prob: 0.333}}
+    {cls_name: "Elastic2D",
+     kwargs: {alpha: [0, 450], sigma: [20, 30], apply_prob: 0.333}}
   ]
 
   # Loss function
   loss: "sparse_categorical_crossentropy"
-  metrics: ["fg_precision", "fg_recall"]
+  metrics: ["mean_fg_precision", "mean_fg_recall"]
 
   # Optimization
   batch_size: 16
@@ -126,7 +120,7 @@ fit: &FIT
   verbose: true
   shuffle_batch_order: true
   optimizer: "Adam"
-  optimizer_kwargs: {lr: 5.0e-5, decay: 0.0, beta_1: 0.9, beta_2: 0.999, epsilon: 1.0e-8}
+  optimizer_kwargs: {lr: 5.0e-05, decay: 0.0, beta_1: 0.9, beta_2: 0.999, epsilon: 1.0e-8}
 
   # Minimum fraction of image slices with FG labels in each mini-batch
   fg_batch_fraction: 0.50

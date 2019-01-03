@@ -43,50 +43,20 @@ __CB_csv: &CSV
   class_name: "CSVLogger"
   kwargs: {filename: "logs/training.csv", separator: ",", append: true}
 
-aug_data: &AUGDATA
-  # Inject augmented data?
-  add_aug: false
-
-  # Augmented datasets
-  # Add here as nested JSON objects
-  datasets: {
-    augmented: {
-      base_dir: <<BASE_DIR_AUG>>,
-      img_subdir: images,
-      label_subdir: labels,
-      sample_weight: 0.33
-    }
-  }
-
-train_data: &TRAINDATA
-  base_dir: <<BASE_DIR_TRAIN>>
-  img_subdir: images
-  label_subdir: labels
-
-val_data: &VALDATA
-  base_dir: <<BASE_DIR_VAL>>
-  img_subdir: images
-  label_subdir: labels
-
-test_data: &TESTDATA
-  base_dir: <<BASE_DIR_TEST>>
-  img_subdir: images
-  label_subdir: labels
+tasks:
+  task_names: ["task_1", "task_2"]
+  hparam_files: ["task_1.yaml", "task_2.yaml"]
 
 build: &BUILD
   #
   # Hyperparameters passed to the Model.build and __init__ methods
   #
-  model_class_name: "UNet"
-  n_classes: Null
-  n_channels: Null
-  dim: Null
+  model_class_name: "MultiTaskUNet2D"
   complexity_factor: 2
-  out_activation: "softmax"
   l1_reg: False
   l2_reg: False
-  biased_output_layer: True
   depth: 4
+  shared_decoder: False
 
 fit: &FIT
   #
@@ -96,8 +66,6 @@ fit: &FIT
   # Views
   views: 6
   noise_sd: 0.1
-  sample_dim: Null
-  real_space_span: Null
   intrp_style: 'iso_live'
 
   # Use class weights?

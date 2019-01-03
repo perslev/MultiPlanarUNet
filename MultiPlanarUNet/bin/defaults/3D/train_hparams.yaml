@@ -1,0 +1,142 @@
+# This files stores hyperparameters for the building and fitting of a model
+# in the models library.
+#
+# Components prefixed __CB are for keras callback hyperparamer settings. These
+# will be passed as dictionaries stored in the 'callbacks' list in &FIT.
+
+__CB_rlop: &RLOP
+  # keras.ReduceLROnPlateau
+  nickname: "rlop"
+  class_name: "ReduceLROnPlateau"
+  kwargs: {patience: 2, factor: 0.90, verbose: 1, monitor: "val_dice", mode: "max"}
+
+__CB_tb: &TB
+  # tensorboard
+  nickname: "tb"
+  class_name: "TensorBoard"
+  kwargs: {log_dir: './tensorboard'}
+
+__CB_mcp_clean: &MCP_CLEAN
+  # Model checkpoint
+  nickname: "mcp_clean"
+  class_name: "ModelCheckPointClean"
+  start_from: 30
+  kwargs: {filepath: "./model/@epoch_{epoch:02d}_val_dice_{val_dice:.5f}.h5",
+           monitor: "val_dice", save_best_only: true, save_weights_only: true,
+           verbose: 1, mode: "max"}
+
+__CB_es: &ES
+  # Early stopping
+  nickname: "es"
+  class_name: "EarlyStopping"
+  kwargs: {monitor: 'val_dice', min_delta: 0, patience: 15, verbose: 1 , mode: 'max'}
+
+__CB_timer: &TIMER
+  # Train timer callback
+  nickname: "timer"
+  class_name: "TrainTimer"
+  pass_logger: True
+  kwargs: {verbose: True}
+
+__CB_csv: &CSV
+  # keras.CSVLogger
+  nickname: "csv"
+  class_name: "CSVLogger"
+  kwargs: {filename: "logs/training.csv", separator: ",", append: true}
+
+aug_data: &AUGDATA
+  # Inject augmented data?
+  add_aug: false
+
+  # Augmented datasets
+  # Add here as nested JSON objects
+  datasets: {
+    augmented: {
+      base_dir: <<BASE_DIR_AUG>>,
+      img_subdir: images,
+      label_subdir: labels,
+      sample_weight: 0.33
+    }
+  }
+
+train_data: &TRAINDATA
+  base_dir: <<BASE_DIR_TRAIN>>
+  img_subdir: images
+  label_subdir: labels
+
+val_data: &VALDATA
+  base_dir: <<BASE_DIR_VAL>>
+  img_subdir: images
+  label_subdir: labels
+
+test_data: &TESTDATA
+  base_dir: <<BASE_DIR_TEST>>
+  img_subdir: images
+  label_subdir: labels
+
+build: &BUILD
+  #
+  # Hyperparameters passed to the Model.build and __init__ methods
+  #
+  model_class_name: "UNet3D"
+  dim: Null
+  n_classes: Null
+  n_channels: Null
+  complexity_factor: 1
+  out_activation: "softmax"
+  l1_reg: False
+  l2_reg: False
+  biased_output_layer: True
+  depth: 3
+
+fit: &FIT
+  #
+  # Hyperparameters passed to the Trainer object
+  #
+
+  # One of:
+  # pre_rotate :
+  # live       :
+  # iso_live   :
+  intrp_style: 'iso_live_3d'
+  noise_sd: 0.1
+
+  real_space_span: Null
+  real_box_dim: Null
+
+  # Use class weights?
+  class_weights: False
+  sparse: True
+
+  # On-the-fly augmentation?
+  # Leave empty or delete entirely if not
+  augmenters: [
+  {cls_name: "Elastic3D",
+   kwargs: {alpha: [0, 450], sigma: [12, 25], apply_prob: 0.333}}
+  ]
+
+  # Loss function
+  loss: "sparse_categorical_crossentropy"
+  metrics: ["fg_precision", "fg_recall"]
+
+  # Optimization
+  batch_size: 16
+  n_epochs: 500
+  verbose: true
+  shuffle_batch_order: true
+  optimizer: "Adam"
+  optimizer_kwargs: {lr: 5.0e-5, decay: 0.0, beta_1: 0.9, beta_2: 0.999, epsilon: 1.0e-8}
+
+  # Minimum fraction of image slices with FG labels in each mini-batch
+  fg_batch_fraction: 0.50
+  bg_class: 0        # background class label
+  bg_value: 1pct
+
+  # Normalization, using sklearn.preprocessing scalers
+  # NOTE: Applied across full image volumes (after interpolation)
+  # Options: MinMaxScaler, StandardScaler, MaxAbsScaler,
+  #          RobustScaler, QuantileTransformer, Null
+  scaler: "RobustScaler"
+
+  # Callbacks
+  callbacks: [*RLOP, *TB, *MCP_CLEAN, *ES, *TIMER, *CSV]
