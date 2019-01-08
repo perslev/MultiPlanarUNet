@@ -27,6 +27,12 @@ def get_argparser():
     parser.add_argument("--wait_for", type=str, default="",
                         help="Waiting for PID to terminate before starting "
                              "training process.")
+    parser.add_argument("--train_images_per_epoch", type=int, default=2500,
+                        help="Number of training images to sample in each "
+                             "epoch")
+    parser.add_argument("--val_images_per_epoch", type=int, default=3500,
+                        help="Number of training images to sample in each "
+                             "epoch")
     return parser
 
 
@@ -57,7 +63,8 @@ def validate_hparams(hparams):
 
 
 def run(base_path, gpu_mon, num_GPUs, continue_training, force_GPU, just_one,
-        no_val, no_images, debug, wait_for, logger, **kwargs):
+        no_val, no_images, debug, wait_for, logger, train_images_per_epoch,
+            val_images_per_epoch, **kwargs):
 
     from MultiPlanarUNet.train import Trainer, YAMLHParams
     from MultiPlanarUNet.models import model_initializer
@@ -92,14 +99,9 @@ def run(base_path, gpu_mon, num_GPUs, continue_training, force_GPU, just_one,
                                   logger)
 
     # Initialize weights in final layer?
-    # This will bias the softmax output layer to output class confidences
-    # equal to the class frequency
     if not continue_training and hparams["build"].get("biased_output_layer"):
-        from MultiPlanarUNet.utils.utils import set_bias_weights
-        set_bias_weights(layer=org_model.layers[-1],
-                         train_loader=train.image_pair_loader,
-                         class_counts=hparams.get("class_counts"),
-                         logger=logger)
+        from MultiPlanarUNet.utils.utils import set_bias_weights_on_all_outputs
+        set_bias_weights_on_all_outputs(org_model, train, hparams, logger)
 
     # Multi-GPU?
     if num_GPUs > 1:
@@ -125,7 +127,10 @@ def run(base_path, gpu_mon, num_GPUs, continue_training, force_GPU, just_one,
         k.set_session(tfdbg.LocalCLIDebugWrapperSession(k.get_session()))
 
     # Fit the model
-    _ = trainer.fit(train, val, hparams=hparams, no_im=no_images, **hparams["fit"])
+    _ = trainer.fit(train=train, val=val,
+                    train_im_per_epoch=train_images_per_epoch,
+                    val_im_per_epoch=val_images_per_epoch,
+                    hparams=hparams, no_im=no_images, **hparams["fit"])
 
     # Save final model weights (usually not used, but maybe....?)
     if not os.path.exists("%s/model" % base_path):
