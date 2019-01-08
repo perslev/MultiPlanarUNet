@@ -86,10 +86,6 @@ class PatchSequence3D(BaseSequence):
         else:
             return int(np.ceil(self.batch_size * self.fg_batch_fraction))
 
-    def count(self):
-        weights = np.array([image.sample_weight for image in self.image_pair_loader]).flatten()
-        return np.unique(weights, return_counts=True)
-
     def get_N_random_patches_from(self, image, N):
         if N > 0:
             # Sample N patches from X
