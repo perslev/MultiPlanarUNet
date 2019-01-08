@@ -62,6 +62,7 @@ class UNet(Model):
         logger (MultiPlanarUNet.logging.Logger | ScreenLogger):
             MutliViewUNet.Logger object, logging to files or screen.
         """
+        super(UNet, self).__init__()
         if not ((img_rows and img_cols) or dim):
             raise ValueError("Must specify either img_rows and img_col or dim")
         if dim:
@@ -95,6 +96,74 @@ class UNet(Model):
         # Log the model definition
         self.log()
 
+    def _create_encoder(self, in_, init_filters, kernel_reg=None,
+                        name="encoder"):
+        filters = init_filters
+        residual_connections = []
+        for i in range(self.depth):
+            l_name = name + "_L%i" % i
+            conv = Conv2D(int(filters * self.cf), self.kernel_size,
+                          activation=self.activation, padding=self.padding,
+                          kernel_regularizer=kernel_reg,
+                          name=l_name + "_conv1")(in_)
+            conv = Conv2D(int(filters * self.cf), self.kernel_size,
+                          activation=self.activation, padding=self.padding,
+                          kernel_regularizer=kernel_reg,
+                          name=l_name + "_conv2")(conv)
+            bn = BatchNormalization(name=l_name + "_BN")(conv)
+            in_ = MaxPooling2D(pool_size=(2, 2), name=l_name + "_pool")(bn)
+
+            # Update filter count and add bn layer to list for residual conn.
+            filters *= 2
+            residual_connections.append(bn)
+        return in_, residual_connections, filters
+
+    def _create_bottom(self, in_, filters, kernel_reg=None, name="bottom"):
+        conv = Conv2D(int(filters * self.cf), self.kernel_size,
+                      activation=self.activation, padding=self.padding,
+                      kernel_regularizer=kernel_reg,
+                      name=name + "_conv1")(in_)
+        conv = Conv2D(int(filters * self.cf), self.kernel_size,
+                      activation=self.activation, padding=self.padding,
+                      kernel_regularizer=kernel_reg,
+                      name=name + "_conv2")(conv)
+        bn = BatchNormalization(name=name + "_BN")(conv)
+        return bn
+
+    def _create_upsample(self, in_, res_conns, filters, kernel_reg=None,
+                         name="upsample"):
+        residual_connections = res_conns[::-1]
+        for i in range(self.depth):
+            l_name = name + "_L%i" % i
+            # Reduce filter count
+            filters /= 2
+
+            # Up-sampling block
+            # Note: 2x2 filters used for backward comp, but you probably
+            # want to use 3x3 here instead.
+            up = UpSampling2D(size=(2, 2), name=l_name + "_up")(in_)
+            conv = Conv2D(int(filters * self.cf), 2,
+                          activation=self.activation,
+                          padding=self.padding, kernel_regularizer=kernel_reg,
+                          name=l_name + "_conv1")(up)
+            bn = BatchNormalization(name=l_name + "_BN1")(conv)
+
+            # Crop and concatenate
+            cropped_res = self.crop_nodes_to_match(residual_connections[i], bn)
+            merge = Concatenate(axis=-1,
+                                name=l_name + "_concat")([cropped_res, bn])
+
+            conv = Conv2D(int(filters * self.cf), self.kernel_size,
+                          activation=self.activation, padding=self.padding,
+                          kernel_regularizer=kernel_reg,
+                          name=l_name + "_conv2")(merge)
+            conv = Conv2D(int(filters * self.cf), self.kernel_size,
+                          activation=self.activation, padding=self.padding,
+                          kernel_regularizer=kernel_reg,
+                          name=l_name + "_conv3")(conv)
+            in_ = BatchNormalization(name=l_name + "_BN2")(conv)
+        return in_
+
     def init_model(self):
         """
         Build the UNet model with the specified input image shape.
@@ -107,61 +176,19 @@ class UNet(Model):
         """
         Encoding path
         """
-        filters = 64
-        in_ = inputs
-        residual_connections = []
-        for i in range(self.depth):
-            conv = Conv2D(int(filters*self.cf), self.kernel_size,
-                          activation=self.activation, padding=self.padding,
-                          kernel_regularizer=kr)(in_)
-            conv = Conv2D(int(filters * self.cf), self.kernel_size,
-                          activation=self.activation, padding=self.padding,
-                          kernel_regularizer=kr)(conv)
-            bn = BatchNormalization()(conv)
-            in_ = MaxPooling2D(pool_size=(2, 2))(bn)
-
-            # Update filter count and add bn layer to list for residual conn.
-            filters *= 2
-            residual_connections.append(bn)
+        in_, residual_cons, filters = self._create_encoder(in_=inputs,
+                                                           init_filters=64,
+                                                           kernel_reg=kr)
 
         """
         Bottom (no max-pool)
         """
-        conv = Conv2D(int(filters * self.cf), self.kernel_size,
-                      activation=self.activation, padding=self.padding,
-                      kernel_regularizer=kr)(in_)
-        conv = Conv2D(int(filters * self.cf), self.kernel_size,
-                      activation=self.activation, padding=self.padding,
-                      kernel_regularizer=kr)(conv)
-        bn = BatchNormalization()(conv)
+        bn = self._create_bottom(in_, filters, kr)
 
         """
         Up-sampling
         """
-        residual_connections = residual_connections[::-1]
-        for i in range(self.depth):
-            # Reduce filter count
-            filters /= 2
-
-            # Up-sampling block
-            # Note: 2x2 filters used for backward comp, but you probably
-            # want to use 3x3 here instead.
-            up = UpSampling2D(size=(2, 2))(bn)
-            conv = Conv2D(int(filters * self.cf), 2, activation=self.activation,
-                          padding=self.padding, kernel_regularizer=kr)(up)
-            bn = BatchNormalization()(conv)
-
-            # Crop and concatenate
-            cropped_res = self.crop_nodes_to_match(residual_connections[i], bn)
-            merge = Concatenate(axis=-1)([cropped_res, bn])
-
-            conv = Conv2D(int(filters * self.cf), self.kernel_size,
-                          activation=self.activation, padding=self.padding,
-                          kernel_regularizer=kr)(merge)
-            conv = Conv2D(int(filters * self.cf), self.kernel_size,
-                          activation=self.activation, padding=self.padding,
-                          kernel_regularizer=kr)(conv)
-            bn = BatchNormalization()(conv)
+        bn = self._create_upsample(bn, residual_cons, filters, kr)
 
         """
         Output modeling layer
