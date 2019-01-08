@@ -99,18 +99,26 @@ class Auditor(object):
         # TODO: Integrate this with the logic of the MultiPlanarUNet.models
         # TODO: __init__.py file that already sets preprep functions for each
         # TODO: model type.
-        self.pattern_2d = {
-            "real_space_span_2D": (["fit"], ["real_space_span"]),
-            "sample_dim_2D": (["build", "fit"], ["dim", "sample_dim"]),
-            "n_channels": (["build"], ["n_channels"]),
-            "n_classes": (["build"], ["n_classes"])
-        }
-        self.pattern_3d = {
-            "real_space_span_3D": (["fit"], ["real_space_span"]),
-            "sample_dim_3D": (["build", "fit"], ["dim", "sample_dim"]),
-            "real_box_span": (["fit"], ["real_box_dim"]),
-            "n_channels": (["build"], ["n_channels"]),
-            "n_classes": (["build"], ["n_classes"])
+        self.patterns = {
+            "2d": {
+                "real_space_span_2D": (["fit"], ["real_space_span"]),
+                "sample_dim_2D": (["build"], ["dim"]),
+                "n_channels": (["build"], ["n_channels"]),
+                "n_classes": (["build"], ["n_classes"])
+            },
+            "3d": {
+                "real_space_span_3D": (["fit"], ["real_space_span"]),
+                "sample_dim_3D": (["build"], ["dim"]),
+                "real_box_span": (["fit"], ["real_box_dim"]),
+                "n_channels": (["build"], ["n_channels"]),
+                "n_classes": (["build"], ["n_classes"])
+            },
+            "multi_task_2d": {
+                "real_space_span_2D": (["task_specifics"], ["real_space_span"]),
+                "sample_dim_2D": (["task_specifics"], ["dim"]),
+                "n_channels": (["task_specifics"], ["n_channels"]),
+                "n_classes": (["task_specifics"], ["n_classes"])
+            }
         }
 
         # Write to log
@@ -147,14 +155,11 @@ class Auditor(object):
         Args:
             hparams:     MultiPlanarUNet YAMLHParams object
             model_type:  A string representing the model type and thus which
-                         pattern to apply. Must be either "2d" or "3d"
-                         (upper case tolerated)
+                         pattern to apply. Must be either "2d", "3d" (upper case tolerated)
         """
-        if model_type.lower() == "2d":
-            pattern = self.pattern_2d
-        elif model_type.lower() == "3d":
-            pattern = self.pattern_3d
-        else:
+        model_type = model_type.lower()
+        pattern = self.patterns.get(model_type)
+        if pattern is None:
             raise ValueError("Unknown model type: '%s'" % model_type)
 
         changes = False

@@ -119,6 +119,23 @@ def clear_csv_after_epoch(epoch, csv_file):
         out_f.write(df.to_csv(index=False))
 
 
+def set_bias_weights_on_all_outputs(model, train, hparams, logger):
+    # This will bias the softmax output layer to output class confidences
+    # equal to the class frequency
+    if hasattr(model, "out_layers"):
+        # Multiple output layers, set bias for each
+        layers = model.out_layers
+        loaders = [t.image_pair_loader for t in train]
+    else:
+        layers = [model.layers[-1]]
+        loaders = [train.image_pair_loader]
+    for layer, loader in zip(layers, loaders):
+        set_bias_weights(layer=layer,
+                         train_loader=loader,
+                         class_counts=hparams.get("class_counts"),
+                         logger=logger)
+
+
 def set_bias_weights(layer, train_loader, class_counts=None, logger=None):
     if layer.activation.__name__ != "softmax":
         raise ValueError("Setting output layer bias currently only supported "
@@ -258,8 +275,7 @@ class DummyContext(object):
     def __exit__(*x): pass
 
 
-def pred_to_class(tensor, img_dims=3, threshold=None, has_batch_dim=False):
-    threshold = threshold or 0.5
+def pred_to_class(tensor, img_dims=3, threshold=0.5, has_batch_dim=False):
     tensor_dim = img_dims + int(has_batch_dim)
     dims = len(tensor.shape)
     if dims == tensor_dim:

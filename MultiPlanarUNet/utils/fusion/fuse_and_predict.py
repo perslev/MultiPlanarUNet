@@ -85,7 +85,11 @@ def predict_volume(model, X, batch_size=8, axis=0):
 
     # Prepare a prediction volume of zeros
     # OBS: if a voxel is not covered by the view, it will be assumed background
-    pred = np.zeros(shape=X.shape[:-1]+(model.n_classes,), dtype=np.float32)
+    n_classes = model.n_classes
+    if isinstance(n_classes, (list, tuple)):
+        assert len(n_classes) == 1
+        n_classes = n_classes[0]
+    pred = np.zeros(shape=X.shape[:-1]+(n_classes,), dtype=np.float32)
 
     # Predict on all interpolated views
     print("Predicting...")

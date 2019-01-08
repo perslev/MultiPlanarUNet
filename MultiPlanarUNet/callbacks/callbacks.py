@@ -11,6 +11,7 @@ import os
 import matplotlib.pyplot as plt
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
 
 
 class DividerLine(Callback):
@@ -100,18 +101,18 @@ class TrainTimer(Callback):
         self.prev_epoch_time = end_time
 
         # Add to logs
-        logs["trainTimeEpoch"] = self.parse_dtime(epoch_time,
-                                                  "{days:02}d:{hours:02}h:"
-                                                  "{minutes:02}m:{seconds:02}s")
-        logs["trainTimeTotal"] = self.parse_dtime(train_time,
-                                                  "{days:02}d:{hours:02}h:"
-                                                  "{minutes:02}m:{seconds:02}s")
+        logs["train_time_epoch"] = self.parse_dtime(epoch_time,
+                                                    "{days:02}d:{hours:02}h:"
+                                                    "{minutes:02}m:{seconds:02}s")
+        logs["train_time_total"] = self.parse_dtime(train_time,
+                                                    "{days:02}d:{hours:02}h:"
+                                                    "{minutes:02}m:{seconds:02}s")
 
         if self.verbose:
             self.logger("[TrainTimer] Epoch time: %.1f minutes "
                         "- Total train time: %s"
                         % (epoch_time.total_seconds()/60,
-                           logs["trainTimeTotal"]))
+                           logs["train_time_total"]))
 
 
 class FGBatchBalancer(Callback):
@@ -154,7 +155,7 @@ class FGBatchBalancer(Callback):
                 if data is not None:
                     data.fg_batch_fraction = fraction
                     self.logger("[FGBatchBalancer] Setting FG fraction for %s "
-                                "to: %.4f - Now %i/%i" % (name,
+                                "to: %.4f - Now %s/%s" % (name,
                                                           fraction,
                                                           data.n_fg_slices,
                                                           data.batch_size))
@@ -246,43 +247,55 @@ class Validation(Callback):
         self.logger = logger or ScreenLogger()
         self.data = val_sequence
         self.steps = steps
-        self.n_classes = self.data.n_classes
         self.verbose = verbose
 
-        # Determine shapes
-        self.shape = np.array(self.data.batch_shape)
-        self.shape[0] *= steps
+        self.n_classes = self.data.n_classes
+        if isinstance(self.n_classes, int):
+            self.task_names = [""]
+            self.n_classes = [self.n_classes]
+        else:
+            self.task_names = self.data.task_names
 
     def predict(self):
 
-        def count(queue, steps, TPs, relevant, selected):
+        def count(queue, steps, TPs, relevant, selected, n_classes_list, lock):
             step = 0
             while step < steps:
                 step += 1
 
                 # Get prediction and true labels from prediction queue
-                pred, y = queue.get(block=True)
+                pred, true = queue.get(block=True)
 
                 # Argmax and flatten
-                pred = np.argmax(pred, axis=-1).ravel()
-                y = y.ravel()
+                for i, n_classes in enumerate(n_classes_list):
+                    p = np.argmax(pred[i], axis=-1).ravel()
+                    y = true[i].ravel()
 
-                # Compute relevant CM elements (faster than sklearn CM)
-                # We select the number following the largest class integer when
-                # y != pred, then bincount and remove the added dummy class
-                TPs += np.bincount(np.where(y == pred, y, self.n_classes),
-                                   minlength=self.n_classes)[:-1].astype(np.uint64)
-                relevant += np.bincount(y, minlength=self.n_classes).astype(np.uint64)
-                selected += np.bincount(pred, minlength=self.n_classes).astype(np.uint64)
+                    # Compute relevant CM elements
+                    # We select the number following the largest class integer when
+                    # y != pred, then bincount and remove the added dummy class
+                    tps = np.bincount(np.where(y == p, y, n_classes),
+                                      minlength=n_classes+1)[:-1]
+                    rel = np.bincount(y, minlength=n_classes)
+                    sel = np.bincount(p, minlength=n_classes)
+
+                    # Update counts on shared lists
+                    lock.acquire()
+                    TPs[i] += tps.astype(np.uint64)
+                    relevant[i] += rel.astype(np.uint64)
+                    selected[i] += sel.astype(np.uint64)
+                    lock.release()
 
         # Fetch some validation images from the generator
         pool = ThreadPoolExecutor(max_workers=7)
         result = pool.map(self.data.__getitem__, np.arange(self.steps))
 
         # Prepare arrays for CM summary stats
-        TPs = np.zeros(shape=(self.n_classes,), dtype=np.uint64)
-        relevant = np.zeros(shape=(self.n_classes,), dtype=np.uint64)
-        selected = np.zeros(shape=(self.n_classes,), dtype=np.uint64)
+        TPs, relevant, selected = [], [], []
+        for n_classes in self.n_classes:
+            TPs.append(np.zeros(shape=(n_classes,), dtype=np.uint64))
+            relevant.append(np.zeros(shape=(n_classes,), dtype=np.uint64))
+            selected.append(np.zeros(shape=(n_classes,), dtype=np.uint64))
 
         # Prepare queue and thread for computing counts
         from queue import Queue
@@ -290,7 +303,8 @@ class Validation(Callback):
 
         count_queue = Queue(maxsize=self.steps)
         count_thread = Thread(target=count, args=[count_queue, self.steps,
-                                                  TPs, relevant, selected])
+                                                  TPs, relevant, selected,
+                                                  self.n_classes, Lock()])
         count_thread.start()
 
         # Predict on all
@@ -315,38 +329,52 @@ class Validation(Callback):
     def on_epoch_end(self, epoch, logs={}):
 
         # Predict and get CM
-        TPs, relevant, selected = self.predict()
+        for name, tp, rel, sel in zip(self.task_names, *self.predict()):
+            # Compute precisions, recalls and dices
+            precisions = tp / sel
+            recalls = tp / rel
+            dices = (2 * precisions * recalls) / (precisions + recalls)
 
-        # Compute precisions, recalls and dices
-        precisions = TPs / selected
-        recalls = TPs / relevant
-        dices = (2 * precisions * recalls) / (precisions + recalls)
+            # Ignore BG
+            precisions = precisions[1:]
+            recalls = recalls[1:]
+            dices = dices[1:]
 
-        # Ignore BG
-        precisions = precisions[1:]
-        recalls = recalls[1:]
-        dices = dices[1:]
+            # Set NaN --> 0.
+            precisions[np.isnan(precisions)] = 0.
+            recalls[np.isnan(recalls)] = 0.
+            dices[np.isnan(dices)] = 0.
 
-        # Set NaN --> 0.
-        precisions[np.isnan(precisions)] = 0.
-        recalls[np.isnan(recalls)] = 0.
-        dices[np.isnan(dices)] = 0.
+            sp = "Mean precision for epoch %d: %.4f - Pr. class: %s" % (epoch,
+                                                                        precisions.mean(),
+                                                                        np.round(precisions, 4))
+            sr = "Mean recall for epoch %d:    %.4f - Pr. class: %s" % (epoch,
+                                                                        recalls.mean(),
+                                                                        np.round(recalls, 4))
+            sf = "Mean dice for epoch %d:      %.4f - Pr. class: %s" % (epoch,
+                                                                        dices.mean(),
+                                                                        np.round(dices, 4))
 
-        sp = "Mean precision for epoch %d: %.4f - Pr. class: %s" % (epoch,
-                                                                    precisions.mean(),
-                                                                    np.round(precisions, 4))
-        sr = "Mean recall for epoch %d:    %.4f - Pr. class: %s" % (epoch,
-                                                                    recalls.mean(),
-                                                                    np.round(recalls, 4))
-        sf = "Mean dice for epoch %d:      %.4f - Pr. class: %s" % (epoch,
-                                                                    dices.mean(),
-                                                                    np.round(dices, 4))
-        self.logger(sp + "\n" + sr + "\n" + sf)
+            self.logger(highlighted("\n" + ("%s Validation Results" % name).lstrip(" ")))
+            self.logger(sp + "\n" + sr + "\n" + sf)
 
-        # Add to log
-        logs["val_dice"] = dices.mean()
-        logs["val_precision"] = precisions.mean()
-        logs["val_recall"] = recalls.mean()
+            # Add to log
+            if name:
+                name += "_"
+            logs["%sval_dice" % name] = dices.mean()
+            logs["%sval_precision" % name] = precisions.mean()
+            logs["%sval_recall" % name] = recalls.mean()
+
+        if len(self.task_names) > 1:
+            self.logger("\nMean across tasks")
+            # If multi-task, compute mean over tasks and add to logs
+            fetch = ("val_dice", "val_precision", "val_recall")
+            for f in fetch:
+                res = np.mean([logs["%s_%s" % (name, f)] for name in self.task_names])
+                logs[f] = res
+                self.logger(("Mean %s for epoch %d:" %
+                             (f.split("_")[1], epoch)).ljust(30) + "%.4f" % res)
+            self.logger("")
 
 
 class ValDiceScores(Callback):

@@ -52,6 +52,7 @@ class FusionModel(Model):
         # Set loss
         self.loss = GeneralizedDiceLoss(n_classes, type_weight=weight,
                                         logger=logger, sparse=True)
+        # self.loss = tf.keras.losses.categorical_crossentropy
 
         # Init model
         super().__init__(*self.init_model(n_inputs, n_classes))
