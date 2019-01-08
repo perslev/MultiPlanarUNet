@@ -1,5 +1,6 @@
 from MultiPlanarUNet.image import ImagePairLoader
-from MultiPlanarUNet.models import UNet, FusionModel
+from MultiPlanarUNet.models import FusionModel
+from MultiPlanarUNet.models.model_init import init_model
 from MultiPlanarUNet.train import YAMLHParams
 from MultiPlanarUNet.utils import await_and_set_free_gpu, get_best_model, \
                                   create_folders, highlighted, set_gpu, \
@@ -30,6 +31,11 @@ def get_argparser():
                         help='overwrite previous fusion weights')
     parser.add_argument("--num_GPUs", type=int, default=1,
                         help='Number of GPUs to assign to this job')
+    parser.add_argument("--images_per_round", type=int, default=10,
+                        help="Number of images to train on in each sub-round."
+                             " Larger numbers should be preferred but "
+                             "requires potentially large amounts of memory."
+                             " Defaults to 10.")
     parser.add_argument("--continue_training", action='store_true')
     parser.add_argument("--force_GPU", type=str, default="")
     parser.add_argument("--eval_prob", type=float, default=1.0,
@@ -38,7 +44,7 @@ def get_argparser():
     parser.add_argument("--wait_for", type=str, default="",
                         help="Waiting for PID to terminate before starting "
                              "training process.")
-    parser.add_argument("--dice_weight", type=str, default="Simple")
+    parser.add_argument("--dice_weight", type=str, default="uniform")
     return parser
 
 
@@ -67,7 +73,7 @@ def make_sets(images, sub_size, N):
 
 def _run_fusion_training(sets, logger, hparams, min_val_images, is_validation,
                          views, n_classes, unet, fusion_model_org, fusion_model,
-                         early_stopping, fm_batch_size, epochs):
+                         early_stopping, fm_batch_size, epochs, eval_prob):
 
     for _round, _set in enumerate(sets):
         s = "Set %i/%i:\n%s" % (_round + 1, len(sets), _set)
@@ -119,7 +125,9 @@ def _run_fusion_training(sets, logger, hparams, min_val_images, is_validation,
                                                   image=image,
                                                   view=v,
                                                   voxel_grid_real_space=voxel_grid_real_space,
-                                                  n_planes='same+20')
+                                                  n_planes='same+20',
+                                                  targets=targets,
+                                                  eval_prob=eval_prob).reshape(-1, n_classes)
 
             # Clean up a bit
             del image_set_dict[image_id]
@@ -167,11 +175,8 @@ def entry_func(args=None):
     # Minimum images in validation set before also using training images
     min_val_images = 15
 
-    # Approximate number of images in each sub-split of data
-    sub_size = 1
-
     # Fusion model training params
-    epochs = 10
+    epochs = 30
     fm_batch_size = 1000000
 
     # Early stopping params
@@ -263,6 +268,7 @@ def entry_func(args=None):
         images.add_images(train_add)
 
     # Append to length % sub_size == 0
+    sub_size = args["images_per_round"]
     rest = int(sub_size*np.ceil(len(image_IDs)/sub_size)) - len(image_IDs)
     if rest:
         image_IDs += list(np.random.choice(image_IDs, rest, replace=False))
@@ -283,15 +289,15 @@ def entry_func(args=None):
         print("\n[OBS] CONTINUED TRAINING FROM:\n", fusion_weights)
 
     # Define model
-    unet = UNet(**hparams["build"])
+    unet = init_model(hparams["build"], logger)
     print("\n[*] Loading weights: %s\n" % weights)
-    unet.load_weights(weights)
+    unet.load_weights(weights, by_name=True)
 
     if num_GPUs > 1:
         from tensorflow.keras.utils import multi_gpu_model
 
         # Set for predictor model
-        n_classes = unet.n_classes
+        n_classes = n_classes
         unet = multi_gpu_model(unet, gpus=num_GPUs)
         unet.n_classes = n_classes
 
@@ -310,7 +316,7 @@ def entry_func(args=None):
         _run_fusion_training(sets, logger, hparams, min_val_images,
                              is_validation, views, n_classes, unet,
                              fusion_model_org, fusion_model,
-                             early_stopping, fm_batch_size, epochs)
+                             early_stopping, fm_batch_size, epochs, eval_prob)
     except KeyboardInterrupt:
         pass
     finally:
