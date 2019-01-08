@@ -1,26 +1,8 @@
 from MultiPlanarUNet.logging import ScreenLogger
 from MultiPlanarUNet.image.auditor import Auditor
+from MultiPlanarUNet.image import ImagePairLoader
 import numpy as np
 import os
-
-
-def get_preprocessing_func(model):
-    """
-    Takes a model name (string) and returns a preparation function.
-
-    Args:
-        model: String representation of a MultiPlanarUNet.models model class
-
-    Returns:
-        A MultiPlanarUNet.preprocessing.data_preparation_funcs function
-    """
-    from MultiPlanarUNet.models import PREPARATION_FUNCS
-    if model in PREPARATION_FUNCS:
-        return PREPARATION_FUNCS[model]
-    else:
-        raise ValueError("Unsupported model type '%s'. "
-                         "Supported models: %s" % (model,
-                                                   PREPARATION_FUNCS.keys()))
 
 
 """
@@ -59,7 +41,8 @@ def _base_loader_func(hparams, just_one, no_val, logger, mtype):
                    specified in the YAMLHparams object
         logger:    A MultiPlanarUNet.logger object
         mtype:     A string identifier for the dimensionality of the model,
-                   currently either '2d' or '3d' (upper/lower ignored)
+                   currently either '2d', '3d'
+                   (upper/lower ignored)
 
     Returns:
         train_data: An ImagePairLoader object storing the training images
@@ -68,7 +51,6 @@ def _base_loader_func(hparams, just_one, no_val, logger, mtype):
         logger:     The passed logger object or a ScreenLogger object
         auditor:    An auditor object storing statistics on the training data
     """
-    from MultiPlanarUNet.image import ImagePairLoader
 
     # Get basic ScreenLogger if no logger is passed
     logger = logger or ScreenLogger()
@@ -78,19 +60,19 @@ def _base_loader_func(hparams, just_one, no_val, logger, mtype):
     val_data = ImagePairLoader(logger=logger, **hparams["val_data"])
 
     # Audit
-    if hparams["build"]["n_classes"] is None:
+    if hparams.get_from_anywhere("n_classes") is None:
         lab_paths = train_data.label_paths + val_data.label_paths
     else:
         lab_paths = None
     auditor = Auditor(train_data.image_paths + val_data.image_paths,
                       nii_lab_paths=lab_paths, logger=logger,
-                      dim_3d=hparams["build"].get("dim") or 64)
+                      dim_3d=hparams.get_from_anywhere("dim") or 64)
 
     # Fill hparams with audited values, if not specified manually
     auditor.fill(hparams, mtype)
 
     # Add augmented data?
-    if hparams["aug_data"]["add_aug"]:
+    if hparams.get("aug_data") and hparams.get("aug_data")["add_aug"]:
         for data in hparams["aug_data"]["datasets"].values():
             logger("\n[*] Adding augmented data with weight ", data["sample_weight"])
             train_data.add_augmented_images(ImagePairLoader(logger=logger, **data))
@@ -124,50 +106,17 @@ def add_class_weights_to_hparams(train_data, hparams):
         hparams["fit"]["class_counts"] = counts
 
 
-def prepare_for_multi_view_unet(hparams, just_one=False, no_val=False,
-                                continue_training=False, logger=None,
-                                base_path='./'):
-
-    # Load the data
-    train_data, val_data, logger, auditor = _base_loader_func(hparams, just_one, no_val, logger, "2d")
-
-    # Dump auditor for testing use
-    import pickle
-    with open(os.path.join(base_path, "auditor.pickle"), "wb") as out_f:
-        pickle.dump(auditor, out_f)
-
-    # Log views
+def load_or_create_views(hparams, continue_training, logger, base_path, auditor):
     views = hparams["fit"]["views"]
     if not continue_training:
-        # Remove images folder if existing
-        if os.path.exists(os.path.join(base_path, "images")):
-            import shutil
-            shutil.rmtree(os.path.join(base_path, "images"))
-
         if isinstance(views, int):
-            from MultiPlanarUNet.interpolation.sample_grid import get_random_views, get_angle
-            from itertools import combinations
-            logger("Generating %i random views..." % views)
-
-            # Weight by median sample resolution along each axis
-            res = np.median(auditor.info["pixdims"], axis=0)
-            logger("[OBS] Weighting random views by median res: %s" % res)
-
-            N = views
-            found = False
-            min_angle = 60
-            tries = 0
-            while not found:
-                tries += 1
-                views = get_random_views(N, dim=3, pos_z=True, weights=res)
-                angles = [get_angle(v1, v2) for v1, v2 in combinations(views, 2)]
-                found = np.all(np.asarray(angles) > min_angle)
-                min_angle -= 1
-
+            from MultiPlanarUNet.interpolation.sample_grid import sample_random_views_with_angle_restriction
+            views = sample_random_views_with_angle_restriction(views, 60,
+                                                               auditor=auditor,
+                                                               logger=logger)
             hparams["fit"]["views"] = views
-        else:
-            if not hparams["fit"]["intrp_style"] == "iso_live" \
-                    or hparams["fit"]["noise_mode"] == "pre_added":
+        elif isinstance(views, (list, tuple)):
+            if not hparams["fit"]["intrp_style"] == "iso_live":
                 logger("[Note] Pre-adding noise to views (SD: %s)" %
                        hparams["fit"]["noise_sd"])
                 # Apply noise to views
@@ -175,6 +124,9 @@ def prepare_for_multi_view_unet(hparams, just_one=False, no_val=False,
                 hparams["fit"]["views"] = add_noise_to_views(hparams["fit"]["views"],
                                                              hparams["fit"]["noise_sd"])
                 hparams["fit"]["noise_sd"] = False
+        else:
+            raise ValueError("Invalid 'views' input '%s'. Must be list or "
+                             "single integer" % views)
         logger("View SD:     %s" % hparams["fit"].get("noise_sd"))
 
         # Save views
@@ -188,6 +140,28 @@ def prepare_for_multi_view_unet(hparams, just_one=False, no_val=False,
         view_path = os.path.join(base_path, "views.npz")
         hparams["fit"]["views"] = np.load(view_path)["arr_0"]
 
+
+def prepare_for_multi_view_unet(hparams, just_one=False, no_val=False,
+                                continue_training=False, logger=None,
+                                base_path='./'):
+
+    # Load the data
+    train_data, val_data, logger, auditor = _base_loader_func(hparams, just_one, no_val, logger, "2d")
+
+    # Dump auditor for testing use
+    import pickle
+    with open(os.path.join(base_path, "auditor.pickle"), "wb") as out_f:
+        pickle.dump(auditor, out_f)
+
+    # Load or create a set of views (determined by 'continue_training')
+    # This function will add the views to hparams["fit"]["views"] and
+    # store the views on disk at base_path/views.npz.
+    load_or_create_views(hparams=hparams,
+                         continue_training=continue_training,
+                         logger=logger,
+                         base_path=base_path,
+                         auditor=auditor)
+
     # Print views in use
     logger("Views:       N=%i" % len(hparams["fit"]["views"]))
     logger("             %s" % ((" " * 13).join([str(v) + "\n" for v in hparams["fit"]["views"]])))
@@ -195,8 +169,10 @@ def prepare_for_multi_view_unet(hparams, just_one=False, no_val=False,
     # Get keras.Sequence generators for training images
     logger("Preparing views...")
     train = train_data.get_sequencer(n_classes=hparams["build"]["n_classes"],
+                                     dim=hparams["build"]["dim"],
                                      is_validation=False, **hparams["fit"])
     val = val_data.get_sequencer(n_classes=hparams["build"]["n_classes"],
+                                 dim=hparams["build"]["dim"],
                                  is_validation=True, **hparams["fit"])
 
     # Compute class weights if specified, added to hparams
@@ -223,5 +199,75 @@ def prepare_for_3d_unet(hparams, just_one=False, no_val=False, logger=None,
     add_class_weights_to_hparams(train_data, hparams)
     logger("Class weights: %s" % hparams["fit"].get("class_weights"))
     logger("Class counts: %s" % hparams["fit"].get("class_counts"))
+
+    return train, val, hparams
+
+
+def prepare_for_multi_task_2d(hparams, just_one=False, no_val=False, logger=None,
+                              continue_training=None, base_path="./"):
+    from MultiPlanarUNet.train import YAMLHParams
+
+    # Get image loaders for all tasks
+    tasks = []
+    for name, task_hparam_file in zip(*hparams["tasks"].values()):
+        task_hparams = YAMLHParams(task_hparam_file)
+        type_ = 'multi_task_2d'
+        train_data, val_data, logger, auditor = _base_loader_func(task_hparams,
+                                                                  just_one,
+                                                                  no_val,
+                                                                  logger,
+                                                                  mtype=type_)
+
+        task = {
+            "name": name,
+            "hparams": task_hparams,
+            "train": train_data,
+            "val": val_data
+        }
+        tasks.append(task)
+
+    # Set various build hparams
+    fetch = ("n_classes", "dim", "n_channels",
+             "out_activation", "biased_output_layer")
+    field = "task_specifics"
+    for f in fetch:
+        hparams["build"][f] = tuple([t["hparams"][field][f] for t in tasks])
+
+    # Add task names to build dir
+    hparams["build"]["task_names"] = hparams["tasks"]["task_names"]
+
+    # Load or create a set of views (determined by 'continue_training')
+    # This function will add the views to hparams["fit"]["views"] and
+    # store the views on disk at base_path/views.npz.
+    load_or_create_views(hparams=hparams,
+                         continue_training=continue_training,
+                         logger=logger,
+                         base_path=base_path,
+                         auditor=None)
+
+    # Get per-task sequencers
+    train_seqs = []
+    val_seqs = []
+    for task in tasks:
+        logger("Fetching sequencers for task %s" % task["name"])
+
+        # Create hparams dict that combines the common hparams and
+        # task-specific hparams
+        task_hparams = dict(hparams["fit"])
+        task_hparams.update(task["hparams"]["task_specifics"])
+
+        # Get sequencers for training and validation
+        train = task["train"].get_sequencer(is_validation=False, **task_hparams)
+        val = task["val"].get_sequencer(is_validation=True, **task_hparams)
+
+        # Add to lists
+        train_seqs.append(train)
+        val_seqs.append(val)
+
+    # Create the training and validation sequencers
+    # These will produce batches shared across the N tasks
+    from MultiPlanarUNet.sequences import MultiTaskSequence
+    train = MultiTaskSequence(train_seqs, hparams["build"]["task_names"])
+    val = MultiTaskSequence(val_seqs, hparams["build"]["task_names"])
 
     return train, val, hparams
