@@ -94,6 +94,11 @@ class Trainer(object):
             train.label_crop = self.model.label_crop
             val.label_crop = self.model.label_crop
 
+        if type(train).__name__ == "MultiTaskSequence":
+            self.logger("-- Skipping saving images (not yet implemented for"
+                        " MultiTaskSequences).")
+            no_im = True
+
         # Save a few images to disk for inspection
         if no_im:
             self.logger("No images saved (--no_images flag is set)")
@@ -221,10 +226,6 @@ class Trainer(object):
                 f.write(trace.generate_chrome_trace_format())
 
     def save_images(self, train, val):
-        if type(train).__name__ == "MultiTaskSequence":
-            self.logger("-- Skipping saving images (not implemented for"
-                        " MultiTaskSequences).")
-            return
 
         from MultiPlanarUNet.utils.plotting import imshow_with_label_overlay
         # Write a few images to disk
