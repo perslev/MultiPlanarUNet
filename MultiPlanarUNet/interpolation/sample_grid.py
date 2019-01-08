@@ -146,6 +146,32 @@ def get_random_views(N, dim=3, norm=np.random.normal, pos_z=True, weights=None):
     return views
 
 
+def sample_random_views_with_angle_restriction(views, min_angle_deg,
+                                               auditor=None, logger=None):
+    from itertools import combinations
+    from MultiPlanarUNet.logging import ScreenLogger
+    logger = logger or ScreenLogger()
+    logger("Generating %i random views..." % views)
+
+    # Weight by median sample resolution along each axis
+    if auditor is not None:
+        res = np.median(auditor.info["pixdims"], axis=0)
+        logger("[OBS] Weighting random views by median res: %s" % res)
+    else:
+        res = None
+
+    N = views
+    found = False
+    tries = 0
+    while not found:
+        tries += 1
+        views = get_random_views(N, dim=3, pos_z=True, weights=res)
+        angles = [get_angle(v1, v2) for v1, v2 in combinations(views, 2)]
+        found = np.all(np.asarray(angles) > min_angle_deg)
+        min_angle_deg -= 1
+    return views
+
+
 def sample_plane(norm_vector, sample_dim, real_space_span,
                  real_space_sample_sphere_radius, noise_sd=0.,
                  return_real_space_grid=False):
