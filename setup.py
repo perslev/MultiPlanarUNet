@@ -36,7 +36,6 @@ setup(
                     "tf_gpu": ["tensorflow-gpu>=1.10.0"]},
     classifiers=['Development Status :: 3 - Alpha',
                  'Environment :: Console',
-                 'Operating System :: MacOS :: MacOS X',
                  'Operating System :: POSIX',
                  'Programming Language :: Python :: 3',
                  'Programming Language :: Python :: 3.5',
