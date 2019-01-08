@@ -3,7 +3,6 @@ from MultiPlanarUNet.callbacks import init_callback_objects
 from MultiPlanarUNet.logging import ScreenLogger
 from MultiPlanarUNet.evaluate import loss_functions
 from MultiPlanarUNet.evaluate import metrics as custom_metrics
-from MultiPlanarUNet.utils import pred_to_class
 from MultiPlanarUNet.callbacks import SavePredictionImages, Validation, FGBatchBalancer, DividerLine, SaveOutputAs2DImage, PrintLayerWeights
 from tensorflow.keras import optimizers, losses
 from tensorflow.keras import metrics as TF_metrics
@@ -46,7 +45,7 @@ class Trainer(object):
         optimizer = optimizers.__dict__[optimizer]
         optimizer = optimizer(**optimizer_kwargs)
 
-        # # Initialize loss
+        # Initialize loss
         if loss in losses.__dict__:
             loss = losses.get(loss)
         else:
@@ -86,17 +85,14 @@ class Trainer(object):
 
         return self
 
-    def fit(self, train, val, callbacks, n_epochs, shuffle_batch_order,
-            hparams, batch_size=8, verbose=1, init_epoch=0, no_im=False,
-            **kwargs):
+    def fit(self, train, val, callbacks, n_epochs, train_im_per_epoch,
+            val_im_per_epoch, hparams, shuffle_batch_order=None, batch_size=8,
+            verbose=1, init_epoch=0, no_im=False, **kwargs):
 
         # Crop labels?
         if hasattr(self.model, "label_crop"):
             train.label_crop = self.model.label_crop
             val.label_crop = self.model.label_crop
-
-        # Log various info on the data
-        self._log_sequences(train, val)
 
         # Save a few images to disk for inspection
         if no_im:
@@ -109,8 +105,8 @@ class Trainer(object):
         while fitting:
             try:
                 self._fit_loop(train, val, batch_size, n_epochs, verbose,
-                               callbacks, shuffle_batch_order, init_epoch,
-                               no_im, hparams)
+                               callbacks, init_epoch, no_im, train_im_per_epoch,
+                               val_im_per_epoch, hparams)
                 fitting = False
             except ResourceExhaustedError:
                 # Reduce batch size
@@ -127,43 +123,43 @@ class Trainer(object):
                 self.logger(e)
                 raise e
 
-        if train.image_pair_loader.queue:
-            train.image_pair_loader.queue.stop()
-        if val.image_pair_loader.queue:
-            val.image_pair_loader.queue.stop()
+        try:
+            if train.image_pair_loader.queue:
+                train.image_pair_loader.queue.stop()
+            if val.image_pair_loader.queue:
+                val.image_pair_loader.queue.stop()
+        except AttributeError:
+            # Multi-tasking, train.image_pair_loader will be a list
+            # TODO: Make all sequences store a reference to the queue
+            pass
 
         self.logger("Training stopped.")
         self.logger.print_calling_method = True
         return self.model
 
     def _fit_loop(self, train, val, batch_size, n_epochs, verbose, callbacks,
-                  shuffle_batch_order, init_epoch, no_im, hparams):
+                  init_epoch, no_im, train_im_per_epoch, val_im_per_epoch,
+                  hparams):
 
         # Update batch size on generators (needed after OOM error --> reduced
         # batch size)
         train.batch_size = batch_size
-        val.batch_size = batch_size
 
         # Get number of steps per train epoch
-        train_steps = min(int(2500/batch_size), len(train))
-        val_steps = min(int(3750/batch_size), len(val))
-        # train_steps = 1
-        # val_steps = 1
+        train_steps = int(train_im_per_epoch/batch_size)
 
-        self.logger("Using %i steps per train epoch (N batches=%i)" % (train_steps,
-                                                                       len(train)))
-        self.logger("Using %i steps per validation epoch (N batches=%i)" % (val_steps,
-                                                                            len(val)))
+        self.logger("Using %i steps per train epoch (N batches=%i)" %
+                    (train_steps, len(train)))
 
-        if train_steps < len(train):
-            # Force batch shuffle as each epoch does not cover total number
-            # of data points
-            shuffle_batch_order = True
-
-        if len(val) == 0:
-            # No validation data
+        if val is None or len(val) == 0:
             val = None
+            callbacks = [c for c in callbacks if not any("val" in s for s in [str(v) for v in c["kwargs"].values()])]
         else:
+            val.batch_size = batch_size
+            val_steps = int(val_im_per_epoch/batch_size)
+            self.logger("Using %i steps per validation epoch (N batches=%i)" %
+                        (val_steps, len(val)))
+
             # Add validation callback
             # IMPORTANT: Should be first in callbacks list as other CBs may
             # depend on the validation metrics/loss
@@ -185,7 +181,7 @@ class Trainer(object):
             # Add save images cb
             callbacks.append(SavePredictionImages(train, val))
 
-        # Get validation and FGBatchBalancer callbacks, etc.
+        # Get FGBatchBalancer callbacks, etc.
         FGbalancer = FGBatchBalancer(train, logger=self.logger)
         line = DividerLine(self.logger)
         callbacks = callbacks + [FGbalancer, line]
@@ -199,12 +195,8 @@ class Trainer(object):
         if cb:
             cb.org_model = self.org_model
 
-        if len(val) == 0:
-            # No validation data, remove callbacks dependent on such
-            callbacks = [c for c in callbacks if not any("val" in s for s in [str(v) for v in c["kwargs"].values()])]
-
         # Fit the model
-        is_queued = bool(train.image_pair_loader.queue)
+        # is_queued = bool(train.image_pair_loader.queue)
         self.logger.active_log_file = "training"
         self.logger.print_calling_method = False
 
@@ -213,11 +205,10 @@ class Trainer(object):
                                  epochs=n_epochs,
                                  verbose=verbose,
                                  callbacks=callbacks,
-                                 shuffle=shuffle_batch_order,
                                  initial_epoch=init_epoch,
                                  use_multiprocessing=True,
                                  workers=cpu_count()-1,
-                                 max_queue_size=3 if is_queued else 10)
+                                 max_queue_size=10)
 
     def save_metadata_trace(self, save_path):
         if not self.metadata:
@@ -229,20 +220,12 @@ class Trainer(object):
             with open('%s.json' % save_path, 'w') as f:
                 f.write(trace.generate_chrome_trace_format())
 
-    def _log_sequences(self, train, val):
-        unique, counts = train.count()
-
-        self.logger("Number of samples: %s" % train.n_samples)
-        if len(unique) > 1:
-            self.logger("Real: %i (weight: %s)" % (counts[1], unique[1]))
-            self.logger("Augmented: %i (weight: %s)" % (counts[0], unique[0]))
-        else:
-            self.logger("Real: %i (weight: %s)" % (counts[0], unique[0]))
-            self.logger("Number of batches:", len(train))
-        self.logger("Number of validation samples:", val.n_samples)
-        self.logger("Number of batches:", len(val))
-
     def save_images(self, train, val):
+        if type(train).__name__ == "MultiTaskSequence":
+            self.logger("-- Skipping saving images (not implemented for"
+                        " MultiTaskSequences).")
+            return
+
         from MultiPlanarUNet.utils.plotting import imshow_with_label_overlay
         # Write a few images to disk
         im_path = os.path.join(self.logger.base_path, "images")
