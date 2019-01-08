@@ -2,8 +2,9 @@ from MultiPlanarUNet.logging import ScreenLogger
 import os
 
 
-def init_model(build_hparams, logger):
+def init_model(build_hparams, logger=None):
     from MultiPlanarUNet import models
+    logger = logger or ScreenLogger()
 
     # Build new model of the specified type
     cls_name = build_hparams["model_class_name"]
