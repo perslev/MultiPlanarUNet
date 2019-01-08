@@ -26,7 +26,8 @@ class YAMLHParams(dict):
         self.update({k: hparams[k] for k in hparams if k[:4] != "__CB"})
 
         # Log basic information here...
-        if not no_log:
+        self.no_log = no_log
+        if not self.no_log:
             self.logger("YAML path:    %s" % self.yaml_path)
 
     @property
@@ -40,22 +41,52 @@ class YAMLHParams(dict):
         groups.append(self.string_rep[start:])
         return groups
 
+    def get_group(self, group_name):
+        groups = [g.lstrip("\n").lstrip(" ") for g in self.groups]
+        return groups[[g.split(":")[0] for g in groups].index(group_name)]
+
+    def add_group(self, yaml_string):
+        group_name = yaml_string.lstrip(" ").lstrip("\n").split(":")[0]
+
+        # Set dict version in memory
+        self[group_name] = YAML().load(yaml_string)
+
+        # Add pure yaml string to string representation
+        self.string_rep += "\n" + yaml_string
+
+    def delete_group(self, group_name):
+        self.string_rep = self.string_rep.replace(self.get_group(group_name), "")
+        del self[group_name]
+
+    def get_from_anywhere(self, key):
+        found = []
+        for group in self:
+            if key in group:
+                found.append((group, group[key]))
+        if len(found) > 1:
+            self.logger("[ERROR] Found key '%s' in multiple groups (%s)" %
+                        (key, [g[0] for g in found]))
+        elif len(found) == 0:
+            return None
+        else:
+            return found[0][1]
+
     def log(self):
         for item in self:
             self.logger("%s\t\t%s" % (item, self[item]))
 
-    def add(self, entry_name):
-        self[entry_name] = {}
-
-    def set_value(self, subdir, name, value, update_string_rep=True):
+    def set_value(self, subdir, name, value, update_string_rep=True,
+                  overwrite=False):
 
         exists = name in self[subdir]
         cur_value = self[subdir].get(name)
-        if not exists or (cur_value is None or cur_value is False):
-            self.logger("Setting value '%s' in subdir '%s' with "
-                        "name '%s'" % (value, subdir, name))
+        if not exists or (cur_value is None or cur_value is False) or overwrite:
+            if not self.no_log:
+                self.logger("Setting value '%s' in subdir '%s' with "
+                            "name '%s'" % (value, subdir, name))
 
             # Set the value in memory
+            name_exists = name in self[subdir]
             self[subdir][name] = value
 
             # Update the string representation as well?
@@ -76,6 +107,15 @@ class YAMLHParams(dict):
                     return match.group().replace(match.groups(1)[0], str(value))
                 new_group = re.sub(pattern, rep_func, group)
 
+                if not name_exists:
+                    # Add the field if not existing already
+                    assert new_group == group  # No changes should occur
+                    new_group = new_group.strip("\n")
+                    temp = new_group.split("\n")[1]
+                    indent = len(temp) - len(temp.lstrip())
+                    new_field = (" " * indent) + "%s: %s" % (name, value)
+                    new_group = "\n%s\n%s\n" % (new_group, new_field)
+
                 # Update string representation
                 self.string_rep = self.string_rep.replace(group, new_group)
             return True
@@ -84,8 +124,10 @@ class YAMLHParams(dict):
                         "with value '%s'" % (name, subdir, cur_value))
             return False
 
-    def save_current(self):
+    def save_current(self, out_path=None):
         # Write to file
-        self.logger("Saving current YAML configuration to file:\n", self.yaml_path)
-        with open(self.yaml_path, "w") as out_f:
+        out_path = os.path.abspath(out_path or self.yaml_path)
+        if not self.no_log:
+            self.logger("Saving current YAML configuration to file:\n", out_path)
+        with open(out_path, "w") as out_f:
             out_f.write(self.string_rep)
