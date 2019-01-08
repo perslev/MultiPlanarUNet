@@ -155,7 +155,8 @@ def entry_func(args=None):
     import numpy as np
     import nibabel as nib
     from MultiPlanarUNet.image import ImagePairLoader, ImagePair
-    from MultiPlanarUNet.models import UNet, FusionModel
+    from MultiPlanarUNet.models import FusionModel
+    from MultiPlanarUNet.models.model_init import init_model
     from MultiPlanarUNet.utils import await_and_set_free_gpu, get_best_model, \
                                     create_folders, pred_to_class, set_gpu
     from MultiPlanarUNet.logging import init_result_dicts, save_all
@@ -182,15 +183,6 @@ def entry_func(args=None):
 
     # Read settings from the project hyperparameter file
     n_classes = hparams["build"]["n_classes"]
-    bg_value = hparams["fit"]["bg_value"]
-    bg_class = hparams["fit"]["bg_class"]
-    use_bounds = True
-    downsample = hparams["fit"].get("downsample_to")
-
-    # Binary?
-    threshold = None
-    if n_classes == 1:
-        threshold = 0.5
 
     # Get views
     views = np.load("%s/views.npz" % base_dir)["arr_0"]
@@ -225,8 +217,8 @@ def entry_func(args=None):
 
     """ Define UNet model """
     model_path = get_best_model(base_dir + "/model")
-    unet = UNet(**hparams["build"])
-    unet.load_weights(model_path)
+    unet = init_model(hparams["build"])
+    unet.load_weights(model_path, by_name=True)
 
     if num_GPUs > 1:
         from tensorflow.keras.utils import multi_gpu_model
@@ -360,14 +352,12 @@ def entry_func(args=None):
 
         if not no_argmax:
             print("\nComputing majority vote...")
-            combined = pred_to_class(combined.squeeze(), img_dims=3,
-                                     threshold=threshold).astype(np.uint8)
+            combined = pred_to_class(combined.squeeze(), img_dims=3).astype(np.uint8)
 
         if not predict_mode:
             if no_argmax:
                 # MAP only for dice calculation
-                c_temp = pred_to_class(combined, img_dims=3,
-                                       threshold=threshold).astype(np.uint8)
+                c_temp = pred_to_class(combined, img_dims=3).astype(np.uint8)
             else:
                 c_temp = combined
 
