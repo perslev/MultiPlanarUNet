@@ -6,7 +6,7 @@ import numpy as np
 
 
 class IsotrophicLiveViewSequence(BaseSequence):
-    def __init__(self, image_pair_loader, sample_dim, batch_size, n_classes,
+    def __init__(self, image_pair_loader, dim, batch_size, n_classes,
                  real_space_span=None, noise_sd=0., force_all_fg="auto",
                  fg_batch_fraction=0.50, label_crop=None, logger=None,
                  is_validation=False, list_of_augmenters=None, sparse=True,
@@ -20,7 +20,7 @@ class IsotrophicLiveViewSequence(BaseSequence):
         self.logger = logger or ScreenLogger()
 
         # Set views and attributes for plane sample generation
-        self.sample_dim = sample_dim
+        self.sample_dim = dim
         self.real_space_span = real_space_span
         self.noise_sd = noise_sd if not self.is_validation else 0.
 
@@ -58,10 +58,6 @@ class IsotrophicLiveViewSequence(BaseSequence):
 
     def __getitem__(self, idx):
         raise NotImplemented
-
-    def count(self):
-        weights = [image.sample_weight for image in self.images]
-        return np.unique(weights, return_counts=True)
 
     @property
     def n_samples(self):
