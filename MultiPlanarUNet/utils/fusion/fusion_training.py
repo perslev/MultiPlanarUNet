@@ -36,7 +36,7 @@ def stack_collections(points_collection, targets_collection):
 
 
 def predict_and_map(model, seq, image, view, batch_size=None,
-                    voxel_grid_real_space=None, targets=None,
+                    voxel_grid_real_space=None, targets=None, eval_prob=1.0,
                     n_planes='same+20', torch=False):
     """
 
@@ -81,7 +81,7 @@ def predict_and_map(model, seq, image, view, batch_size=None,
     mapped = map_real_space_pred(pred, grid, inv_basis, voxel_grid_real_space)
 
     # Print dice scores
-    if targets is not None:
+    if targets is not None and np.random.rand(1)[0] <= eval_prob:
         print("Computing evaluations...")
         print("View dice scores:   ", dice_all(y, pred.argmax(-1),
                                                ignore_zero=False))
