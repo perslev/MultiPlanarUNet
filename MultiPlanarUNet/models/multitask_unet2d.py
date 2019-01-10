@@ -42,7 +42,7 @@ class MultiTaskUNet2D(UNet):
         self.encoder_layers = {}
         filters = init_filters
         for i in range(self.depth):
-            l_name = name + f"_L{i}"
+            l_name = name + "_L%s" % i
             conv1 = Conv2D(int(filters * self.cf), self.kernel_size,
                            activation=self.activation, padding=self.padding,
                            kernel_regularizer=kernel_reg,
@@ -56,10 +56,10 @@ class MultiTaskUNet2D(UNet):
 
             # Add to dict for potential reuse
             layers = {
-                f"layer{i}/conv1": conv1,
-                f"layer{i}/conv2": conv2,
-                f"layer{i}/batch_norm": bn,
-                f"layer{i}/max_pool": max_pool
+                "layer%s/conv1" % i: conv1,
+                "layer%s/conv2" % i: conv2,
+                "layer%s/batch_norm" % i: bn,
+                "layer%s/max_pool" % i: max_pool
             }
             self.encoder_layers.update(layers)
 
@@ -71,10 +71,10 @@ class MultiTaskUNet2D(UNet):
         residual_connections = []
         in_ = task_input
         for i in range(self.depth):
-            conv1 = self.encoder_layers[f"layer{i}/conv1"](in_)
-            conv2 = self.encoder_layers[f"layer{i}/conv2"](conv1)
-            bn = self.encoder_layers[f"layer{i}/batch_norm"](conv2)
-            in_ = self.encoder_layers[f"layer{i}/max_pool"](bn)
+            conv1 = self.encoder_layers["layer%s/conv1" % i](in_)
+            conv2 = self.encoder_layers["layer%s/conv2" % i](conv1)
+            bn = self.encoder_layers["layer%s/batch_norm" % i](conv2)
+            in_ = self.encoder_layers["layer%s/max_pool" % i](bn)
             residual_connections.append(bn)
 
         return in_, residual_connections
@@ -85,8 +85,8 @@ class MultiTaskUNet2D(UNet):
         """
         self.img_shape = tuple([t for t in zip(*self.img_shape)])
         inputs = [Input(shape=s,
-                        name=f"Input_{t}") for s, t in zip(self.img_shape,
-                                                           self.task_IDs)]
+                        name="Input_%s" % t) for s, t in zip(self.img_shape,
+                                                             self.task_IDs)]
 
         # Apply regularization if not None or 0
         kr = regularizers.l2(self.l2_reg) if self.l2_reg else None
@@ -101,7 +101,7 @@ class MultiTaskUNet2D(UNet):
         outputs = []
         zipped = zip(self.task_IDs, inputs, self.n_classes, self.out_activation)
         for task, in_, n_classes, activation in zipped:
-            with tf.name_scope(f"Task_{task}"):
+            with tf.name_scope("Task_%s" % task):
                 with tf.name_scope("encoder"):
                     # Apply the encoder to all inputs
                     in_, res = self._apply_encoder(in_)
