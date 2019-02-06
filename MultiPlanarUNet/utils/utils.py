@@ -7,12 +7,23 @@ import contextlib
 
 def get_free_gpus():
     from subprocess import check_output
-
     try:
-        output = check_output(["nvidia-smi"], universal_newlines=True)
-        gpus = np.array(re.findall(r"[|][ ]{1,5}(\d)[ ]{1,5}", output))
-        free = list(map(lambda x: int(x) is 0, re.findall(r"(\d+)MiB[ ]?\/[ ]?\d+MiB", output)))
-        return list(gpus[free])
+        # Get list of GPUs
+        gpu_list = check_output(["nvidia-smi", "-L"], universal_newlines=True)
+        gpu_ids = np.array(re.findall(r"GPU[ ]+(\d+)", gpu_list), dtype=np.int)
+
+        # Query memory usage stats from nvidia-smi
+        output = check_output(["nvidia-smi", "-q", "-d", "MEMORY"],
+                              universal_newlines=True)
+
+        # Fetch the memory usage of each GPU
+        mem_usage = re.findall(r"FB Memory Usage.*?Used[ ]+:[ ]+(\d+)",
+                               output, flags=re.DOTALL)
+        assert len(gpu_ids) == len(mem_usage)
+
+        # Return all GPU ids for which the memory usage is exactly 0
+        free = list(map(lambda x: int(x) is 0, mem_usage))
+        return list(gpu_ids[free])
     except FileNotFoundError as e:
         print("[ERROR] nvidia-smi is not installed.")
         return []
