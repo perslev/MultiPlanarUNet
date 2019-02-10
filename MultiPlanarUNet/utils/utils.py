@@ -5,7 +5,7 @@ import glob
 import contextlib
 
 
-def get_free_gpus():
+def get_free_gpus(max_allowed_mem_usage=400):
     from subprocess import check_output
     try:
         # Get list of GPUs
@@ -22,7 +22,7 @@ def get_free_gpus():
         assert len(gpu_ids) == len(mem_usage)
 
         # Return all GPU ids for which the memory usage is exactly 0
-        free = list(map(lambda x: int(x) is 0, mem_usage))
+        free = list(map(lambda x: int(x) <= max_allowed_mem_usage, mem_usage))
         return list(gpu_ids[free])
     except FileNotFoundError as e:
         print("[ERROR] nvidia-smi is not installed.")
