@@ -46,9 +46,9 @@ def get_argparser():
                              "always performs evaluation on the combined "
                              "predictions.")
     parser.add_argument("--force_GPU", type=str, default="")
-    parser.add_argument("--save_only_pred", action="store_true",
-                        help="Save only the predicted volume as .nii files ("
-                             "do not save image and labels)")
+    parser.add_argument("--save_input_files", action="store_true",
+                        help="Save in addition to the predicted volume the "
+                             "input image and label files to the output dir)")
     parser.add_argument("--no_argmax", action="store_true",
                         help="Do not argmax prediction volume prior to save.")
     parser.add_argument("--on_val", action="store_true",
@@ -82,7 +82,7 @@ def validate_folders(base_dir, out_dir, overwrite):
         os.mkdir(out_dir)
 
 
-def save_nii_files(combined, image, nii_res_dir, save_only_pred):
+def save_nii_files(combined, image, nii_res_dir, save_input_files):
     from MultiPlanarUNet.utils import create_folders
     import nibabel as nib
     import os
@@ -97,7 +97,7 @@ def save_nii_files(combined, image, nii_res_dir, save_only_pred):
     labels = ["%s_PRED.nii.gz" % image.id, "%s_IMAGE.nii.gz" % image.id,
               "%s_LABELS.nii.gz" % image.id]
 
-    if save_only_pred:
+    if not save_input_files:
         volumes = volumes[:1]
         labels = labels[:1]
         p = os.path.abspath(nii_res_dir)  # Save file directly in nii_res_dir
@@ -108,7 +108,11 @@ def save_nii_files(combined, image, nii_res_dir, save_only_pred):
 
     # Save
     for nii, fname in zip(volumes, labels):
-        nib.save(nii, "%s/%s" % (p, fname))
+        try:
+            nib.save(nii, "%s/%s" % (p, fname))
+        except AttributeError:
+            # No labels file?
+            pass
 
 
 def entry_func(args=None):
@@ -144,7 +148,7 @@ def entry_func(args=None):
     out_dir = os.path.abspath(args["out_dir"])
     overwrite = args["overwrite"]
     predict_mode = args["no_eval"]
-    save_only_pred = args["save_only_pred"]
+    save_input_files = args["save_input_files"]
     no_argmax = args["no_argmax"]
     on_val = args["on_val"]
 
@@ -153,7 +157,6 @@ def entry_func(args=None):
 
     # Import all needed modules (folder is valid at this point)
     import numpy as np
-    import nibabel as nib
     from MultiPlanarUNet.image import ImagePairLoader, ImagePair
     from MultiPlanarUNet.models import FusionModel
     from MultiPlanarUNet.models.model_init import init_model
@@ -376,7 +379,7 @@ def entry_func(args=None):
 
         # Save combined prediction volume as .nii file
         print("Saving .nii files...")
-        save_nii_files(combined, image, nii_res_dir, save_only_pred)
+        save_nii_files(combined, image, nii_res_dir, save_input_files)
 
         # Remove image from dictionary and image_pair_loader to free memory
         del all_images[image_id]
