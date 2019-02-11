@@ -31,7 +31,7 @@ def get_free_gpus(max_allowed_mem_usage=400):
 
 def _get_free_gpu(free_GPUs, N=1):
     try:
-        free_gpu = ",".join(free_GPUs[0:N])
+        free_gpu = ",".join(map(str, free_GPUs[0:N]))
     except IndexError as e:
         raise OSError("No GPU available.") from e
     return free_gpu
