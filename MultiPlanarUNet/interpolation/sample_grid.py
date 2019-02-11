@@ -69,9 +69,10 @@ def get_voxel_axes_real_space(image, affine, return_basis=False):
 
     # Make sure basis is aligned with regular grid
     # Otherwise, rotate the grid and store transformation for later use
-    transform = np.diag(np.linalg.norm(basis, axis=0))
-    sign = np.sign([np.dot(transform[:, i], basis[:, i]) for i in range(3)])
-    transform = np.diag(sign).dot(transform)
+    pixdims = np.linalg.norm(basis, axis=0)
+    transform = np.diag(pixdims)
+    # sign = np.sign([np.dot(transform[:, i], basis[:, i]) for i in range(3)])
+    # transform = np.diag(sign).dot(transform)
 
     if np.any(~np.isclose(transform, basis)):
         rot_mat = transform.dot(np.linalg.inv(basis))

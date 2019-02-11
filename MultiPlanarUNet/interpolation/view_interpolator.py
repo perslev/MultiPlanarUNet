@@ -16,7 +16,7 @@ def is_rot_mat(mat):
 
 class ViewInterpolator(object):
     def __init__(self, image, labels, affine,
-                 bg_value=0, bg_class=0, logger=None):
+                 bg_value=0.0, bg_class=0, logger=None):
 
         # Ensure 4D
         if not image.ndim == 4:
@@ -96,20 +96,20 @@ class ViewInterpolator(object):
         # Get voxel regular grid centered in real space
         g_all, basis, rot_mat = get_voxel_axes_real_space(image, affine,
                                                           return_basis=True)
-        g_all = list(g_all)
 
         # Set rotation matrix
         self.rot_mat = rot_mat
 
         # Flip axes? Must be strictly increasing
         flip = np.sign(np.diagonal(basis)) == -1
+        assert not np.any(flip)
 
-        for i, (g, f) in enumerate(zip(g_all, flip)):
-            if f:
-                g_all[i] = np.flip(g, 0)
-                image = np.flip(image, i)
-                if labels is not None:
-                    labels = np.flip(labels, i)
+        # for i, (g, f) in enumerate(zip(g_all, flip)):
+        #     if f:
+        #         g_all[i] = np.flip(g, 0)
+        #         image = np.flip(image, i)
+        #         if labels is not None:
+        #             labels = np.flip(labels, i)
         g_xx, g_yy, g_zz = g_all
 
         # Set interpolator for image, one for each channel
