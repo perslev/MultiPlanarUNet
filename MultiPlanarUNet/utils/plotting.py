@@ -1,6 +1,57 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
+from MultiPlanarUNet.logging import ScreenLogger
+
+
+def save_images(train, val, out_dir, logger):
+    logger = logger or ScreenLogger()
+    # Write a few images to disk
+    im_path = out_dir
+    if not os.path.exists(im_path):
+        os.mkdir(im_path)
+
+    training = train[0]
+    if val is not None:
+        validation = val[0]
+        v_len = len(validation[0])
+    else:
+        validation = None
+        v_len = 0
+
+    logger("Saving %i sample images in '<project_dir>/images' folder"
+           % ((len(training[0]) + v_len) * 2))
+    for rr in range(2):
+        for k, temp in enumerate((training, validation)):
+            if temp is None:
+                # No validation data
+                continue
+            X, Y, W = temp
+            for i, (xx, yy, ww) in enumerate(zip(X, Y, W)):
+                # Make figure
+                fig = plt.figure(figsize=(10, 4))
+                ax1 = fig.add_subplot(121)
+                ax2 = fig.add_subplot(122)
+
+                # Plot image and overlayed labels
+                chnl, view, _ = imshow_with_label_overlay(ax1, xx, yy)
+
+                # Plot histogram
+                ax2.hist(xx.flatten(), bins=200)
+
+                # Set labels
+                ax1.set_title("Channel %i - Axis %i - "
+                              "Weight %.3f" % (chnl, view, ww), size=18)
+
+                # Get path
+                out_path = im_path + "/%s%i.png" % ("train" if k == 0 else
+                                                    "val", len(X) * rr + i)
+
+                with np.testing.suppress_warnings() as sup:
+                    sup.filter(UserWarning)
+                    fig.savefig(out_path)
+                plt.close(fig)
 
 
 def imshow(ax, image, channel=None, axis=None, slice=None, cmap="gray"):
@@ -123,6 +174,16 @@ def imshow_orientation(*args, show=False, cmap="gray"):
         plt.show()
     else:
         return fig
+
+
+def try_plot_training_curves(*args, raise_error=False, **kwargs):
+    try:
+        plot_training_curves(*args, **kwargs)
+    except Exception as e:
+        s = "Could not plot training curves."
+        if raise_error:
+            raise RuntimeError(s) from s
+        print(s)
 
 
 def plot_training_curves(csv_path, save_path, logy=False):

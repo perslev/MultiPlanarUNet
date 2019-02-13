@@ -103,7 +103,9 @@ class Trainer(object):
         if no_im:
             self.logger("No images saved (--no_images flag is set)")
         else:
-            self.save_images(train, val)
+            from MultiPlanarUNet.utils.plotting import save_images
+            im_path = os.path.join(self.logger.base_path, "images")
+            save_images(train, val, im_path, self.logger)
 
         # Start fitting
         fitting = True
@@ -214,62 +216,3 @@ class Trainer(object):
                                  use_multiprocessing=True,
                                  workers=cpu_count()-1,
                                  max_queue_size=10)
-
-    def save_metadata_trace(self, save_path):
-        if not self.metadata:
-            self.logger("[ERROR] Cannot save metadata trace (not found)")
-        else:
-            from tensorflow.python.client import timeline
-
-            trace = timeline.Timeline(step_stats=self.metadata.step_stats)
-            with open('%s.json' % save_path, 'w') as f:
-                f.write(trace.generate_chrome_trace_format())
-
-    def save_images(self, train, val):
-
-        from MultiPlanarUNet.utils.plotting import imshow_with_label_overlay
-        # Write a few images to disk
-        im_path = os.path.join(self.logger.base_path, "images")
-        if not os.path.exists(im_path):
-            os.mkdir(im_path)
-
-        training = train[0]
-        if val is not None:
-            validation = val[0]
-            v_len = len(validation[0])
-        else:
-            validation = None
-            v_len = 0
-
-        self.logger("Saving %i sample images in '<project_dir>/images' folder"
-                    % ((len(training[0]) + v_len) * 2))
-        for rr in range(2):
-            for k, temp in enumerate((training, validation)):
-                if temp is None:
-                    # No validation data
-                    continue
-                X, Y, W = temp
-                for i, (xx, yy, ww) in enumerate(zip(X, Y, W)):
-                    # Make figure
-                    fig = plt.figure(figsize=(10, 4))
-                    ax1 = fig.add_subplot(121)
-                    ax2 = fig.add_subplot(122)
-
-                    # Plot image and overlayed labels
-                    chnl, view, _ = imshow_with_label_overlay(ax1, xx, yy)
-
-                    # Plot histogram
-                    ax2.hist(xx.flatten(), bins=200)
-
-                    # Set labels
-                    ax1.set_title("Channel %i - Axis %i - "
-                                  "Weight %.3f" % (chnl, view, ww), size=18)
-
-                    # Get path
-                    out_path = im_path + "/%s%i.png" % ("train" if k == 0 else
-                                                        "val", len(X) * rr + i)
-
-                    with np.testing.suppress_warnings() as sup:
-                        sup.filter(UserWarning)
-                        fig.savefig(out_path)
-                    plt.close(fig)
