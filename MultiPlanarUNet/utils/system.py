@@ -64,7 +64,7 @@ class GPUMonitor(Process):
     def get_free_GPUs(self, N):
         return _get_free_gpu(self.free_GPUs, N)
 
-    def await_and_set_free_GPU(self, N=0, sleep_seconds=60):
+    def await_and_set_free_GPU(self, N=0, sleep_seconds=60, stop_after=False):
         cuda_visible_dev = ""
         if N != 0:
             self.logger("Waiting for free GPU.")
@@ -80,6 +80,8 @@ class GPUMonitor(Process):
         else:
             self.logger("Using CPU based computations only!")
         self.set_GPUs = cuda_visible_dev
+        if stop_after:
+            self.stop()
 
     @property
     def set_GPUs(self):
