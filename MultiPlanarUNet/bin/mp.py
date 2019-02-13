@@ -15,7 +15,7 @@ def get_parser():
     import pkgutil
     mods = pkgutil.iter_modules(bin.__path__)
 
-    ids = "Multi Planar UNet (%s)".format(__version__)
+    ids = "Multi Planar UNet ({})".format(__version__)
     sep = "-" * len(ids)
     usage = ("mp [script] [script args...]\n\n"
              "%s\n%s\n"

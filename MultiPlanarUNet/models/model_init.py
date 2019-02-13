@@ -21,7 +21,7 @@ def model_initializer(hparams, continue_training, base_path, logger=None):
 
     if continue_training:
         from MultiPlanarUNet.utils import get_last_model, get_lr_at_epoch, \
-                                        clear_csv_after_epoch
+                                          clear_csv_after_epoch
         model_path, epoch = get_last_model(os.path.join(base_path, "model"))
         model.load_weights(model_path, by_name=True)
         hparams["fit"]["init_epoch"] = epoch+1
