@@ -232,7 +232,8 @@ class Validation(Callback):
     TODO: Currently hard-coded to compute non-BG mean dice coefficients. Change
           to accept arbitrary evaluation functions
     """
-    def __init__(self, val_sequence, steps, logger=None, verbose=True):
+    def __init__(self, val_sequence, steps, logger=None, verbose=True,
+                 ignore_class_zero=True):
         """
         Args:
             val_sequence: A MultiPlanarUNet.sequence object from which validation
@@ -248,6 +249,7 @@ class Validation(Callback):
         self.data = val_sequence
         self.steps = steps
         self.verbose = verbose
+        self.ignore_bg = ignore_class_zero
 
         self.n_classes = self.data.n_classes
         if isinstance(self.n_classes, int):
@@ -336,9 +338,10 @@ class Validation(Callback):
             dices = (2 * precisions * recalls) / (precisions + recalls)
 
             # Ignore BG
-            precisions = precisions[1:]
-            recalls = recalls[1:]
-            dices = dices[1:]
+            if self.ignore_bg:
+                precisions = precisions[1:]
+                recalls = recalls[1:]
+                dices = dices[1:]
 
             # Set NaN --> 0.
             precisions[np.isnan(precisions)] = 0.
