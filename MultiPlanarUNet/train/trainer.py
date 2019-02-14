@@ -87,7 +87,8 @@ class Trainer(object):
 
     def fit(self, train, val, callbacks, n_epochs, train_im_per_epoch,
             val_im_per_epoch, hparams, shuffle_batch_order=None, batch_size=8,
-            verbose=1, init_epoch=0, no_im=False, **kwargs):
+            verbose=1, init_epoch=0, no_im=False, use_multiprocessing=True,
+            val_ignore_class_zero=True, **kwargs):
 
         # Crop labels?
         if hasattr(self.model, "label_crop"):
@@ -113,7 +114,8 @@ class Trainer(object):
             try:
                 self._fit_loop(train, val, batch_size, n_epochs, verbose,
                                callbacks, init_epoch, no_im, train_im_per_epoch,
-                               val_im_per_epoch, hparams)
+                               val_im_per_epoch, hparams, use_multiprocessing,
+                               val_ignore_class_zero)
                 fitting = False
             except ResourceExhaustedError:
                 # Reduce batch size
@@ -146,7 +148,7 @@ class Trainer(object):
 
     def _fit_loop(self, train, val, batch_size, n_epochs, verbose, callbacks,
                   init_epoch, no_im, train_im_per_epoch, val_im_per_epoch,
-                  hparams):
+                  hparams, use_multiprocessing, val_ignore_class_zero):
 
         # Update batch size on generators (needed after OOM error --> reduced
         # batch size)
@@ -171,7 +173,8 @@ class Trainer(object):
             # IMPORTANT: Should be first in callbacks list as other CBs may
             # depend on the validation metrics/loss
             validation = Validation(val, val_steps, logger=self.logger,
-                                    verbose=verbose)
+                                    verbose=verbose,
+                                    ignore_class_zero=val_ignore_class_zero)
             callbacks = [validation] + callbacks
 
         # Add save layer output
@@ -189,9 +192,10 @@ class Trainer(object):
             callbacks.append(SavePredictionImages(train, val))
 
         # Get FGBatchBalancer callbacks, etc.
-        FGbalancer = FGBatchBalancer(train, logger=self.logger)
-        line = DividerLine(self.logger)
-        callbacks = callbacks + [FGbalancer, line]
+        if hasattr(train, "n_fg_slices"):
+            FGbalancer = FGBatchBalancer(train, logger=self.logger)
+            callbacks = callbacks + [FGbalancer]
+        callbacks = callbacks + [DividerLine(self.logger)]
 
         # Get initialized callback objects
         callbacks, cb_dict = init_callback_objects(callbacks, self.logger)
@@ -213,6 +217,6 @@ class Trainer(object):
                                  verbose=verbose,
                                  callbacks=callbacks,
                                  initial_epoch=init_epoch,
-                                 use_multiprocessing=True,
+                                 use_multiprocessing=use_multiprocessing,
                                  workers=cpu_count()-1,
                                  max_queue_size=10)
