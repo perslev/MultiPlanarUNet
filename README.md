@@ -1,4 +1,4 @@
-# Multi Planar UNet
+# Multi-Planar UNet
 
 ## Quick Start
 **Installation**
@@ -21,7 +21,7 @@ git pull
 ```
 usage: mp [script] [script args...]
 
-Multi Planar UNet (0.1.0)
+Multi-Planar UNet (0.1.0)
 -------------------------
 Available scripts:
 - cv_experiment
@@ -57,7 +57,7 @@ The base model is a just slightly modified 2D UNet (https://arxiv.org/abs/1505.0
 trained under a multi-planar framework. Specifically, the 2D model is
 fed images sampled across multiple views onto the image volume simultaneously:
 
-[Multi Planar Animation](resources/multi_planar_training.gif)
+[Multi-Planar Animation](resources/multi_planar_training.gif)
 
 At test-time, the model predict along each of the views and recreates a set of full segmentation volumes. 
 These volumes are majority voted into one using a learned function that weights
@@ -121,7 +121,7 @@ The ```aug``` folder may store additional images that can be included during
 training with a lower weight assigned in optimization.
 
 **Initializing a Project**\
-Once the data is stored under the above folder structure, a Multi Planar 
+Once the data is stored under the above folder structure, a Multi-Planar 
 project can be initialized as follows:
 
 ```
@@ -133,7 +133,7 @@ file named ```train_hparams.yaml```, which stores all hyperparameters. Any
 parameter in this file may be specified manually, but can all be set 
 automatically.
 
-**NOTE:** By default the ```init_project``` prepares a Multi Planar model. 
+**NOTE:** By default the ```init_project``` prepares a Multi-Planar model. 
 However, note that a 3D model is also supported, which can be selected by 
 specifying the ```--model=3D``` flag (default=```---model=MultiPlanar```).
 
