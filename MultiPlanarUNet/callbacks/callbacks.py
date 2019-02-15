@@ -1,8 +1,8 @@
 import tensorflow as tf
 from tensorflow.keras.callbacks import Callback
 
-from MultiPlanarUNet.evaluate.metrics import dice_all, np_cross_entropy
-from MultiPlanarUNet.utils import highlighted
+from MultiPlanarUNet.evaluate.metrics import dice_all, np_pr_class_entropy
+from MultiPlanarUNet.utils import highlighted, arr_to_fixed_precision_string
 from MultiPlanarUNet.logging import ScreenLogger
 from MultiPlanarUNet.utils.plotting import imshow_with_label_overlay, imshow
 
@@ -270,6 +270,12 @@ class Validation(Callback):
 
                 # Argmax and flatten
                 for i, n_classes in enumerate(n_classes_list):
+                    # Compute CE
+                    pr_class_ce = np_pr_class_entropy(target=true,
+                                                      output=pred,
+                                                      n_classes=n_classes)
+
+                    # Argmax and CM elements
                     p = np.argmax(pred[i], axis=-1).ravel()
                     y = true[i].ravel()
 
@@ -281,17 +287,12 @@ class Validation(Callback):
                     rel = np.bincount(y, minlength=n_classes)
                     sel = np.bincount(p, minlength=n_classes)
 
-                    # Compute CE
-                    mean_ce = np.mean(np_cross_entropy(target=y,
-                                                       output=p, sparse=True,
-                                                       n_classes=n_classes))
-
                     # Update counts on shared lists
                     lock.acquire()
                     TPs[i] += tps.astype(np.uint64)
                     relevant[i] += rel.astype(np.uint64)
                     selected[i] += sel.astype(np.uint64)
-                    CE[i] += mean_ce
+                    CE[i] += pr_class_ce
                     lock.release()
 
         # Fetch some validation images from the generator
@@ -299,12 +300,12 @@ class Validation(Callback):
         result = pool.map(self.data.__getitem__, np.arange(self.steps))
 
         # Prepare arrays for CM summary stats
-        TPs, relevant, selected = [], [], []
+        TPs, relevant, selected, CE = [], [], [], []
         for n_classes in self.n_classes:
             TPs.append(np.zeros(shape=(n_classes,), dtype=np.uint64))
             relevant.append(np.zeros(shape=(n_classes,), dtype=np.uint64))
             selected.append(np.zeros(shape=(n_classes,), dtype=np.uint64))
-        CE = np.zeros(shape=(len(self.n_classes)), dtype=np.float64)
+            CE.append(np.zeros(shape=(n_classes,), dtype=np.float64))
 
         # Prepare queue and thread for computing counts
         from queue import Queue
@@ -339,29 +340,39 @@ class Validation(Callback):
 
         return TPs, relevant, selected, CE
 
+    def _compute_dice_and_ce(self, sel, rel, tp, CE):
+        # Get data masks (to avoid div. by zero warnings)
+        # We set precision, recall, dice to 0 in for those particular cls.
+        sel_mask = sel > 0
+        rel_mask = rel > 0
+
+        # prepare arrays
+        precisions = np.zeros(shape=tp.shape, dtype=np.float32)
+        recalls = np.zeros_like(precisions)
+        dices = np.zeros_like(precisions)
+
+        # Compute precisions, recalls
+        precisions[sel_mask] = tp[sel_mask] / sel[sel_mask]
+        recalls[rel_mask] = tp[rel_mask] / rel[rel_mask]
+
+        # Compute dice
+        intrs = (2 * precisions * recalls)
+        union = (precisions + recalls)
+        dice_mask = union > 0
+        dices[dice_mask] = intrs[dice_mask] / union[dice_mask]
+
+        # Compute CE
+        CE /= self.steps
+
+        return precisions, recalls, dices, CE
+
     def on_epoch_end(self, epoch, logs={}):
 
         # Predict and get CM
-        for name, tp, rel, sel, CE in zip(self.task_names, *self.predict()):
-            # Get data masks (to avoid div. by zero warnings)
-            # We set precision, recall, dice to 0 in for those particular cls.
-            sel_mask = sel > 0
-            rel_mask = rel > 0
+        for name, tp, rel, sel, ce in zip(self.task_names, *self.predict()):
 
-            # prepare arrays
-            precisions = np.zeros(shape=tp.shape, dtype=np.float32)
-            recalls = np.zeros_like(precisions)
-            dices = np.zeros_like(precisions)
-
-            # Compute precisions, recalls
-            precisions[sel_mask] = tp[sel_mask] / sel[sel_mask]
-            recalls[rel_mask] = tp[rel_mask] / rel[rel_mask]
-
-            # Compute dice
-            intrs = (2 * precisions * recalls)
-            union = (precisions + recalls)
-            dice_mask = union > 0
-            dices[dice_mask] = intrs[dice_mask] / union[dice_mask]
+            precisions, recalls, dices, CEs = self._compute_dice_and_ce(sel, rel,
+                                                                        tp, ce)
 
             # Ignore BG
             if self.ignore_bg:
@@ -370,16 +381,22 @@ class Validation(Callback):
                 dices = dices[1:]
 
             # Log the results
-            ce = "Mean CE for epoch %d:        %.4f" % (epoch, CE/self.steps)
-            sp = "Mean precision for epoch %d: %.4f - Pr. class: %s" % (epoch,
-                                                                        precisions.mean(),
-                                                                        np.round(precisions, 4))
-            sr = "Mean recall for epoch %d:    %.4f - Pr. class: %s" % (epoch,
-                                                                        recalls.mean(),
-                                                                        np.round(recalls, 4))
-            sf = "Mean dice for epoch %d:      %.4f - Pr. class: %s" % (epoch,
-                                                                        dices.mean(),
-                                                                        np.round(dices, 4))
+            # Here we just prettify the log output a bit
+            _round = 4
+            to_round = (CEs, precisions, recalls, dices)
+            ce_str, pres_str, rec_str, dc_str = map(
+                lambda x: arr_to_fixed_precision_string(x, _round), to_round
+            )
+            nl = "\n" if len(dc_str) > 100 else ""
+            space = (" "*(3+_round)) if self.ignore_bg else ""
+            ce = "Mean CE for epoch %d:        %.4f - " \
+                 "Pr. class:%s %s%s" % (epoch, CEs.mean(), nl, ce_str, nl)
+            sp = "Mean precision for epoch %d: %.4f - " \
+                 "Pr. class:%s %s%s%s" % (epoch, precisions.mean(), space, nl, pres_str, nl)
+            sr = "Mean recall for epoch %d:    %.4f - " \
+                 "Pr. class:%s %s%s%s" % (epoch, recalls.mean(), space, nl, rec_str, nl)
+            sf = "Mean dice for epoch %d:      %.4f - " \
+                 "Pr. class:%s %s%s%s" % (epoch, dices.mean(), space, nl, dc_str, nl)
 
             self.logger(highlighted("\n" + ("%s Validation Results" % name).lstrip(" ")))
             self.logger(ce + "\n" + sp + "\n" + sr + "\n" + sf)
@@ -387,7 +404,7 @@ class Validation(Callback):
             # Add to log
             if name:
                 name += "_"
-            logs["%sval_CE" % name] = CE/self.steps
+            logs["%sval_CE" % name] = CEs.mean()
             logs["%sval_dice" % name] = dices.mean()
             logs["%sval_precision" % name] = precisions.mean()
             logs["%sval_recall" % name] = recalls.mean()
