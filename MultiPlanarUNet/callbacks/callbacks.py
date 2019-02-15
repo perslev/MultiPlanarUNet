@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras.callbacks import Callback
 
-from MultiPlanarUNet.evaluate.metrics import dice_all
+from MultiPlanarUNet.evaluate.metrics import dice_all, np_cross_entropy
 from MultiPlanarUNet.utils import highlighted
 from MultiPlanarUNet.logging import ScreenLogger
 from MultiPlanarUNet.utils.plotting import imshow_with_label_overlay, imshow
@@ -229,7 +229,7 @@ class Validation(Callback):
     Note: this callback should be called prior to other callbacks evaluating
           those values in a given epoch
 
-    TODO: Currently hard-coded to compute non-BG mean dice coefficients. Change
+    TODO: Currently hard-coded to compute mean dice coefficients. Change
           to accept arbitrary evaluation functions
     """
     def __init__(self, val_sequence, steps, logger=None, verbose=True,
@@ -260,7 +260,7 @@ class Validation(Callback):
 
     def predict(self):
 
-        def count(queue, steps, TPs, relevant, selected, n_classes_list, lock):
+        def eval(queue, steps, TPs, relevant, selected, CE, n_classes_list, lock):
             step = 0
             while step < steps:
                 step += 1
@@ -281,11 +281,17 @@ class Validation(Callback):
                     rel = np.bincount(y, minlength=n_classes)
                     sel = np.bincount(p, minlength=n_classes)
 
+                    # Compute CE
+                    mean_ce = np.mean(np_cross_entropy(target=y,
+                                                       output=p, sparse=True,
+                                                       n_classes=n_classes))
+
                     # Update counts on shared lists
                     lock.acquire()
                     TPs[i] += tps.astype(np.uint64)
                     relevant[i] += rel.astype(np.uint64)
                     selected[i] += sel.astype(np.uint64)
+                    CE[i] += mean_ce
                     lock.release()
 
         # Fetch some validation images from the generator
@@ -298,15 +304,16 @@ class Validation(Callback):
             TPs.append(np.zeros(shape=(n_classes,), dtype=np.uint64))
             relevant.append(np.zeros(shape=(n_classes,), dtype=np.uint64))
             selected.append(np.zeros(shape=(n_classes,), dtype=np.uint64))
+        CE = np.zeros(shape=(len(self.n_classes)), dtype=np.float64)
 
         # Prepare queue and thread for computing counts
         from queue import Queue
         from threading import Thread
 
         count_queue = Queue(maxsize=self.steps)
-        count_thread = Thread(target=count, args=[count_queue, self.steps,
-                                                  TPs, relevant, selected,
-                                                  self.n_classes, Lock()])
+        count_thread = Thread(target=eval, args=[count_queue, self.steps,
+                                                 TPs, relevant, selected, CE,
+                                                 self.n_classes, Lock()])
         count_thread.start()
 
         # Predict on all
@@ -330,16 +337,31 @@ class Validation(Callback):
         count_thread.join()
         pool.shutdown()
 
-        return TPs, relevant, selected
+        return TPs, relevant, selected, CE
 
     def on_epoch_end(self, epoch, logs={}):
 
         # Predict and get CM
-        for name, tp, rel, sel in zip(self.task_names, *self.predict()):
-            # Compute precisions, recalls and dices
-            precisions = tp / sel
-            recalls = tp / rel
-            dices = (2 * precisions * recalls) / (precisions + recalls)
+        for name, tp, rel, sel, CE in zip(self.task_names, *self.predict()):
+            # Get data masks (to avoid div. by zero warnings)
+            # We set precision, recall, dice to 0 in for those particular cls.
+            sel_mask = sel > 0
+            rel_mask = rel > 0
+
+            # prepare arrays
+            precisions = np.zeros(shape=tp.shape, dtype=np.float32)
+            recalls = np.zeros_like(precisions)
+            dices = np.zeros_like(precisions)
+
+            # Compute precisions, recalls
+            precisions[sel_mask] = tp[sel_mask] / sel[sel_mask]
+            recalls[rel_mask] = tp[rel_mask] / rel[rel_mask]
+
+            # Compute dice
+            intrs = (2 * precisions * recalls)
+            union = (precisions + recalls)
+            dice_mask = union > 0
+            dices[dice_mask] = intrs[dice_mask] / union[dice_mask]
 
             # Ignore BG
             if self.ignore_bg:
@@ -347,11 +369,8 @@ class Validation(Callback):
                 recalls = recalls[1:]
                 dices = dices[1:]
 
-            # Set NaN --> 0.
-            precisions[np.isnan(precisions)] = 0.
-            recalls[np.isnan(recalls)] = 0.
-            dices[np.isnan(dices)] = 0.
-
+            # Log the results
+            ce = "Mean CE for epoch %d:        %.4f" % (epoch, CE/self.steps)
             sp = "Mean precision for epoch %d: %.4f - Pr. class: %s" % (epoch,
                                                                         precisions.mean(),
                                                                         np.round(precisions, 4))
@@ -363,11 +382,12 @@ class Validation(Callback):
                                                                         np.round(dices, 4))
 
             self.logger(highlighted("\n" + ("%s Validation Results" % name).lstrip(" ")))
-            self.logger(sp + "\n" + sr + "\n" + sf)
+            self.logger(ce + "\n" + sp + "\n" + sr + "\n" + sf)
 
             # Add to log
             if name:
                 name += "_"
+            logs["%sval_CE" % name] = CE/self.steps
             logs["%sval_dice" % name] = dices.mean()
             logs["%sval_precision" % name] = precisions.mean()
             logs["%sval_recall" % name] = recalls.mean()
@@ -375,7 +395,7 @@ class Validation(Callback):
         if len(self.task_names) > 1:
             self.logger("\nMean across tasks")
             # If multi-task, compute mean over tasks and add to logs
-            fetch = ("val_dice", "val_precision", "val_recall")
+            fetch = ("val_CE", "val_dice", "val_precision", "val_recall")
             for f in fetch:
                 res = np.mean([logs["%s_%s" % (name, f)] for name in self.task_names])
                 logs[f] = res
