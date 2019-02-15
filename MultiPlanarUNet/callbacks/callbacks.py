@@ -311,7 +311,11 @@ class Validation(Callback):
 
         # Predict on all
         self.logger("")
-        for i, (X, y, w) in enumerate(result):
+        for i, res in enumerate(result):
+            if len(res) == 3:
+                X, y, w = res
+            else:
+                X, y = res
             if self.verbose:
                 print("   Validation: %i/%i" % (i+1, self.steps), end="\r", flush=True)
 
