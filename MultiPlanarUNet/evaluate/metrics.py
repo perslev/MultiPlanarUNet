@@ -170,7 +170,8 @@ def fg_precision(y_true, y_pred, bg_class=0):
     return sparse_fg_precision(y_true, y_pred, bg_class)
 
 
-def np_pr_class_entropy(target, output, n_classes):
+def np_pr_class_entropy(target, output):
+    n_classes = output.shape[-1]
     output = output.reshape(-1, n_classes)
     target = to_categorical(target.reshape(-1, 1), num_classes=n_classes)
 
