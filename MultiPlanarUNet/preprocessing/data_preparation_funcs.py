@@ -60,13 +60,11 @@ def _base_loader_func(hparams, just_one, no_val, logger, mtype):
     val_data = ImagePairLoader(logger=logger, **hparams["val_data"])
 
     # Audit
-    if hparams.get_from_anywhere("n_classes") is None:
-        lab_paths = train_data.label_paths + val_data.label_paths
-    else:
-        lab_paths = None
+    lab_paths = train_data.label_paths + val_data.label_paths
     auditor = Auditor(train_data.image_paths + val_data.image_paths,
                       nii_lab_paths=lab_paths, logger=logger,
-                      dim_3d=hparams.get_from_anywhere("dim") or 64)
+                      dim_3d=hparams.get_from_anywhere("dim") or 64,
+                      hparams=hparams)
 
     # Fill hparams with audited values, if not specified manually
     auditor.fill(hparams, mtype)

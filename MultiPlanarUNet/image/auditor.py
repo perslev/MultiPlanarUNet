@@ -5,6 +5,35 @@ import nibabel as nib
 import numpy as np
 
 
+def _audit_classes(nii_lab_paths, logger):
+    logger("Auditing number of target classes. This may take "
+           "a while as data must be read from disk."
+           "\n-- Note: avoid this by manually setting the "
+           "n_classes attribute in train_hparams.yaml.")
+    # Select up to 50 random images and find the unique classes
+    lab_paths = np.random.choice(nii_lab_paths,
+                                 min(50, len(nii_lab_paths)),
+                                 replace=False)
+    classes = []
+    for l in lab_paths:
+        classes.append(np.unique(nib.load(l).get_data()))
+    classes = np.unique(classes)
+    n_classes = classes.shape[0]
+
+    # Make sure the classes start from 0 and step continuously by 1
+    c_min, c_max = np.min(classes), np.max(classes)
+    if c_min != 0:
+        raise ValueError("Invalid class audit - Class integers should"
+                         " start from 0, found %i (classes found: %s)"
+                         % (c_min, classes))
+    if n_classes != max(classes) + 1:
+        raise ValueError("Invalid class audit - Found %i classes, but"
+                         " expected %i, as the largest class value"
+                         " found was %i. Classes found: %s"
+                         % (n_classes, c_max+1, c_max, classes))
+    return n_classes
+
+
 class Auditor(object):
     """
     Parses all .nii/.nii.gz images of a specified folder and proposes
@@ -42,7 +71,7 @@ class Auditor(object):
     """
     def __init__(self, nii_paths, nii_lab_paths=None, logger=None,
                  min_dim_2d=128, max_dim_2d=512, dim_3d=64, span_percentile=75,
-                 res_percentile=25):
+                 res_percentile=25, hparams=None):
         """
         Args:
             nii_paths: A list of paths pointing to typically training and val
@@ -65,6 +94,7 @@ class Auditor(object):
         self.logger = logger or ScreenLogger()
 
         # Fetch basic information on the images
+        self.hparms = hparams
         self.info = self.audit()
 
         """ Set some attributes used for image sampling """
@@ -73,7 +103,6 @@ class Auditor(object):
 
         # Number of classes
         self.n_classes = self.info["n_classes"]
-        self.classes = self.info["classes"]
 
         # 2D
         real_space_span = np.percentile(self.info["real_sizes"], span_percentile)
@@ -128,10 +157,7 @@ class Auditor(object):
         self.logger(highlighted("\nAudit for %i images" % len(self.nii_paths)))
         self.logger("Total memory GiB:  %.3f" % self.total_memory_gib)
         if self.n_classes is not None:
-            self.logger("\nClass Audit:\n"
-                        "Classes found:     %s\n"
-                        "Number of classes: %i" % (self.classes,
-                                                   self.n_classes))
+            self.logger("Number of classes: %i" % self.n_classes)
         self.logger("\n2D:\n"
                     "Real space span:   %.3f\n"
                     "Sample dim:        %.3f" % (self.real_space_span_2D,
@@ -216,35 +242,16 @@ class Auditor(object):
             # Calculate memory in bytes to store image
             memory.append(im.get_data_dtype().itemsize * np.prod(shape))
 
+        n_classes = None
         if self.nii_lab_paths is not None:
-            self.logger("Auditing number of target classes. This may take "
-                        "a while as data must be read from disk."
-                        "\n-- Note: avoid this by manually setting the "
-                        "n_classes attribute in train_hparams.yaml.")
-            # Select up to 50 random images and find the unique classes
-            lab_paths = np.random.choice(self.nii_lab_paths,
-                                         min(50, len(self.nii_lab_paths)),
-                                         replace=False)
-            classes = []
-            for l in lab_paths:
-                classes.append(np.unique(nib.load(l).get_data()))
-            classes = np.unique(classes)
-            n_classes = classes.shape[0]
-
-            # Make sure the classes start from 0 and step continuously by 1
-            c_min, c_max = np.min(classes), np.max(classes)
-            if c_min != 0:
-                raise ValueError("Invalid class audit - Class integers should"
-                                 " start from 0, found %i (classes found: %s)"
-                                 % (c_min, classes))
-            if n_classes != max(classes) + 1:
-                raise ValueError("Invalid class audit - Found %i classes, but"
-                                 " expected %i, as the largest class value"
-                                 " found was %i. Classes found: %s"
-                                 % (n_classes, c_max+1, c_max, classes))
-        else:
-            n_classes = None
-            classes = None
+            # Labels exists, thus we need the n_classes attribute
+            if self.hparms is not None:
+                # Attempt to get it from a potentially specified hparams obj
+                n_classes = self.hparms.get_from_anywhere("n_classes")
+            if n_classes is None:
+                # If still none, infer it
+                n_classes = _audit_classes(self.nii_lab_paths,
+                                           self.logger)
 
         info = {
             "shapes": shapes,
@@ -253,6 +260,5 @@ class Auditor(object):
             "memory_bytes": memory,
             "n_channels": channels,
             "n_classes": n_classes,
-            "classes": classes
         }
         return info
