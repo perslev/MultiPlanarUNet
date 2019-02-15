@@ -7,6 +7,8 @@ November 2017
 """
 
 import numpy as np
+import tensorflow as tf
+from tensorflow.keras.utils import to_categorical
 
 
 def dice(y_true, y_pred, smooth=1.0):
@@ -55,8 +57,6 @@ def dice_all(y_true, y_pred, smooth=1.0, n_classes=None, ignore_zero=True,
 
 
 def one_class_dice(y_true, y_pred, smooth=1.0):
-    import tensorflow as tf
-
     # Predict
     y_pred = tf.cast(y_pred > 0.5, tf.float32)
 
@@ -64,8 +64,6 @@ def one_class_dice(y_true, y_pred, smooth=1.0):
 
 
 def precision(y_true, y_pred):
-    import tensorflow as tf
-
     y_pred = tf.round(y_pred)
     not_true = tf.cast(tf.logical_not(tf.cast(y_true, tf.bool)), tf.float32)
 
@@ -76,8 +74,6 @@ def precision(y_true, y_pred):
 
 
 def recall(y_true, y_pred):
-    import tensorflow as tf
-
     y_pred = np.round(y_pred)
     tp = tf.reduce_sum(tf.multiply(y_true, y_pred))
     relevant = tf.reduce_sum(y_true)
@@ -86,8 +82,6 @@ def recall(y_true, y_pred):
 
 
 def sparse_fg_recall(y_true, y_pred, bg_class=0):
-    import tensorflow as tf
-
     # Get MAP estimates
     y_true = tf.cast(tf.reshape(y_true, [-1]), tf.int32)
     y_pred = tf.cast(tf.reshape(tf.argmax(y_pred, axis=-1), [-1]), tf.int32)
@@ -101,8 +95,6 @@ def sparse_fg_recall(y_true, y_pred, bg_class=0):
 
 
 def fg_recall(y_true, y_pred, bg_class=0):
-    import tensorflow as tf
-
     # Get MAP estimates
     y_true = tf.argmax(y_true, axis=-1)
 
@@ -110,8 +102,6 @@ def fg_recall(y_true, y_pred, bg_class=0):
 
 
 def sparse_mean_fg_f1(y_true, y_pred):
-    import tensorflow as tf
-
     y_pred = tf.argmax(y_pred, axis=-1)
 
     # Get confusion matrix
@@ -133,8 +123,6 @@ def sparse_mean_fg_f1(y_true, y_pred):
 
 
 def sparse_mean_fg_precision(y_true, y_pred):
-    import tensorflow as tf
-
     y_pred = tf.argmax(y_pred, axis=-1)
 
     # Get confusion matrix
@@ -149,8 +137,6 @@ def sparse_mean_fg_precision(y_true, y_pred):
 
 
 def sparse_mean_fg_recall(y_true, y_pred):
-    import tensorflow as tf
-
     y_pred = tf.argmax(y_pred, axis=-1)
 
     # Get confusion matrix
@@ -165,8 +151,6 @@ def sparse_mean_fg_recall(y_true, y_pred):
 
 
 def sparse_fg_precision(y_true, y_pred, bg_class=0):
-    import tensorflow as tf
-
     # Get MAP estimates
     y_true = tf.cast(tf.reshape(y_true, [-1]), tf.int32)
     y_pred = tf.cast(tf.reshape(tf.argmax(y_pred, axis=-1), [-1]), tf.int32)
@@ -180,9 +164,19 @@ def sparse_fg_precision(y_true, y_pred, bg_class=0):
 
 
 def fg_precision(y_true, y_pred, bg_class=0):
-    import tensorflow as tf
-
     # Get MAP estimates
     y_true = tf.argmax(y_true, axis=-1)
 
     return sparse_fg_precision(y_true, y_pred, bg_class)
+
+
+def np_cross_entropy(target, output, sparse=False, n_classes=None):
+    """ Adapted from tf.keras.backend.categorical_cross_entropy """
+    # output /= np.sum(output, -1)
+    epsilon = 1e-7
+    output = np.clip(output, epsilon, 1. - epsilon)
+    if sparse:
+        if n_classes is None:
+            raise ValueError("Must specify 'n_classes' with 'sparse=True'.")
+        target = to_categorical(target, num_classes=n_classes)
+    return -np.sum(target * np.log(output), axis=-1)
