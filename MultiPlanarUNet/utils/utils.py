@@ -353,3 +353,11 @@ def _wait_for(PID, timeout=120):
         if still_running:
             print("Process %i still running... (sleeping %i seconds)" % (PID, timeout))
             time.sleep(timeout)
+
+
+def check_kwargs(kwargs, allowed, func=None):
+    s = ("Function '{}': ".format(func.__name__)) if func is not None else ""
+    for param in kwargs:
+        if param not in allowed:
+            raise RuntimeError("{}Unexpected parameter '{}' passed.".
+                               format(s, param))
