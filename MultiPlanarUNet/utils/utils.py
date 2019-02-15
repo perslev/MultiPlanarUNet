@@ -280,6 +280,12 @@ def print_options_context(*args, **kwargs):
         np.set_printoptions(**original)
 
 
+def arr_to_fixed_precision_string(arr, precision):
+    f = np.format_float_positional
+    s = map(lambda x: f(x, precision, pad_right=precision), arr)
+    return "[{}]".format(" ".join(s))
+
+
 class DummyContext(object):
     def __enter__(self): return self
 
