@@ -7,6 +7,7 @@ from MultiPlanarUNet.logging import ScreenLogger
 from MultiPlanarUNet.utils.plotting import imshow_with_label_overlay, imshow
 
 import numpy as np
+import pandas as pd
 import os
 import matplotlib.pyplot as plt
 from datetime import datetime
@@ -28,7 +29,7 @@ class DividerLine(Callback):
         self.logger = logger or ScreenLogger()
 
     def on_epoch_end(self, epoch, logs=None):
-        self.logger("\n" + "-"*45)
+        self.logger("-"*45 + "\n")
 
 
 class DelayedCallback(object):
@@ -233,7 +234,7 @@ class Validation(Callback):
           to accept arbitrary evaluation functions
     """
     def __init__(self, val_sequence, steps, logger=None, verbose=True,
-                 ignore_class_zero=True):
+                 ignore_class_zero=True, compute_val_ce=False):
         """
         Args:
             val_sequence: A MultiPlanarUNet.sequence object from which validation
@@ -250,6 +251,7 @@ class Validation(Callback):
         self.steps = steps
         self.verbose = verbose
         self.ignore_bg = ignore_class_zero
+        self.compute_val_ce = compute_val_ce
 
         self.n_classes = self.data.n_classes
         if isinstance(self.n_classes, int):
@@ -259,8 +261,8 @@ class Validation(Callback):
             self.task_names = self.data.task_names
 
     def predict(self):
-
-        def eval(queue, steps, TPs, relevant, selected, CE, n_classes_list, lock):
+        def eval(queue, steps, TPs, relevant, selected, CE, n_classes_list, lock,
+                 compute_val_ce):
             step = 0
             while step < steps:
                 step += 1
@@ -270,10 +272,10 @@ class Validation(Callback):
 
                 # Argmax and flatten
                 for i, n_classes in enumerate(n_classes_list):
-                    # Compute CE
-                    pr_class_ce = np_pr_class_entropy(target=true,
-                                                      output=pred,
-                                                      n_classes=n_classes)
+                    if compute_val_ce:
+                        # Compute CE
+                        pr_class_ce = np_pr_class_entropy(target=true,
+                                                          output=pred)
 
                     # Argmax and CM elements
                     p = np.argmax(pred[i], axis=-1).ravel()
@@ -292,7 +294,8 @@ class Validation(Callback):
                     TPs[i] += tps.astype(np.uint64)
                     relevant[i] += rel.astype(np.uint64)
                     selected[i] += sel.astype(np.uint64)
-                    CE[i] += pr_class_ce
+                    if compute_val_ce:
+                        CE[i] += pr_class_ce
                     lock.release()
 
         # Fetch some validation images from the generator
@@ -314,7 +317,8 @@ class Validation(Callback):
         count_queue = Queue(maxsize=self.steps)
         count_thread = Thread(target=eval, args=[count_queue, self.steps,
                                                  TPs, relevant, selected, CE,
-                                                 self.n_classes, Lock()])
+                                                 self.n_classes, Lock(),
+                                                 self.compute_val_ce])
         count_thread.start()
 
         # Predict on all
@@ -361,10 +365,43 @@ class Validation(Callback):
         dice_mask = union > 0
         dices[dice_mask] = intrs[dice_mask] / union[dice_mask]
 
-        # Compute CE
-        CE /= self.steps
+        if self.compute_val_ce:
+            # Compute CE
+            CE /= self.steps
 
         return precisions, recalls, dices, CE
+
+    @staticmethod
+    def _print_val_results(precisions, recalls, dices, CEs, epoch,
+                           name, classes, ignore_bg, compute_val_ce, logger):
+
+        # Log the results
+        # We add them to a pd dataframe just for the pretty print output
+        index = ["cls %i" % i for i in classes]
+        val_results = pd.DataFrame({
+            "precision": ["(omitted)"] + list(precisions) if ignore_bg else precisions,
+            "recall": ["(omitted)"] + list(recalls) if ignore_bg else recalls,
+            "dice": ["(omitted)"] + list(dices) if ignore_bg else dices,
+        }, index=index)
+        means = [precisions.mean(), recalls.mean(), dices.mean()]
+        if compute_val_ce:
+            index = list(val_results.index)
+            val_results["CE"] = CEs
+            val_results = val_results.reindex(["CE"] + index)
+            means = [CEs.mean()] + means
+        val_results = val_results.T
+        val_results["mean"] = means
+
+        # Reorder to put mean in first column
+        cols = list(val_results.columns)
+        cols.insert(0, cols.pop(cols.index('mean')))
+        val_results = val_results.ix[:, cols]
+
+        # Print the df to screen
+        logger(highlighted("\n" + ("%s Validation Results for "
+                                   "Epoch %i" % (name, epoch)).lstrip(" ")))
+        logger(val_results.round(4))
+        logger("")
 
     def on_epoch_end(self, epoch, logs={}):
 
@@ -373,6 +410,7 @@ class Validation(Callback):
 
             precisions, recalls, dices, CEs = self._compute_dice_and_ce(sel, rel,
                                                                         tp, ce)
+            classes = np.arange(len(dices))
 
             # Ignore BG
             if self.ignore_bg:
@@ -380,34 +418,19 @@ class Validation(Callback):
                 recalls = recalls[1:]
                 dices = dices[1:]
 
-            # Log the results
-            # Here we just prettify the log output a bit
-            _round = 4
-            to_round = (CEs, precisions, recalls, dices)
-            ce_str, pres_str, rec_str, dc_str = map(
-                lambda x: arr_to_fixed_precision_string(x, _round), to_round
-            )
-            nl = "\n" if len(dc_str) > 100 else ""
-            space = (" "*(3+_round)) if self.ignore_bg else ""
-            ce = "Mean CE for epoch %d:        %.4f - " \
-                 "Pr. class:%s %s%s" % (epoch, CEs.mean(), nl, ce_str, nl)
-            sp = "Mean precision for epoch %d: %.4f - " \
-                 "Pr. class:%s %s%s%s" % (epoch, precisions.mean(), space, nl, pres_str, nl)
-            sr = "Mean recall for epoch %d:    %.4f - " \
-                 "Pr. class:%s %s%s%s" % (epoch, recalls.mean(), space, nl, rec_str, nl)
-            sf = "Mean dice for epoch %d:      %.4f - " \
-                 "Pr. class:%s %s%s%s" % (epoch, dices.mean(), space, nl, dc_str, nl)
-
-            self.logger(highlighted("\n" + ("%s Validation Results" % name).lstrip(" ")))
-            self.logger(ce + "\n" + sp + "\n" + sr + "\n" + sf)
-
             # Add to log
             if name:
                 name += "_"
-            logs["%sval_CE" % name] = CEs.mean()
             logs["%sval_dice" % name] = dices.mean()
             logs["%sval_precision" % name] = precisions.mean()
             logs["%sval_recall" % name] = recalls.mean()
+            if self.compute_val_ce:
+                logs["%sval_CE" % name] = CEs.mean()
+
+            if self.verbose:
+                self._print_val_results(precisions, recalls, dices, CEs,
+                                        epoch, name, classes, self.ignore_bg,
+                                        self.compute_val_ce, self.logger)
 
         if len(self.task_names) > 1:
             self.logger("\nMean across tasks")
