@@ -170,13 +170,13 @@ def fg_precision(y_true, y_pred, bg_class=0):
     return sparse_fg_precision(y_true, y_pred, bg_class)
 
 
-def np_cross_entropy(target, output, sparse=False, n_classes=None):
-    """ Adapted from tf.keras.backend.categorical_cross_entropy """
-    # output /= np.sum(output, -1)
+def np_pr_class_entropy(target, output, n_classes):
+    output = output.reshape(-1, n_classes)
+    target = to_categorical(target.reshape(-1, 1), num_classes=n_classes)
+
+    # For num. stability
+    output /= np.sum(output, -1, keepdims=True)
     epsilon = 1e-7
     output = np.clip(output, epsilon, 1. - epsilon)
-    if sparse:
-        if n_classes is None:
-            raise ValueError("Must specify 'n_classes' with 'sparse=True'.")
-        target = to_categorical(target, num_classes=n_classes)
-    return -np.sum(target * np.log(output), axis=-1)
+
+    return -np.mean(target * np.log(output), axis=0)
