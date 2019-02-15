@@ -80,7 +80,8 @@ class YAMLHParams(dict):
 
     def get_from_anywhere(self, key):
         found = []
-        for group in self:
+        for group_str in self:
+            group = self[group_str]
             if key in group:
                 found.append((group, group[key]))
         if len(found) > 1:
