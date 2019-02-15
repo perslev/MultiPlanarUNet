@@ -1,16 +1,16 @@
-# from MultiPlanarUNet.database import DBConnection
 from MultiPlanarUNet.callbacks import init_callback_objects
 from MultiPlanarUNet.logging import ScreenLogger
 from MultiPlanarUNet.evaluate import loss_functions
 from MultiPlanarUNet.evaluate import metrics as custom_metrics
-from MultiPlanarUNet.callbacks import SavePredictionImages, Validation, FGBatchBalancer, DividerLine, SaveOutputAs2DImage, PrintLayerWeights
+from MultiPlanarUNet.callbacks import SavePredictionImages, Validation, \
+                                      FGBatchBalancer, DividerLine
+
+import os
 from tensorflow.keras import optimizers, losses
 from tensorflow.keras import metrics as TF_metrics
-import matplotlib.pyplot as plt
-import os
-import numpy as np
 from multiprocessing import cpu_count
-from tensorflow.python.framework.errors_impl import ResourceExhaustedError
+from tensorflow.python.framework.errors_impl import ResourceExhaustedError, \
+                                                    InternalError
 
 
 class Trainer(object):
@@ -33,14 +33,14 @@ class Trainer(object):
     def __init__(self, model, logger=None):
         self.model = model
         self.logger = logger if logger is not None else ScreenLogger()
-        self.metadata = None
+        self.target_tensor = None
 
         # Extra reference to original (non multiple-GPU) model
         # Is set from train.py as needed
         self.org_model = None
 
     def compile_model(self, optimizer, optimizer_kwargs, loss, metrics,
-                      sparse=False, mem_logging=False, **kwargs):
+                      sparse=False, target_tensors=None, **kwargs):
         # Initialize optimizer
         optimizer = optimizers.__dict__[optimizer]
         optimizer = optimizer(**optimizer_kwargs)
@@ -76,19 +76,22 @@ class Trainer(object):
                 init_metrics.append(metric)
 
         # Compile the model
-        self.model.compile(optimizer=optimizer, loss=loss, metrics=init_metrics)
+        self.model.compile(optimizer=optimizer, loss=loss, metrics=init_metrics,
+                           target_tensors=target_tensors)
 
         self.logger("Optimizer:   %s" % optimizer)
         self.logger("Loss:        %s" % loss)
         self.logger("Targets:     %s" % ("Integer" if sparse else "One-Hot"))
         self.logger("Metrics:     %s" % init_metrics)
+        if target_tensors is not None:
+            self.target_tensor = True
 
         return self
 
     def fit(self, train, val, callbacks, n_epochs, train_im_per_epoch,
-            val_im_per_epoch, hparams, shuffle_batch_order=None, batch_size=8,
-            verbose=1, init_epoch=0, no_im=False, use_multiprocessing=True,
-            val_ignore_class_zero=True, **kwargs):
+            val_im_per_epoch, hparams, batch_size=8, verbose=1, init_epoch=0,
+            no_im=False, use_multiprocessing=True, val_ignore_class_zero=True,
+            **unused_fit_kwargs):
 
         # Crop labels?
         if hasattr(self.model, "label_crop"):
@@ -117,7 +120,7 @@ class Trainer(object):
                                val_im_per_epoch, hparams, use_multiprocessing,
                                val_ignore_class_zero)
                 fitting = False
-            except ResourceExhaustedError:
+            except (ResourceExhaustedError, InternalError):
                 # Reduce batch size
                 batch_size -= 2
                 hparams["fit"]["batch_size"] = batch_size
@@ -125,6 +128,10 @@ class Trainer(object):
                             "by 2 (now %i)" % batch_size)
                 if batch_size < 1:
                     self.logger("[ERROR] Batch size negative or zero!")
+                    fitting = False
+                if self.target_tensor:
+                    self.logger("[ERROR] You are fitting on a tf.data.Dataset "
+                                "object; manually lower the batch size.")
                     fitting = False
             except KeyboardInterrupt:
                 fitting = False
@@ -150,14 +157,18 @@ class Trainer(object):
                   init_epoch, no_im, train_im_per_epoch, val_im_per_epoch,
                   hparams, use_multiprocessing, val_ignore_class_zero):
 
-        # Update batch size on generators (needed after OOM error --> reduced
-        # batch size)
-        train.batch_size = batch_size
+        if hasattr(train, "batch_size"):
+            # Update batch size on generators (needed after OOM error->reduced
+            # batch size)
+            train.batch_size = batch_size
 
         # Get number of steps per train epoch
-        train_steps = int(train_im_per_epoch/batch_size)
+        if train_im_per_epoch:
+            train_steps = int(train_im_per_epoch/batch_size)
+        else:
+            train_steps = len(train)
 
-        self.logger("Using %i steps per train epoch (N batches=%i)" %
+        self.logger("Using %i steps per train epoch (total batches=%i)" %
                     (train_steps, len(train)))
 
         if val is None or len(val) == 0:
@@ -165,9 +176,12 @@ class Trainer(object):
             callbacks = [c for c in callbacks if not any("val" in s for s in [str(v) for v in c["kwargs"].values()])]
         else:
             val.batch_size = batch_size
-            val_steps = int(val_im_per_epoch/batch_size)
-            self.logger("Using %i steps per validation epoch (N batches=%i)" %
-                        (val_steps, len(val)))
+            if val_im_per_epoch:
+                val_steps = int(val_im_per_epoch/batch_size)
+            else:
+                val_steps = len(val)
+            self.logger("Using %i steps per validation epoch "
+                        "(total batches=%i)" % (val_steps, len(val)))
 
             # Add validation callback
             # IMPORTANT: Should be first in callbacks list as other CBs may
@@ -176,16 +190,6 @@ class Trainer(object):
                                     verbose=verbose,
                                     ignore_class_zero=val_ignore_class_zero)
             callbacks = [validation] + callbacks
-
-        # Add save layer output
-        # callbacks.append(SaveOutputAs2DImage(self.model.layers[8], train,
-        #                                      self.model,
-        #                                      out_dir="images/layer_output",
-        #                                      every=500, logger=self.logger))
-
-        # Print layer weights?
-        # callbacks.append(PrintLayerWeights(self.model.layers[7], every=500,
-        #                                    first=30, logger=self.logger))
 
         if not no_im:
             # Add save images cb
@@ -211,12 +215,21 @@ class Trainer(object):
         self.logger.active_log_file = "training"
         self.logger.print_calling_method = False
 
-        self.model.fit_generator(generator=train,
-                                 steps_per_epoch=train_steps,
-                                 epochs=n_epochs,
-                                 verbose=verbose,
-                                 callbacks=callbacks,
-                                 initial_epoch=init_epoch,
-                                 use_multiprocessing=use_multiprocessing,
-                                 workers=cpu_count()-1,
-                                 max_queue_size=10)
+        fit_kwargs = {
+            "generator": train,
+            "steps_per_epoch": train_steps,
+            "epochs": n_epochs,
+            "verbose": verbose,
+            "callbacks": callbacks,
+            "initial_epoch": init_epoch,
+            "use_multiprocessing": use_multiprocessing,
+            "workers": cpu_count()-1,
+            "max_queue_size": 5,
+            "shuffle": False
+        }
+        if self.target_tensor:
+            fit_func = self.model.fit
+            del fit_kwargs["generator"]
+        else:
+            fit_func = self.model.fit_generator
+        fit_func(**fit_kwargs)
