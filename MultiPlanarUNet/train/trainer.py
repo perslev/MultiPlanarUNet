@@ -6,6 +6,7 @@ from MultiPlanarUNet.callbacks import SavePredictionImages, Validation, \
                                       FGBatchBalancer, DividerLine
 
 import os
+import numpy as np
 from tensorflow.keras import optimizers, losses
 from tensorflow.keras import metrics as TF_metrics
 from multiprocessing import cpu_count
@@ -164,7 +165,7 @@ class Trainer(object):
 
         # Get number of steps per train epoch
         if train_im_per_epoch:
-            train_steps = int(train_im_per_epoch/batch_size)
+            train_steps = int(np.ceil(train_im_per_epoch/batch_size))
         else:
             train_steps = len(train)
 
@@ -177,7 +178,7 @@ class Trainer(object):
         else:
             val.batch_size = batch_size
             if val_im_per_epoch:
-                val_steps = int(val_im_per_epoch/batch_size)
+                val_steps = int(np.ceil(val_im_per_epoch/batch_size))
             else:
                 val_steps = len(val)
             self.logger("Using %i steps per validation epoch "
