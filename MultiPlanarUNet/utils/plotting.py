@@ -199,19 +199,22 @@ def plot_training_curves(csv_path, save_path, logy=False):
     epochs = df["epoch"] + 1
     train_loss = df["loss"]
     val_loss = df.get("val_loss")
-    if val_loss is not None:
-        lowest = np.argmin(val_loss) + 1
+    val_ce = df.get("val_CE")
 
     if logy:
         train_loss = np.log10(train_loss)
         if val_loss is not None:
             val_loss = np.log10(val_loss)
+        if val_ce is not None:
+            val_ce = np.log10(val_ce)
 
     # Plot
     ax1.plot(epochs, train_loss, lw=3, color="darkblue", label="Training loss")
     if val_loss is not None:
         ax1.plot(epochs, val_loss, lw=3, color="darkred", label="Validation loss")
-        ax1.axvline(x=lowest, linewidth=2, linestyle="--", label="Selected Model", color='darkgray')
+    if val_ce is not None:
+        ax1.plot(epochs, val_ce, lw=3, color="darkred", label="Validation "
+                                                              "cross entropy")
 
     # Add legend, labels and title
     leg = ax1.legend(loc=0)
