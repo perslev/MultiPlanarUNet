@@ -226,6 +226,7 @@ class Validation(Callback):
     logs["val_dice"] = dices.mean()
     logs["val_precision"] = precisions.mean()
     logs["val_recall"] = recalls.mean()
+    logs["val_CE"] = per_class_ce.sum()  # if val_compute_ce = True
 
     Note: this callback should be called prior to other callbacks evaluating
           those values in a given epoch
@@ -234,7 +235,7 @@ class Validation(Callback):
           to accept arbitrary evaluation functions
     """
     def __init__(self, val_sequence, steps, logger=None, verbose=True,
-                 ignore_class_zero=True, compute_val_ce=False):
+                 ignore_class_zero=True, val_compute_ce=False):
         """
         Args:
             val_sequence: A MultiPlanarUNet.sequence object from which validation
@@ -251,7 +252,7 @@ class Validation(Callback):
         self.steps = steps
         self.verbose = verbose
         self.ignore_bg = ignore_class_zero
-        self.compute_val_ce = compute_val_ce
+        self.val_compute_ce = val_compute_ce
 
         self.n_classes = self.data.n_classes
         if isinstance(self.n_classes, int):
@@ -262,7 +263,7 @@ class Validation(Callback):
 
     def predict(self):
         def eval(queue, steps, TPs, relevant, selected, CE, n_classes_list, lock,
-                 compute_val_ce):
+                 val_compute_ce):
             step = 0
             while step < steps:
                 step += 1
@@ -272,7 +273,7 @@ class Validation(Callback):
 
                 # Argmax and flatten
                 for i, n_classes in enumerate(n_classes_list):
-                    if compute_val_ce:
+                    if val_compute_ce:
                         # Compute CE
                         pr_class_ce = np_pr_class_entropy(target=true,
                                                           output=pred)
@@ -294,7 +295,7 @@ class Validation(Callback):
                     TPs[i] += tps.astype(np.uint64)
                     relevant[i] += rel.astype(np.uint64)
                     selected[i] += sel.astype(np.uint64)
-                    if compute_val_ce:
+                    if val_compute_ce:
                         CE[i] += pr_class_ce
                     lock.release()
 
@@ -318,7 +319,7 @@ class Validation(Callback):
         count_thread = Thread(target=eval, args=[count_queue, self.steps,
                                                  TPs, relevant, selected, CE,
                                                  self.n_classes, Lock(),
-                                                 self.compute_val_ce])
+                                                 self.val_compute_ce])
         count_thread.start()
 
         # Predict on all
@@ -365,7 +366,7 @@ class Validation(Callback):
         dice_mask = union > 0
         dices[dice_mask] = intrs[dice_mask] / union[dice_mask]
 
-        if self.compute_val_ce:
+        if self.val_compute_ce:
             # Compute CE
             CE /= self.steps
 
@@ -373,26 +374,34 @@ class Validation(Callback):
 
     @staticmethod
     def _print_val_results(precisions, recalls, dices, CEs, epoch,
-                           name, classes, ignore_bg, compute_val_ce, logger):
+                           name, classes, ignore_bg, val_compute_ce, logger):
 
         # Log the results
         # We add them to a pd dataframe just for the pretty print output
         index = ["cls %i" % i for i in classes]
         val_results = pd.DataFrame({
-            "precision": ["(omitted)"] + list(precisions) if ignore_bg else precisions,
-            "recall": ["(omitted)"] + list(recalls) if ignore_bg else recalls,
-            "dice": ["(omitted)"] + list(dices) if ignore_bg else dices,
+            "CE": CEs,
+            "precision": ["NA"] + list(precisions) if ignore_bg else precisions,
+            "recall": ["NA"] + list(recalls) if ignore_bg else recalls,
+            "dice": ["NA"] + list(dices) if ignore_bg else dices,
         }, index=index)
-        means = [precisions.mean(), recalls.mean(), dices.mean()]
-        if compute_val_ce:
-            index = list(val_results.index)
-            val_results["CE"] = CEs
-            val_results = val_results.reindex(["CE"] + index)
-            means = [CEs.mean()] + means
+        # Transpose the results to have metrics in rows
         val_results = val_results.T
-        val_results["mean"] = means
 
-        # Reorder to put mean in first column
+        means = [CEs.mean(), precisions.mean(), recalls.mean(), dices.mean()]
+        if val_compute_ce:
+            # Add sum and put in first column
+            val_results["sum"] = [CEs.sum(), "NA", "NA", "NA"]
+            cols = list(val_results.columns)
+            cols.insert(0, cols.pop(cols.index("sum")))
+            val_results = val_results.ix[:, cols]
+        else:
+            # Remove CE results (all zeros here)
+            val_results = val_results.drop(["CE"], axis=0)
+            means = means[1:]
+
+        # Add mean and set in first row
+        val_results["mean"] = means
         cols = list(val_results.columns)
         cols.insert(0, cols.pop(cols.index('mean')))
         val_results = val_results.ix[:, cols]
@@ -424,13 +433,13 @@ class Validation(Callback):
             logs["%sval_dice" % name] = dices.mean()
             logs["%sval_precision" % name] = precisions.mean()
             logs["%sval_recall" % name] = recalls.mean()
-            if self.compute_val_ce:
-                logs["%sval_CE" % name] = CEs.mean()
+            if self.val_compute_ce:
+                logs["%sval_CE" % name] = CEs.sum()
 
             if self.verbose:
                 self._print_val_results(precisions, recalls, dices, CEs,
                                         epoch, name, classes, self.ignore_bg,
-                                        self.compute_val_ce, self.logger)
+                                        self.val_compute_ce, self.logger)
 
         if len(self.task_names) > 1:
             self.logger("\nMean across tasks")
