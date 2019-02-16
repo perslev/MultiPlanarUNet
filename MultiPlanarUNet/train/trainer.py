@@ -92,7 +92,7 @@ class Trainer(object):
     def fit(self, train, val, callbacks, n_epochs, train_im_per_epoch,
             val_im_per_epoch, hparams, batch_size=8, verbose=1, init_epoch=0,
             no_im=False, use_multiprocessing=True, val_ignore_class_zero=True,
-            compute_val_ce=True, **unused_fit_kwargs):
+            val_compute_ce=True, **unused_fit_kwargs):
 
         # Crop labels?
         if hasattr(self.model, "label_crop"):
@@ -119,7 +119,7 @@ class Trainer(object):
                 self._fit_loop(train, val, batch_size, n_epochs, verbose,
                                callbacks, init_epoch, no_im, train_im_per_epoch,
                                val_im_per_epoch, hparams, use_multiprocessing,
-                               val_ignore_class_zero, compute_val_ce)
+                               val_ignore_class_zero, val_compute_ce)
                 fitting = False
             except (ResourceExhaustedError, InternalError):
                 # Reduce batch size
@@ -157,7 +157,7 @@ class Trainer(object):
     def _fit_loop(self, train, val, batch_size, n_epochs, verbose, callbacks,
                   init_epoch, no_im, train_im_per_epoch, val_im_per_epoch,
                   hparams, use_multiprocessing, val_ignore_class_zero,
-                  compute_val_ce):
+                  val_compute_ce):
 
         if hasattr(train, "batch_size"):
             # Update batch size on generators (needed after OOM error->reduced
@@ -191,7 +191,7 @@ class Trainer(object):
             validation = Validation(val, val_steps, logger=self.logger,
                                     verbose=verbose,
                                     ignore_class_zero=val_ignore_class_zero,
-                                    compute_val_ce=compute_val_ce)
+                                    val_compute_ce=val_compute_ce)
             callbacks = [validation] + callbacks
 
         if not no_im:
