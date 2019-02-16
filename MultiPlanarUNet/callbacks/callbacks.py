@@ -381,9 +381,9 @@ class Validation(Callback):
         index = ["cls %i" % i for i in classes]
         val_results = pd.DataFrame({
             "CE": CEs,
-            "precision": ["NA"] + list(precisions) if ignore_bg else precisions,
-            "recall": ["NA"] + list(recalls) if ignore_bg else recalls,
-            "dice": ["NA"] + list(dices) if ignore_bg else dices,
+            "precision": [np.nan] + list(precisions) if ignore_bg else precisions,
+            "recall": [np.nan] + list(recalls) if ignore_bg else recalls,
+            "dice": [np.nan] + list(dices) if ignore_bg else dices,
         }, index=index)
         # Transpose the results to have metrics in rows
         val_results = val_results.T
@@ -391,7 +391,7 @@ class Validation(Callback):
         means = [CEs.mean(), precisions.mean(), recalls.mean(), dices.mean()]
         if val_compute_ce:
             # Add sum and put in first column
-            val_results["sum"] = [CEs.sum(), "NA", "NA", "NA"]
+            val_results["sum"] = [CEs.sum(), np.nan, np.nan, np.nan]
             cols = list(val_results.columns)
             cols.insert(0, cols.pop(cols.index("sum")))
             val_results = val_results.ix[:, cols]
