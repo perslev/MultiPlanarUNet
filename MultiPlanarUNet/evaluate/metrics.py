@@ -33,10 +33,7 @@ def dice_all(y_true, y_pred, smooth=1.0, n_classes=None, ignore_zero=True,
     if n_classes is None:
         classes = np.unique(y_true)
     else:
-        if n_classes == 1:
-            n_classes = 2
-        classes = np.arange(n_classes)
-
+        classes = np.arange(max(2, n_classes))
     # Ignore background class?
     if ignore_zero:
         classes = classes[np.where(classes != 0)]
@@ -54,6 +51,28 @@ def dice_all(y_true, y_pred, smooth=1.0, n_classes=None, ignore_zero=True,
             d = dice(s1, s2, smooth=smooth)
             dice_coeffs[idx] = d
     return dice_coeffs
+
+
+def class_wise_kappa(true, pred, n_classes=None, ignore_zero=True):
+    from sklearn.metrics import cohen_kappa_score
+    if n_classes is None:
+        classes = np.unique(true)
+    else:
+        classes = np.arange(max(2, n_classes))
+    # Ignore background class?
+    if ignore_zero:
+        classes = classes[np.where(classes != 0)]
+
+    # Calculate kappa for all targets
+    kappa_scores = np.empty(shape=classes.shape, dtype=np.float32)
+    kappa_scores.fill(np.nan)
+    for idx, _class in enumerate(classes):
+        s1 = true == _class
+        s2 = pred == _class
+
+        if np.any(s1) or np.any(s2):
+            kappa_scores[idx] = cohen_kappa_score(s1, s2)
+    return kappa_scores
 
 
 def one_class_dice(y_true, y_pred, smooth=1.0):
