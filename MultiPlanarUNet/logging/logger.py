@@ -5,9 +5,13 @@ from MultiPlanarUNet.utils.decorators import accepts
 
 class Logger(object):
     def __init__(self, base_path, print_to_screen=True, active_file=None,
-                 overwrite_existing=False, print_calling_method=True):
+                 overwrite_existing=False, print_calling_method=True,
+                 no_sub_folder=False):
         self.base_path = os.path.abspath(base_path)
-        self.path = os.path.join(self.base_path, "logs")
+        if not no_sub_folder:
+            self.path = os.path.join(self.base_path, "logs")
+        else:
+            self.path = self.base_path
         self.overwrite_existing = overwrite_existing
 
         # Get built in print function
