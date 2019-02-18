@@ -92,7 +92,7 @@ class Trainer(object):
     def fit(self, train, val, callbacks, n_epochs, train_im_per_epoch,
             val_im_per_epoch, hparams, batch_size=8, verbose=1, init_epoch=0,
             no_im=False, use_multiprocessing=True, val_ignore_class_zero=True,
-            val_compute_ce=True, **unused_fit_kwargs):
+            val_compute_ce=False, **unused_fit_kwargs):
 
         # Crop labels?
         if hasattr(self.model, "label_crop"):
