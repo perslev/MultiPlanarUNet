@@ -228,7 +228,7 @@ def plot_training_curves(csv_path, save_path, logy=False):
 
     # Get all other columns
     no_plot = ("lr", "learning_rate", "epoch", "loss", "val_loss",
-               "train_time_total", "train_time_epoch")
+               "train_time_total", "train_time_epoch", "val_CE")
     to_plot = [col for col in df.columns if col not in no_plot]
 
     for col in to_plot:
