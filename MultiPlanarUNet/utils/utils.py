@@ -257,17 +257,18 @@ def random_split(X, y, fraction):
     return X, y, X_val, y_val
 
 
-def create_folders(folders):
+def create_folders(folders, create_deep=False):
+    make_func = os.mkdir if not create_deep else os.makedirs
     if isinstance(folders, str):
         if not os.path.exists(folders):
-            os.mkdir(folders)
+            make_func(folders)
     else:
         folders = list(folders)
         for f in folders:
             if f is None:
                 continue
             if not os.path.exists(f):
-                os.mkdir(f)
+                make_func(f)
 
 
 @contextlib.contextmanager
