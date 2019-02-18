@@ -2,7 +2,7 @@ import tensorflow as tf
 from tensorflow.keras.callbacks import Callback
 
 from MultiPlanarUNet.evaluate.metrics import dice_all, np_pr_class_entropy
-from MultiPlanarUNet.utils import highlighted, arr_to_fixed_precision_string
+from MultiPlanarUNet.utils import highlighted
 from MultiPlanarUNet.logging import ScreenLogger
 from MultiPlanarUNet.utils.plotting import imshow_with_label_overlay, imshow
 
@@ -275,8 +275,8 @@ class Validation(Callback):
                 for i, n_classes in enumerate(n_classes_list):
                     if val_compute_ce:
                         # Compute CE
-                        pr_class_ce = np_pr_class_entropy(target=true,
-                                                          output=pred)
+                        pr_class_ce = np_pr_class_entropy(target=true[i],
+                                                          output=pred[i])
 
                     # Argmax and CM elements
                     p = np.argmax(pred[i], axis=-1).ravel()
@@ -334,6 +334,14 @@ class Validation(Callback):
 
             # Predict on all labels
             pred = self.model.predict_on_batch(X)
+
+            # Make sure we have a list of length 1 even if only 1 task
+            if not isinstance(pred, list):
+                assert isinstance(pred, np.ndarray)
+                pred = [pred]
+            if not isinstance(y, list):
+                assert isinstance(y, np.ndarray)
+                y = [y]
 
             # Put values in the queue for counting
             count_queue.put([pred, y])
