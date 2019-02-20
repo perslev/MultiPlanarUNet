@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras.callbacks import Callback
 
-from MultiPlanarUNet.evaluate.metrics import dice_all, np_pr_class_entropy
+from MultiPlanarUNet.evaluate.metrics import dice_all
 from MultiPlanarUNet.utils import highlighted
 from MultiPlanarUNet.logging import ScreenLogger
 from MultiPlanarUNet.utils.plotting import imshow_with_label_overlay, imshow
