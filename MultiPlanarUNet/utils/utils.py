@@ -368,3 +368,7 @@ def check_kwargs(kwargs, allowed, func=None):
         if param not in allowed:
             raise RuntimeError("{}Unexpected parameter '{}' passed.".
                                format(s, param))
+
+
+def ensure_list_or_tuple(obj):
+    return [obj] if not isinstance(obj, (list, tuple)) else obj
