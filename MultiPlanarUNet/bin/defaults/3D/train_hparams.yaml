@@ -117,7 +117,7 @@ fit: &FIT
 
   # Loss function
   loss: "sparse_categorical_crossentropy"
-  metrics: ["fg_precision", "fg_recall"]
+  metrics: []
 
   # Optimization
   batch_size: 16
