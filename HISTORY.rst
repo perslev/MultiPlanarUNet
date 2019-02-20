@@ -15,3 +15,17 @@ History
   that in some cases would cause the validation callback to only consider a
   subset of the predicted batch when computing validation metrics, which could
   make validation metrics noisy especially for large batch sizes.
+
+0.1.3 (2019-02-20)
+--------------------
+* One-hot encoded targets (set with sparse=False in the fit section of
+  hyperparameter file) are no longer supported. Setting this value no longer
+  has any effect and may not be allowed in future versions.
+* The Validation callback has been changed significantly and now computes both
+  loss and any metrics specified in the hyperparamter file as performed on the
+  training set to facility a more easy comparison. Note that as is the case on
+  the training set, these computations are averaged batch-wise metrics.
+  The CB still computes the epoch-wise pr-class and average precision,
+  recall and dice.
+* Default parameter files no longer have pre-specified metrics. Metrics (such
+  as categorical accuracy, fg_precision, etc.) must be manually specified.

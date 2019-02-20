@@ -218,24 +218,20 @@ class Validation(Callback):
     Validation computation callback.
 
     Samples a number of validation batches from a MultiPlanarUNet.sequence object
-    and computes dice coefficients for all non-background classes over all the
-    batches. The gives a more accurate estimate of the dice scores compared to
-    using the batch-wise computations of the default tf.keras validation.
+    and computes for all tasks:
+        - Batch-wise validation loss
+        - Batch-wise metrics as specified in model.metrics_tensors
+        - Epoch-wise pr-class and average precision
+        - Epoch-wise pr-class and average recall
+        - Epoch-wise pr-class and average dice coefficients
+    ... and adds all results to the log dict
 
-    On epoch ends this callback adds the following log entries
-    logs["val_dice"] = dices.mean()
-    logs["val_precision"] = precisions.mean()
-    logs["val_recall"] = recalls.mean()
-    logs["val_CE"] = per_class_ce.sum()  # if val_compute_ce = True
-
-    Note: this callback should be called prior to other callbacks evaluating
-          those values in a given epoch
-
-    TODO: Currently hard-coded to compute mean dice coefficients. Change
-          to accept arbitrary evaluation functions
+    Note: The purpose of this callback over the default tf.keras evaluation
+    mechanism is to calculate certain metrics over the entire epoch of data as
+    opposed to averaged batch-wise computations.
     """
     def __init__(self, val_sequence, steps, logger=None, verbose=True,
-                 ignore_class_zero=True, val_compute_ce=False):
+                 ignore_class_zero=True):
         """
         Args:
             val_sequence: A MultiPlanarUNet.sequence object from which validation
@@ -252,7 +248,6 @@ class Validation(Callback):
         self.steps = steps
         self.verbose = verbose
         self.ignore_bg = ignore_class_zero
-        self.val_compute_ce = val_compute_ce
 
         self.n_classes = self.data.n_classes
         if isinstance(self.n_classes, int):
@@ -262,25 +257,19 @@ class Validation(Callback):
             self.task_names = self.data.task_names
 
     def predict(self):
-        def eval(queue, steps, TPs, relevant, selected, CE, n_classes_list, lock,
-                 val_compute_ce):
+        def eval(queue, steps, TPs, relevant, selected,
+                 task_names, n_classes_list, lock):
             step = 0
             while step < steps:
-                step += 1
-
                 # Get prediction and true labels from prediction queue
+                step += 1
                 pred, true = queue.get(block=True)
 
-                # Argmax and flatten
-                for i, n_classes in enumerate(n_classes_list):
-                    if val_compute_ce:
-                        # Compute CE
-                        pr_class_ce = np_pr_class_entropy(target=true[i],
-                                                          output=pred[i])
-
+                for p, y, task_name, n_classes in zip(pred, true, task_names,
+                                                      n_classes_list):
                     # Argmax and CM elements
-                    p = np.argmax(pred[i], axis=-1).ravel()
-                    y = true[i].ravel()
+                    p = p.argmax(-1).ravel()
+                    y = y.ravel()
 
                     # Compute relevant CM elements
                     # We select the number following the largest class integer when
@@ -292,11 +281,9 @@ class Validation(Callback):
 
                     # Update counts on shared lists
                     lock.acquire()
-                    TPs[i] += tps.astype(np.uint64)
-                    relevant[i] += rel.astype(np.uint64)
-                    selected[i] += sel.astype(np.uint64)
-                    if val_compute_ce:
-                        CE[i] += pr_class_ce
+                    TPs[task_name] += tps.astype(np.uint64)
+                    relevant[task_name] += rel.astype(np.uint64)
+                    selected[task_name] += sel.astype(np.uint64)
                     lock.release()
 
         # Fetch some validation images from the generator
@@ -304,56 +291,75 @@ class Validation(Callback):
         result = pool.map(self.data.__getitem__, np.arange(self.steps))
 
         # Prepare arrays for CM summary stats
-        TPs, relevant, selected, CE = [], [], [], []
-        for n_classes in self.n_classes:
-            TPs.append(np.zeros(shape=(n_classes,), dtype=np.uint64))
-            relevant.append(np.zeros(shape=(n_classes,), dtype=np.uint64))
-            selected.append(np.zeros(shape=(n_classes,), dtype=np.uint64))
-            CE.append(np.zeros(shape=(n_classes,), dtype=np.float64))
+        TPs, relevant, selected = {}, {}, {}
+        for task_name, n_classes in zip(self.task_names, self.n_classes):
+            TPs[task_name] = np.zeros(shape=(n_classes,), dtype=np.uint64)
+            relevant[task_name] = np.zeros(shape=(n_classes,), dtype=np.uint64)
+            selected[task_name] = np.zeros(shape=(n_classes,), dtype=np.uint64)
 
         # Prepare queue and thread for computing counts
         from queue import Queue
         from threading import Thread
-
         count_queue = Queue(maxsize=self.steps)
         count_thread = Thread(target=eval, args=[count_queue, self.steps,
-                                                 TPs, relevant, selected, CE,
-                                                 self.n_classes, Lock(),
-                                                 self.val_compute_ce])
+                                                 TPs, relevant, selected,
+                                                 self.task_names,
+                                                 self.n_classes, Lock()])
         count_thread.start()
+
+        # Get tensors to run and their names
+        metrics_tensors = self.model.metrics_tensors
+        metrics_names = self.model.metrics_names
+        assert "loss" in metrics_names and metrics_names.index("loss") == 0
+        assert len(metrics_names)-1 == len(metrics_tensors)
+        tensors = [self.model.total_loss] + metrics_tensors + self.model.outputs
+        metrics_sums = {
+            **{name: 0.0 for name in self.model.metrics_names}
+        }
 
         # Predict on all
         self.logger("")
+        sess = tf.keras.backend.get_session()
+        tf.keras.backend.set_learning_phase(0)
         for i, res in enumerate(result):
-            if len(res) == 3:
-                X, y, w = res
-            else:
-                X, y = res
             if self.verbose:
                 print("   Validation: %i/%i" % (i+1, self.steps), end="\r", flush=True)
 
-            # Predict on all labels
-            pred = self.model.predict_on_batch(X)
+            if len(res) == 3:
+                X, y, _ = res
+            else:
+                X, y = res
+            if len(self.task_names) == 1:
+                X, y = [X], [y]
+            X_ins = {in_tens: in_ for in_tens, in_ in zip(self.model.inputs, X)}
+            y_ins = {in_tens: in_ for in_tens, in_ in zip(self.model.targets, y)}
+            ins = {**X_ins, **y_ins}
 
-            # Make sure we have a list of length 1 even if only 1 task
-            if not isinstance(pred, list):
-                assert isinstance(pred, np.ndarray)
-                pred = [pred]
-            if not isinstance(y, list):
-                assert isinstance(y, np.ndarray)
-                y = [y]
+            # Run the specified tensors
+            outs = sess.run(tensors, feed_dict=ins)
+            loss = outs[0]
+            metrics = outs[1:1+len(metrics_tensors)]
+            pred = outs[1+len(metrics_tensors):]
 
             # Put values in the queue for counting
             count_queue.put([pred, y])
+
+            # Update metric sums
+            for name, value in zip(metrics_names, [loss]+metrics):
+                metrics_sums[name] += value
+
+        # Compute mean metrics
+        metric_means = {name: value/self.steps for name, value in metrics_sums.items()}
 
         # Terminate count thread
         self.logger("Waiting for counting queue to terminate...")
         count_thread.join()
         pool.shutdown()
 
-        return TPs, relevant, selected, CE
+        return TPs, relevant, selected, metric_means
 
-    def _compute_dice_and_ce(self, sel, rel, tp, CE):
+    @staticmethod
+    def _compute_dice(tp, rel, sel):
         # Get data masks (to avoid div. by zero warnings)
         # We set precision, recall, dice to 0 in for those particular cls.
         sel_mask = sel > 0
@@ -374,41 +380,23 @@ class Validation(Callback):
         dice_mask = union > 0
         dices[dice_mask] = intrs[dice_mask] / union[dice_mask]
 
-        if self.val_compute_ce:
-            # Compute CE
-            CE /= self.steps
-
-        return precisions, recalls, dices, CE
+        return precisions, recalls, dices
 
     @staticmethod
-    def _print_val_results(precisions, recalls, dices, CEs, epoch,
-                           name, classes, ignore_bg, val_compute_ce, logger):
-
+    def _print_val_results(precisions, recalls, dices, epoch,
+                           name, classes, ignore_bg, logger):
         # Log the results
         # We add them to a pd dataframe just for the pretty print output
         index = ["cls %i" % i for i in classes]
         val_results = pd.DataFrame({
-            "CE": CEs,
             "precision": [np.nan] + list(precisions) if ignore_bg else precisions,
             "recall": [np.nan] + list(recalls) if ignore_bg else recalls,
             "dice": [np.nan] + list(dices) if ignore_bg else dices,
         }, index=index)
         # Transpose the results to have metrics in rows
         val_results = val_results.T
-
-        means = [CEs.mean(), precisions.mean(), recalls.mean(), dices.mean()]
-        if val_compute_ce:
-            # Add sum and put in first column
-            val_results["sum"] = [CEs.sum(), np.nan, np.nan, np.nan]
-            cols = list(val_results.columns)
-            cols.insert(0, cols.pop(cols.index("sum")))
-            val_results = val_results.ix[:, cols]
-        else:
-            # Remove CE results (all zeros here)
-            val_results = val_results.drop(["CE"], axis=0)
-            means = means[1:]
-
         # Add mean and set in first row
+        means = [precisions.mean(), recalls.mean(), dices.mean()]
         val_results["mean"] = means
         cols = list(val_results.columns)
         cols.insert(0, cols.pop(cols.index('mean')))
@@ -423,13 +411,11 @@ class Validation(Callback):
     def on_epoch_end(self, epoch, logs={}):
 
         # Predict and get CM
-        for name, tp, rel, sel, ce in zip(self.task_names, *self.predict()):
-
-            precisions, recalls, dices, CEs = self._compute_dice_and_ce(sel, rel,
-                                                                        tp, ce)
+        TPs, relevant, selected, metrics = self.predict()
+        for name in self.task_names:
+            tp, rel, sel = TPs[name], relevant[name], relevant[name]
+            precisions, recalls, dices = self._compute_dice(tp=tp, sel=sel, rel=rel)
             classes = np.arange(len(dices))
-
-            # Ignore BG
             if self.ignore_bg:
                 precisions = precisions[1:]
                 recalls = recalls[1:]
@@ -441,23 +427,32 @@ class Validation(Callback):
             logs["%sval_dice" % name] = dices.mean()
             logs["%sval_precision" % name] = precisions.mean()
             logs["%sval_recall" % name] = recalls.mean()
-            if self.val_compute_ce:
-                logs["%sval_CE" % name] = CEs.sum()
+            for m_name, value in metrics.items():
+                logs["%sval_%s" % (name, m_name)] = value
 
             if self.verbose:
-                self._print_val_results(precisions, recalls, dices, CEs,
-                                        epoch, name, classes, self.ignore_bg,
-                                        self.val_compute_ce, self.logger)
+                self._print_val_results(precisions=precisions, recalls=recalls,
+                                        dices=dices, epoch=epoch, name=name,
+                                        classes=classes,
+                                        ignore_bg=self.ignore_bg,
+                                        logger=self.logger)
 
-        if len(self.task_names) > 1:
-            self.logger("\nMean across tasks")
-            # If multi-task, compute mean over tasks and add to logs
-            fetch = ("val_CE", "val_dice", "val_precision", "val_recall")
-            for f in fetch:
-                res = np.mean([logs["%s_%s" % (name, f)] for name in self.task_names])
-                logs[f] = res
-                self.logger(("Mean %s for epoch %d:" %
-                             (f.split("_")[1], epoch)).ljust(30) + "%.4f" % res)
+        if self.verbose:
+            if len(self.task_names) > 1:
+                self.logger("\nMean across tasks")
+                # If multi-task, compute mean over tasks and add to logs
+                fetch = ("val_CE", "val_dice", "val_precision", "val_recall")
+                for f in fetch:
+                    res = np.mean([logs["%s_%s" % (name, f)] for name in self.task_names])
+                    logs[f] = res
+                    self.logger(("Mean %s for epoch %d:" %
+                                 (f.split("_")[1], epoch)).ljust(30) + "%.4f" % res)
+                self.logger("")
+
+            self.logger("Validation metrics (batch-wise means, all classes):")
+            longest = max(map(len, metrics.keys()))
+            for name, value in metrics.items():
+                self.logger(("%s: " % name).rjust(longest+2), round(value, 4))
             self.logger("")
 
 
