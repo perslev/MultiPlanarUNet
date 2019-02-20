@@ -413,7 +413,7 @@ class Validation(Callback):
         # Predict and get CM
         TPs, relevant, selected, metrics = self.predict()
         for name in self.task_names:
-            tp, rel, sel = TPs[name], relevant[name], relevant[name]
+            tp, rel, sel = TPs[name], relevant[name], selected[name]
             precisions, recalls, dices = self._compute_dice(tp=tp, sel=sel, rel=rel)
             classes = np.arange(len(dices))
             if self.ignore_bg:
