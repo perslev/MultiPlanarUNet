@@ -118,6 +118,12 @@ class Logger(object):
         caller = "'%s' in '%s'" % (caller[3], caller[1].rpartition("/")[2])
         self._log(caller, print_calling_method, *args, **kwargs)
 
+    def warn(self, *args, **kwargs):
+        cur_file = self.active_log_file
+        self.active_log_file = "warnings"
+        self.__call__("[WARNING]", *args, print_calling_method=False, **kwargs)
+        self.active_log_file = cur_file
+
     def __enter__(self):
         """
         Context manager

@@ -13,6 +13,9 @@ class ScreenLogger(object):
         if self.print_to_screen:
             print(*args, **kwargs)
 
+    def warn(self, *args, **kwargs):
+        self.__call__("[WARNING]", *args, **kwargs)
+
     def __enter__(self):
         return
 
