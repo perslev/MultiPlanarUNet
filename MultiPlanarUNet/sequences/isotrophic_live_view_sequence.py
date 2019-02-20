@@ -1,7 +1,6 @@
 from MultiPlanarUNet.sequences import BaseSequence
 from MultiPlanarUNet.utils import get_class_weights as gcw
 from MultiPlanarUNet.logging import ScreenLogger
-from MultiPlanarUNet.preprocessing import reshape_add_axis, one_hot_encode_y
 import numpy as np
 
 
@@ -9,7 +8,7 @@ class IsotrophicLiveViewSequence(BaseSequence):
     def __init__(self, image_pair_loader, dim, batch_size, n_classes,
                  real_space_span=None, noise_sd=0., force_all_fg="auto",
                  fg_batch_fraction=0.50, label_crop=None, logger=None,
-                 is_validation=False, list_of_augmenters=None, sparse=True,
+                 is_validation=False, list_of_augmenters=None,
                  **kwargs):
         super().__init__()
 
@@ -35,15 +34,10 @@ class IsotrophicLiveViewSequence(BaseSequence):
         # Batch creation options
         self.batch_size = batch_size
         self.n_classes = n_classes
-        self.sparse = sparse
 
         # Minimum fraction of slices in each batch with FG
         self.force_all_fg_switch = force_all_fg
         self.fg_batch_fraction = fg_batch_fraction
-
-        # Store labels?
-        self.store_y = False
-        self.stored_y = []
 
         # Foreground label settings
         self.fg_classes = np.arange(1, self.n_classes)
@@ -150,17 +144,10 @@ class IsotrophicLiveViewSequence(BaseSequence):
         if self.label_crop.sum() != 0:
             batch_y = self._crop_labels(batch_y)
 
-        # Reshape X (and one-hot encode y)
+        # Reshape X and y
         batch_x = np.asarray(batch_x)
-
-        if self.n_classes > 1 and not self.sparse:
-            batch_y = one_hot_encode_y(batch_y, n_classes=self.n_classes)
-        else:
-            batch_y = np.asarray(batch_y)
-            batch_y = batch_y.reshape(batch_y.shape + (1,))
-
-        if self.store_y:
-            self.stored_y.append(batch_y)
+        batch_y = np.asarray(batch_y)
+        batch_y = batch_y.reshape(batch_y.shape + (1,))
 
         return batch_x, batch_y, np.asarray(batch_w)
 

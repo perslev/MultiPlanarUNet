@@ -176,11 +176,9 @@ class GeneralizedDiceLoss(object):
     Class based to allow passing of parameters to the function at construction
     time in keras.
     """
-    def __init__(self, n_classes, type_weight="Square", sparse=True,
-                 logger=None, **kwargs):
+    def __init__(self, n_classes, type_weight="Square", logger=None, **kwargs):
         self.type_weight = type_weight
         self.n_classes = n_classes
-        self.sparse = sparse
         self.logger = logger or ScreenLogger()
         self.__name__ = "GeneralizedDiceLoss"
         self.log()
@@ -189,7 +187,6 @@ class GeneralizedDiceLoss(object):
         self.logger("Generalized Dice Loss")
         self.logger("N classes:   ", self.n_classes)
         self.logger("Weight type: ", self.type_weight)
-        self.logger("Sparse:      ", self.sparse)
 
     def __call__(self, y_true, y_pred):
         """
@@ -201,10 +198,7 @@ class GeneralizedDiceLoss(object):
         :param y_pred: softmax distribution over classes, same shape a y_true
         :return: the loss
         """
-        if self.sparse:
-            one_hot = tf.one_hot(tf.cast(y_true, tf.uint8), depth=self.n_classes)
-        else:
-            one_hot = y_true
+        one_hot = tf.one_hot(tf.cast(y_true, tf.uint8), depth=self.n_classes)
 
         # Reshape to [None, n_classes] tensors
         prediction = tf.reshape(y_pred, [-1, self.n_classes])
@@ -269,8 +263,7 @@ class WeightedSemanticCCE(object):
         target tensor.
 
         # Arguments
-            target: A tensor of the same shape as `output` if not sparse inputs.
-                    If sparse, a tensor of rank(output)-1 with integer targets.
+            target: A tensor rank(output)-1 with integer targets.
             output: A tensor resulting from a softmax
                 (unless `from_logits` is True, in which
                 case `output` is expected to be the logits).
@@ -310,10 +303,10 @@ class WeightedSemanticCCE(object):
         self.logger("Weights  : %s" % self.weights)
 
 
-class BatchWeightedCrossEntropyWithLogitsAndSparseTargets(object):
+class BatchWeightedCrossEntropyWithLogits(object):
     def __init__(self, n_classes, logger=None, **kwargs):
         self.logger = logger if logger is not None else ScreenLogger()
-        self.__name__ = "BatchWeightedCrossEntropyWithLogitsAndSparseTargets"
+        self.__name__ = "BatchWeightedCrossEntropyWithLogits"
 
         # if not class_weights
         self.n_classes = n_classes
@@ -339,7 +332,7 @@ class BatchWeightedCrossEntropyWithLogitsAndSparseTargets(object):
         return tf.losses.sparse_softmax_cross_entropy(target, output, weights)
 
     def _log(self):
-        self.logger("OBS: Using weighted cross entropy (sparse, logit targets)")
+        self.logger("OBS: Using weighted cross entropy (logit targets)")
         self.logger("N classes: %s" % self.n_classes)
 
 

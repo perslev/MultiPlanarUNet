@@ -379,7 +379,7 @@ class ImagePairLoader(object):
         """
         # Log some things...
         self.logger("Preparing isotrophic live-interpolation...")
-        self.logger("Performing '%s' scaling\n" % scaler)
+        self.logger("Performing '%s' scaling" % scaler)
 
         # Run over volumes: scale, set interpolator, check for affine
         for image in self.id_to_image.values():

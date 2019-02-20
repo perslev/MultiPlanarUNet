@@ -8,7 +8,6 @@ November 2017
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.utils import to_categorical
 
 
 def dice(y_true, y_pred, smooth=1.0):
@@ -82,24 +81,6 @@ def one_class_dice(y_true, y_pred, smooth=1.0):
     return (smooth + 2.0 * tf.reduce_sum(y_true * y_pred)) / (smooth + tf.reduce_sum(y_true) + tf.reduce_sum(y_pred))
 
 
-def precision(y_true, y_pred):
-    y_pred = tf.round(y_pred)
-    not_true = tf.cast(tf.logical_not(tf.cast(y_true, tf.bool)), tf.float32)
-
-    tp = tf.reduce_sum(tf.multiply(y_true, y_pred))
-    fp = tf.reduce_sum(tf.multiply(not_true, y_pred))
-
-    return tp / (tp+fp)
-
-
-def recall(y_true, y_pred):
-    y_pred = np.round(y_pred)
-    tp = tf.reduce_sum(tf.multiply(y_true, y_pred))
-    relevant = tf.reduce_sum(y_true)
-
-    return tp/relevant
-
-
 def sparse_fg_recall(y_true, y_pred, bg_class=0):
     # Get MAP estimates
     y_true = tf.cast(tf.reshape(y_true, [-1]), tf.int32)
@@ -111,13 +92,6 @@ def sparse_fg_recall(y_true, y_pred, bg_class=0):
     y_pred = tf.boolean_mask(y_pred, mask)
 
     return tf.reduce_mean(tf.cast(tf.equal(y_true, y_pred), tf.float32))
-
-
-def fg_recall(y_true, y_pred, bg_class=0):
-    # Get MAP estimates
-    y_true = tf.argmax(y_true, axis=-1)
-
-    return sparse_fg_recall(y_true, y_pred, bg_class)
 
 
 def sparse_mean_fg_f1(y_true, y_pred):
@@ -180,23 +154,3 @@ def sparse_fg_precision(y_true, y_pred, bg_class=0):
     y_pred = tf.boolean_mask(y_pred, mask)
 
     return tf.reduce_mean(tf.cast(tf.equal(y_true, y_pred), tf.float32))
-
-
-def fg_precision(y_true, y_pred, bg_class=0):
-    # Get MAP estimates
-    y_true = tf.argmax(y_true, axis=-1)
-
-    return sparse_fg_precision(y_true, y_pred, bg_class)
-
-
-def np_pr_class_entropy(target, output):
-    n_classes = output.shape[-1]
-    output = output.reshape(-1, n_classes)
-    target = to_categorical(target.reshape(-1, 1), num_classes=n_classes)
-
-    # For num. stability
-    output /= np.sum(output, -1, keepdims=True)
-    epsilon = 1e-7
-    output = np.clip(output, epsilon, 1. - epsilon)
-
-    return -np.mean(target * np.log(output), axis=0)

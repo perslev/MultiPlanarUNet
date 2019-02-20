@@ -1,5 +1,4 @@
 from MultiPlanarUNet.sequences import BaseSequence
-from MultiPlanarUNet.preprocessing import one_hot_encode_y
 from MultiPlanarUNet.logging import ScreenLogger
 from MultiPlanarUNet.interpolation.linalg import mgrid_to_points
 import numpy as np
@@ -31,7 +30,7 @@ def center_expand(im, target_dim, bg_value, random=True):
 class PatchSequence3D(BaseSequence):
     def __init__(self, image_pair_loader, dim, n_classes, batch_size, is_validation=False,
                  label_crop=None, fg_batch_fraction=0.33, logger=None, bg_val=0.,
-                 sparse=False, no_log=False, **kwargs):
+                 no_log=False, **kwargs):
         super().__init__()
 
         # Set logger or default print
@@ -40,7 +39,6 @@ class PatchSequence3D(BaseSequence):
 
         # Box dimension and image dim
         self.dim = dim
-        self.sparse = sparse
 
         # Various attributes
         self.n_classes = n_classes
@@ -187,12 +185,8 @@ class PatchSequence3D(BaseSequence):
 
         # Reshape X (and one-hot encode y)
         batch_x = np.asarray(batch_x)
-
-        if self.n_classes > 1 and not self.sparse:
-            batch_y = one_hot_encode_y(batch_y, n_classes=self.n_classes)
-        else:
-            batch_y = np.asarray(batch_y)
-            batch_y = batch_y.reshape(batch_y.shape + (1,))
+        batch_y = np.asarray(batch_y)
+        batch_y = batch_y.reshape(batch_y.shape + (1,))
 
         return batch_x, batch_y, np.asarray(batch_w)
 

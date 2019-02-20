@@ -1,6 +1,5 @@
 from tensorflow.keras.utils import Sequence
 from MultiPlanarUNet.logging import ScreenLogger
-import numpy as np
 
 
 class MultiTaskSequence(Sequence):
