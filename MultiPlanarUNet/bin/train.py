@@ -53,12 +53,11 @@ def validate_hparams(hparams):
         # Only currently supported loss
         assert hparams["fit"]["loss"] in ("WeightedSemanticCCE",
                                           "GeneralizedDiceLoss",
-                                          "WeightedCrossEntropyWithLogitsAndSparseTargets",
+                                          "WeightedCrossEntropyWithLogits",
                                           "FocalLoss")
 
-    if hparams["fit"]["loss"] == "WeightedCrossEntropyWithLogitsAndSparseTargets":
+    if hparams["fit"]["loss"] == "WeightedCrossEntropyWithLogits":
         assert bool(hparams["fit"]["class_weights"])
-        assert hparams["fit"]["sparse"] is True
         assert hparams["build"]["out_activation"] == "linear"
 
 

@@ -108,7 +108,6 @@ def entry_func(args=None):
     # Import all needed modules (folder is valid at this point)
     import numpy as np
     from MultiPlanarUNet.image import ImagePairLoader, ImagePair
-    from MultiPlanarUNet.models import UNet3D
     from MultiPlanarUNet.utils import get_best_model, create_folders, \
                                     pred_to_class, await_and_set_free_gpu, set_gpu
     from MultiPlanarUNet.utils.fusion import predict_3D_patches, predict_3D_patches_binary, pred_3D_iso

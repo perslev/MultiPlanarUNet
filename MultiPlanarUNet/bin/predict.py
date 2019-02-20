@@ -200,7 +200,7 @@ def entry_func(args=None):
     del hparams["fit"]["views"]
 
     if hparams["build"]["out_activation"] == "linear":
-        # Trained with sparse, logit targets?
+        # Trained with logit targets?
         hparams["build"]["out_activation"] = "softmax" if n_classes > 1 else "sigmoid"
 
     # Set ImagePairLoader object
