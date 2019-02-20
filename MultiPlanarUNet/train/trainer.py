@@ -4,6 +4,8 @@ from MultiPlanarUNet.evaluate import loss_functions
 from MultiPlanarUNet.evaluate import metrics as custom_metrics
 from MultiPlanarUNet.callbacks import SavePredictionImages, Validation, \
                                       FGBatchBalancer, DividerLine
+from MultiPlanarUNet.errors import raise_non_sparse_metric_or_loss_error
+from MultiPlanarUNet.utils import ensure_list_or_tuple
 
 import os
 import numpy as np
@@ -41,28 +43,29 @@ class Trainer(object):
         self.org_model = None
 
     def compile_model(self, optimizer, optimizer_kwargs, loss, metrics,
-                      sparse=False, target_tensors=None, **kwargs):
+                      target_tensors=None, **kwargs):
         # Initialize optimizer
         optimizer = optimizers.__dict__[optimizer]
         optimizer = optimizer(**optimizer_kwargs)
 
-        # Initialize loss
-        if loss in losses.__dict__:
-            loss = losses.get(loss)
-        else:
-            import inspect
-            loss = loss_functions.__dict__[loss]
-            if inspect.isclass(loss):
-                loss = loss(logger=self.logger, **kwargs)
+        # Make sure sparse metrics and loss are specified sparse
+        metrics = ensure_list_or_tuple(metrics)
+        loss = ensure_list_or_tuple(loss)
+        for i, m in enumerate(metrics + loss):
+            if "sparse" not in m:
+                raise_non_sparse_metric_or_loss_error()
 
-        if sparse:
-            # Make sure sparse metrics are specified
-            for i, m in enumerate(metrics):
-                if "sparse" not in m:
-                    new = "sparse_" + m
-                    self.logger("Note: changing %s --> "
-                                "%s (sparse=True passed)" % (m, new))
-                    metrics[i] = new
+        # Initialize loss(es)
+        loss_list = []
+        for l in loss:
+            if l in losses.__dict__:
+                loss_list.append(losses.get(l))
+            else:
+                import inspect
+                l = loss_functions.__dict__[l]
+                if inspect.isclass(l):
+                    loss_list.append(l(logger=self.logger, **kwargs))
+        loss = loss_list
 
         # Find metrics both from standard keras.metrics module and own custom
         init_metrics = []
@@ -77,22 +80,19 @@ class Trainer(object):
                 init_metrics.append(metric)
 
         # Compile the model
-        self.model.compile(optimizer=optimizer, loss=loss, metrics=init_metrics,
-                           target_tensors=target_tensors)
-
+        self.model.compile(optimizer=optimizer, loss=loss,
+                           metrics=init_metrics, target_tensors=target_tensors)
         self.logger("Optimizer:   %s" % optimizer)
-        self.logger("Loss:        %s" % loss)
-        self.logger("Targets:     %s" % ("Integer" if sparse else "One-Hot"))
+        self.logger("Loss funcs:  %s" % loss)
         self.logger("Metrics:     %s" % init_metrics)
         if target_tensors is not None:
             self.target_tensor = True
-
         return self
 
     def fit(self, train, val, callbacks, n_epochs, train_im_per_epoch,
             val_im_per_epoch, hparams, batch_size=8, verbose=1, init_epoch=0,
             no_im=False, use_multiprocessing=True, val_ignore_class_zero=True,
-            val_compute_ce=False, **unused_fit_kwargs):
+            **unused_fit_kwargs):
 
         # Crop labels?
         if hasattr(self.model, "label_crop"):
@@ -119,7 +119,7 @@ class Trainer(object):
                 self._fit_loop(train, val, batch_size, n_epochs, verbose,
                                callbacks, init_epoch, no_im, train_im_per_epoch,
                                val_im_per_epoch, hparams, use_multiprocessing,
-                               val_ignore_class_zero, val_compute_ce)
+                               val_ignore_class_zero)
                 fitting = False
             except (ResourceExhaustedError, InternalError):
                 # Reduce batch size
@@ -156,8 +156,7 @@ class Trainer(object):
 
     def _fit_loop(self, train, val, batch_size, n_epochs, verbose, callbacks,
                   init_epoch, no_im, train_im_per_epoch, val_im_per_epoch,
-                  hparams, use_multiprocessing, val_ignore_class_zero,
-                  val_compute_ce):
+                  hparams, use_multiprocessing, val_ignore_class_zero):
 
         if hasattr(train, "batch_size"):
             # Update batch size on generators (needed after OOM error->reduced
@@ -190,8 +189,7 @@ class Trainer(object):
             # depend on the validation metrics/loss
             validation = Validation(val, val_steps, logger=self.logger,
                                     verbose=verbose,
-                                    ignore_class_zero=val_ignore_class_zero,
-                                    val_compute_ce=val_compute_ce)
+                                    ignore_class_zero=val_ignore_class_zero)
             callbacks = [validation] + callbacks
 
         if not no_im:
