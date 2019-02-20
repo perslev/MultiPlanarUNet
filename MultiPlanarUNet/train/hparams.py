@@ -1,6 +1,7 @@
 from ruamel.yaml import YAML
 import os
 import re
+from MultiPlanarUNet.logging import ScreenLogger
 
 
 def _cb_paths_to_abs_paths(callbacks, patterns, project_dir):
@@ -14,12 +15,18 @@ def _cb_paths_to_abs_paths(callbacks, patterns, project_dir):
     return callbacks
 
 
+def _check_deprecated_params(hparams, logger):
+    if hparams["fit"].get("sparse"):
+        from MultiPlanarUNet.errors.deprecated_warnings import warn_sparse_param
+        warn_sparse_param(logger)
+
+
 class YAMLHParams(dict):
     def __init__(self, yaml_path, logger=None, no_log=False, **kwargs):
         dict.__init__(self, **kwargs)
 
         # Set logger or default print
-        self.logger = logger if logger is not None else print
+        self.logger = logger or ScreenLogger()
 
         # Set YAML path
         self.yaml_path = os.path.abspath(yaml_path)
@@ -49,6 +56,7 @@ class YAMLHParams(dict):
         self.no_log = no_log
         if not self.no_log:
             self.logger("YAML path:    %s" % self.yaml_path)
+        _check_deprecated_params(self, self.logger)
 
     @property
     def groups(self):
