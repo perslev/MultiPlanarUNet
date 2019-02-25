@@ -93,3 +93,7 @@ class GPUMonitor(Process):
     @set_GPUs.setter
     def set_GPUs(self, GPUs):
         set_gpu(GPUs)
+
+    def set_and_stop(self, GPUs):
+        self.set_GPUs = GPUs
+        self.stop()
