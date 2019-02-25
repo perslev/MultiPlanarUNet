@@ -46,6 +46,7 @@ def get_CV_folders(dir):
 
 
 def _get_GPU_sets(free_gpus, num_GPUs):
+    free_gpus = list(map(str, free_gpus))
     return [",".join(free_gpus[x:x + num_GPUs]) for x in range(0, len(free_gpus),
                                                                num_GPUs)]
 
@@ -107,9 +108,13 @@ def parse_script(script, GPUs):
     commands = []
     with open(script) as in_file:
         for line in in_file:
+            line = line.strip(" \n")
+            if not line or line[0] == "#":
+                continue
             # Get all arguments, remove if concerning GPU (controlled here)
             cmd = list(filter(lambda x: "gpu" not in x.lower(), line.split()))
-            cmd.append("--force_GPU=%s" % GPUs)
+            if "python" in line:
+                cmd.append("--force_GPU=%s" % GPUs)
             commands.append(cmd)
     return commands
 
