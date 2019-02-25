@@ -6,7 +6,7 @@ from MultiPlanarUNet.utils.decorators import accepts
 class Logger(object):
     def __init__(self, base_path, print_to_screen=True, active_file=None,
                  overwrite_existing=False, print_calling_method=True,
-                 no_sub_folder=False):
+                 no_sub_folder=False, log_prefix=""):
         self.base_path = os.path.abspath(base_path)
         if not no_sub_folder:
             self.path = os.path.join(self.base_path, "logs")
@@ -30,6 +30,7 @@ class Logger(object):
         # Set paths to log files
         self.log_files = {}
         self.currently_logging = {}
+        self.prefix = "" if log_prefix is None else str(log_prefix)
         self.active_log_file = active_file or "log"
 
     def __repr__(self):
@@ -54,7 +55,6 @@ class Logger(object):
 
         self.log_files[filename] = file_path
         self.currently_logging[filename] = None
-        self.active_log_file = filename
 
         # Add reference to model folder in log
         ref = "Log for model in: %s" % self.base_path
@@ -90,9 +90,11 @@ class Logger(object):
     @active_log_file.setter
     @accepts(str)
     def active_log_file(self, file_name):
+        if self.prefix:
+            file_name = self.prefix.rstrip("_") + "_" + file_name
+        self._active_log_file = file_name
         if file_name not in self.log_files:
             self.new_log_file(file_name)
-        self._active_log_file = file_name
 
     def _add_to_log(self, *args, no_print=False, **kwargs):
         if self.print_to_screen and not no_print:
