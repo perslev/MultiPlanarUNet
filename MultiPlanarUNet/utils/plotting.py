@@ -176,18 +176,31 @@ def imshow_orientation(*args, show=False, cmap="gray"):
         return fig
 
 
-def try_plot_training_curves(*args, raise_error=False, **kwargs):
+def plot_all_training_curves(glob_path, out_path, raise_error=False, **kwargs):
     try:
-        plot_training_curves(*args, **kwargs)
+        from glob import glob
+        paths = glob(glob_path)
+        if not paths:
+            raise OSError("File pattern {} gave none or too many matches " \
+                          "({})".format(glob_path, paths))
+        out_folder = os.path.split(out_path)[0]
+        for p in paths:
+            if len(paths) > 1:
+                # Set unique names
+                uniq = os.path.splitext(os.path.split(p)[-1])[0]
+                f_name = uniq + "_" + os.path.split(out_path)[-1]
+                save_path = os.path.join(out_folder, f_name)
+            else:
+                save_path = out_path
+            plot_training_curves(p, save_path, **kwargs)
     except Exception as e:
         s = "Could not plot training curves."
         if raise_error:
-            raise RuntimeError(s) from s
+            raise RuntimeError(s) from e
         print(s)
 
 
 def plot_training_curves(csv_path, save_path, logy=False):
-
     # Read CSV file
     df = pd.read_csv(csv_path)
 
@@ -236,11 +249,11 @@ def plot_training_curves(csv_path, save_path, logy=False):
     ax2.set_title("Training and validation metrics", size=20)
 
     # Plot learning rate
-    ax3 = fig.add_subplot(313)
     lr = df.get("lr")
     if lr is None:
         lr = df.get("learning_rate")
     if lr is not None:
+        ax3 = fig.add_subplot(313)
         ax3.step(epochs, lr)
         ax3.set_xlabel("Epoch", size=16)
         ax3.set_ylabel("Learning Rate", size=16)
