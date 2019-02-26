@@ -13,7 +13,7 @@ def save_images(train, val, out_dir, logger):
         os.mkdir(im_path)
 
     training = train[0]
-    if val is not None:
+    if val is not None and len(val) != 0:
         validation = val[0]
         v_len = len(validation[0])
     else:
