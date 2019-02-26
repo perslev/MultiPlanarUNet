@@ -171,7 +171,7 @@ def run_sub_experiment(split_dir, out_dir, script, hparams, GPUs, GPU_queue, loc
             logger("[%s - ERROR - Exit code %i] %s" % (split, rc, " ".join(command)))
             logger("\n----- START error message -----\n%s\n"
                   "----- END error message -----\n" % err.decode("utf-8"))
-            p.kill()
+            lock.release()
             break
         else:
             logger("[%s - FINISHED] %s" % (split, " ".join(command)))
