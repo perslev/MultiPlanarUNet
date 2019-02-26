@@ -5,7 +5,22 @@ import glob
 import contextlib
 
 
+def _get_system_wide_set_gpus():
+    allowed_gpus = os.environ.get("CUDA_VISIBLE_DEVICES")
+    if allowed_gpus:
+        allowed_gpus = allowed_gpus.replace(" ", "").split(",")
+    return allowed_gpus
+
+
 def get_free_gpus(max_allowed_mem_usage=400):
+    # Check if allowed GPUs are set in CUDA_VIS_DEV.
+    allowed_gpus = _get_system_wide_set_gpus()
+    if allowed_gpus:
+        print("[OBS] Considering only system-wise allowed GPUs: {} (set in"
+              " CUDA_VISIBLE_DEVICES env variable).".format(allowed_gpus))
+        return allowed_gpus
+    # Else, check GPUs on the system and assume all non-used (mem. use less
+    # than max_allowed_mem_usage) is fair game.
     from subprocess import check_output
     try:
         # Get list of GPUs
