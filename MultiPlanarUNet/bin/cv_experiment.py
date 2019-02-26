@@ -19,6 +19,10 @@ def get_parser():
     parser.add_argument("--num_GPUs", type=int, default=1,
                         help="Number of GPUs to use per process. This also "
                              "defines the number of parallel jobs to run.")
+    parser.add_argument("--num_jobs", type=int, default=0,
+                        help="OBS: Only in effect when --num_GPUs=0. Sets"
+                             " the number of jobs to run in parallel when no"
+                             " GPUs are attached to each job.")
     parser.add_argument("--script_prototype", type=str, default="./script",
                         help="Path to text file listing commands and "
                              "arguments to execute under each sub-exp folder.")
@@ -111,6 +115,8 @@ def parse_script(script, GPUs):
             line = line.strip(" \n")
             if not line or line[0] == "#":
                 continue
+            # Split out in-line comments
+            line = line.split("#")[0]
             # Get all arguments, remove if concerning GPU (controlled here)
             cmd = list(filter(lambda x: "gpu" not in x.lower(), line.split()))
             if "python" in line:
@@ -206,7 +212,14 @@ def entry_func(args=None):
     cv_folders = get_CV_folders(cv_dir)
 
     # Get GPU sets
-    gpu_sets = get_free_GPU_sets(num_GPUs)
+    if num_GPUs:
+        gpu_sets = get_free_GPU_sets(num_GPUs)
+    elif parser["num_jobs"] < 1:
+        raise ValueError("Should specify a number of jobs to run in parallel "
+                         "with the --num_jobs flag when using 0 GPUs pr. "
+                         "process (--num_GPUs=0 was set).")
+    else:
+        gpu_sets = ["''"] * parser["num_jobs"]
 
     # Get process pool, lock and GPU queue objects
     lock = Lock()
