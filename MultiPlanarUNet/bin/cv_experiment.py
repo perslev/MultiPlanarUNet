@@ -158,7 +158,10 @@ def run_sub_experiment(split_dir, out_dir, script, hparams, GPUs, GPU_queue, loc
     lock.release()
 
     # Run the commands
+    run_next_command = True
     for command in commands:
+        if not run_next_command:
+            break
         lock.acquire()
         logger("[%s - STARTING] %s" % (split, " ".join(command)))
         lock.release()
@@ -170,9 +173,8 @@ def run_sub_experiment(split_dir, out_dir, script, hparams, GPUs, GPU_queue, loc
         if rc != 0:
             logger("[%s - ERROR - Exit code %i] %s" % (split, rc, " ".join(command)))
             logger("\n----- START error message -----\n%s\n"
-                  "----- END error message -----\n" % err.decode("utf-8"))
-            lock.release()
-            break
+                   "----- END error message -----\n" % err.decode("utf-8"))
+            run_next_command = False
         else:
             logger("[%s - FINISHED] %s" % (split, " ".join(command)))
         lock.release()
