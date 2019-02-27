@@ -2,9 +2,11 @@ import sklearn.preprocessing as preprocessing
 import numpy as np
 
 
-def get_scaler(scaler, *args, **kwargs):
+def get_scaler(scaler, *args, ignore_less_eq=None, **kwargs):
     scaler = preprocessing.__dict__[scaler]
-    return MultiChannelScaler(scaler=scaler, *args, **kwargs)
+    return MultiChannelScaler(scaler=scaler,
+                              ignore_less_eq=ignore_less_eq,
+                              *args, **kwargs)
 
 
 def apply_scaling(X, scaler):
@@ -17,11 +19,12 @@ def apply_scaling(X, scaler):
 
 
 class MultiChannelScaler(object):
-    def __init__(self, scaler, *args, **kwargs):
+    def __init__(self, scaler, *args, ignore_less_eq=None, **kwargs):
         # Store scaler class and passed parameters
         self.scaler_class = scaler
         self.scaler_args = args
         self.scaler_kwargs = kwargs
+        self.ignore_less_eq = ignore_less_eq
 
         # Store list of initialized scalers fit to each channel
         self.scalers = []
@@ -36,10 +39,22 @@ class MultiChannelScaler(object):
         # Set number of channels
         self.n_channels = X.shape[-1]
 
+        if self.ignore_less_eq is not None:
+            if not isinstance(self.ignore_less_eq, (list, tuple, np.ndarray)):
+                self.ignore_less_eq = [self.ignore_less_eq] * self.n_channels
+            if not len(self.ignore_less_eq) == self.n_channels:
+                raise ValueError("'ignore_less_eq' should be a list of length "
+                                 "'n_channels'. Got {} for n_channels={}".format(
+                    self.ignore_less_eq, self.n_channels
+                ))
+
         scalers = []
         for i in range(self.n_channels):
             sc = self.scaler_class(*self.scaler_args, **self.scaler_kwargs)
-            sc.fit(X[..., i].reshape(-1, 1), *args, **kwargs)
+            xs = X[..., i]
+            if self.ignore_less_eq is not None:
+                xs = xs[np.where(xs >= self.ignore_less_eq[i])]
+            sc.fit(xs.reshape(-1, 1), *args, **kwargs)
             scalers.append(sc)
 
         self.scalers = scalers
