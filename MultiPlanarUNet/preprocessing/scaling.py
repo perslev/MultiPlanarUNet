@@ -53,7 +53,7 @@ class MultiChannelScaler(object):
             sc = self.scaler_class(*self.scaler_args, **self.scaler_kwargs)
             xs = X[..., i]
             if self.ignore_less_eq is not None:
-                xs = xs[np.where(xs >= self.ignore_less_eq[i])]
+                xs = xs[np.where(xs > self.ignore_less_eq[i])]
             sc.fit(xs.reshape(-1, 1), *args, **kwargs)
             scalers.append(sc)
 
