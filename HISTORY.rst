@@ -29,3 +29,7 @@ History
   recall and dice.
 * Default parameter files no longer have pre-specified metrics. Metrics (such
   as categorical accuracy, fg_precision, etc.) must be manually specified.
+
+0.1.4 (2019-03-02)
+-----------------
+* Minor changes over 0.1.3, including ability to set a pre-specified set of GPUs to cycle in mp cv_experiment
