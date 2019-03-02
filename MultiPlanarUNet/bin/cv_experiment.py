@@ -19,7 +19,6 @@ def get_parser():
     parser.add_argument("--num_GPUs", type=int, default=1,
                         help="Number of GPUs to use per process. This also "
                              "defines the number of parallel jobs to run.")
-    parser.add_argument("--force_GPU", type=str, default="")
     parser.add_argument("--num_jobs", type=int, default=0,
                         help="OBS: Only in effect when --num_GPUs=0. Sets"
                              " the number of jobs to run in parallel when no"
@@ -205,6 +204,9 @@ def entry_func(args=None):
         from MultiPlanarUNet.utils import await_PIDs
         await_PIDs(await_PID)
 
+    # Get number of GPUs per process
+    num_GPUs = parser["num_GPUs"]
+
     # Get file paths
     script = os.path.abspath(parser["script_prototype"])
     hparams = os.path.abspath(parser["hparams_prototype"])
@@ -212,13 +214,8 @@ def entry_func(args=None):
     # Get list of folders of CV data to run on
     cv_folders = get_CV_folders(cv_dir)
 
-    if parser["force_GPU"]:
-        # Only these GPUs fill be chosen from
-        from MultiPlanarUNet.utils import set_gpu
-        set_gpu(parser["force_GPU"])
-    num_GPUs = parser["num_GPUs"]
+    # Get GPU sets
     if num_GPUs:
-        # Get GPU sets
         gpu_sets = get_free_GPU_sets(num_GPUs)
     elif parser["num_jobs"] < 1:
         raise ValueError("Should specify a number of jobs to run in parallel "

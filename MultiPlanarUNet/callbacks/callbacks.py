@@ -320,6 +320,7 @@ class Validation(Callback):
         # Predict on all
         self.logger("")
         sess = tf.keras.backend.get_session()
+        tf.keras.backend.set_learning_phase(0)
         for i, res in enumerate(result):
             if self.verbose:
                 print("   Validation: %i/%i" % (i+1, self.steps), end="\r", flush=True)
@@ -408,6 +409,7 @@ class Validation(Callback):
         logger("")
 
     def on_epoch_end(self, epoch, logs={}):
+
         # Predict and get CM
         TPs, relevant, selected, metrics = self.predict()
         for name in self.task_names:
