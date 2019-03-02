@@ -40,13 +40,23 @@ class VersionController(object):
     def branch(self):
         return self.git_query("git symbolic-ref --short HEAD")
 
-    def set_commit(self, commit_id):
+    def set_branch_and_commit_hard(self, branch, commit_id):
+        """ Revert to a specific branch and commit ID """
+        self.set_branch(branch)
+        self.set_commit_hard(commit_id)
+
+    def set_commit_hard(self, commit_id):
         self.git_query("git reset --hard {}".format(str(commit_id)[:7]))
 
     def set_branch(self, branch):
-        self.git_query("git checkout {}".format(branch))
+        if self.branch != branch:
+            self.git_query("git checkout {}".format(branch))
 
     def set_version(self, version):
+        """
+        Checkout the branch corresponding to 'version' and reset to the latest
+        commit in the branch.
+        """
         version = str(version).lower().strip(" v")
         self.set_branch("v{}".format(version))
-        self.set_commit(self.get_latest_commit_in_branch())
+        self.set_commit_hard(self.get_latest_commit_in_branch())
