@@ -39,3 +39,15 @@ class VersionController(object):
     @property
     def branch(self):
         return self.git_query("git symbolic-ref --short HEAD")
+
+    def set_commit(self):
+        pass
+
+    def set_branch(self, branch):
+        self.git_query("git checkout {}".format(branch))
+
+    def set_version(self, version):
+        version = str(version).lower().strip(" v")
+        self.set_branch("v{}".format(version))
+
+        pass
