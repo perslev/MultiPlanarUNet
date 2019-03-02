@@ -141,12 +141,14 @@ def _run_fusion_training(sets, logger, hparams, min_val_images, is_validation,
         logger("Stacking points...")
         X, y = stack_collections(points_collection, targets_collection)
 
-        print("Getting validation set...")
-        X, y, X_val, y_val = random_split(X, y, 0.20)
-
         # Shuffle train
-        print("Shuffling training set...")
+        print("Shuffling points...")
         X, y = shuffle(X, y)
+
+        print("Getting validation set...")
+        val_ind = int(0.20*X.shape[0])
+        X_val, y_val = X[:val_ind], y[:val_ind]
+        X, y = X[val_ind:], y[val_ind:]
 
         # Prepare dice score callback for validation data
         val_cb = ValDiceScores((X_val, y_val), n_classes, 50000, logger)
