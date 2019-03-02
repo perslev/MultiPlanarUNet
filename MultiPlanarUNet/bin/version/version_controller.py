@@ -40,8 +40,8 @@ class VersionController(object):
     def branch(self):
         return self.git_query("git symbolic-ref --short HEAD")
 
-    def set_commit(self):
-        pass
+    def set_commit(self, commit_id):
+        self.git_query("git reset --hard {}".format(str(commit_id)[:7]))
 
     def set_branch(self, branch):
         self.git_query("git checkout {}".format(branch))
@@ -49,5 +49,4 @@ class VersionController(object):
     def set_version(self, version):
         version = str(version).lower().strip(" v")
         self.set_branch("v{}".format(version))
-
-        pass
+        self.set_commit(self.get_latest_commit_in_branch())
