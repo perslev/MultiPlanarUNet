@@ -1,7 +1,4 @@
-try:
-    from setuptools import setup
-except ImportError:
-    from distutils.core import setup
+from setuptools import setup, find_packages
 
 from MultiPlanarUNet import __version__
 
@@ -23,7 +20,7 @@ setup(
     author_email='map@di.ku.dk',
     url='https://github.com/perslev/MultiPlanarUNet',
     license="LICENSE.txt",
-    packages=["MultiPlanarUNet"],
+    packages=find_packages(),
     package_dir={'MultiPlanarUNet':
                  'MultiPlanarUNet'},
     entry_points={
@@ -32,8 +29,6 @@ setup(
        ],
     },
     install_requires=requirements,
-    extra_requires={"tf": ["tensorflow>=1.10.0"],
-                    "tf_gpu": ["tensorflow-gpu>=1.10.0"]},
     classifiers=['Development Status :: 3 - Alpha',
                  'Environment :: Console',
                  'Operating System :: POSIX',
