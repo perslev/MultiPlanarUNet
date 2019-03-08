@@ -23,7 +23,7 @@ setup(
     packages=find_packages(),
     package_dir={'MultiPlanarUNet':
                  'MultiPlanarUNet'},
-    package_data={'defaults': ['*']},
+    include_package_data=True,
     entry_points={
        'console_scripts': [
            'mp=MultiPlanarUNet.bin.mp:entry_func',
