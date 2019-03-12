@@ -32,6 +32,14 @@ class ViewInterpolator(object):
         self.n_channels = self.im_shape[-1]
         self.im_dtype = image.dtype
 
+        # Cast bg-value to list of length n_channels
+        if not isinstance(bg_value, (list, tuple, np.ndarray)):
+            bg_value = [bg_value] * self.n_channels
+        if not len(bg_value) == self.n_channels:
+            raise ValueError("'bg_value' should be a list of length "
+                             "'n_channels'. Got {} for n_channels={}".format(
+                bg_value, self.n_channels))
+
         # Store potential transformation to regular grid
         self.rot_mat = None
 
@@ -103,13 +111,6 @@ class ViewInterpolator(object):
         # Flip axes? Must be strictly increasing
         flip = np.sign(np.diagonal(basis)) == -1
         assert not np.any(flip)
-
-        # for i, (g, f) in enumerate(zip(g_all, flip)):
-        #     if f:
-        #         g_all[i] = np.flip(g, 0)
-        #         image = np.flip(image, i)
-        #         if labels is not None:
-        #             labels = np.flip(labels, i)
         g_xx, g_yy, g_zz = g_all
 
         # Set interpolator for image, one for each channel
@@ -118,7 +119,7 @@ class ViewInterpolator(object):
             im_intrps.append(RegularGridInterpolator((g_xx, g_yy, g_zz),
                                                      image[..., i].squeeze(),
                                                      bounds_error=False,
-                                                     fill_value=bg_value,
+                                                     fill_value=bg_value[i],
                                                      method="linear",
                                                      dtype=np.float32))
 

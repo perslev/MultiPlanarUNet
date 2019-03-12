@@ -14,6 +14,8 @@ def stack_collections(points_collection, targets_collection):
     Returns:
 
     """
+    if len(points_collection) == 1 and len(targets_collection) == 1:
+        return points_collection[0], targets_collection[0]
     n_points = sum([x.shape[0] for x in points_collection])
     n_views, n_classes = points_collection[0].shape[1:]
 

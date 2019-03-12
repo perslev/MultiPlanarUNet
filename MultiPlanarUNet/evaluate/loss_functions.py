@@ -22,7 +22,7 @@ def _to_tensor(x, dtype):
     return x
 
 
-def jaccard_distance_loss(y_true, y_pred, smooth=100):
+def sparse_jaccard_distance_loss(y_true, y_pred, smooth=1):
     """
     Jaccard = (|X & Y|)/ (|X|+ |Y| - |X & Y|)
             = sum(|A*B|)/(sum(|A|)+sum(|B|)-sum(|A*B|))
@@ -36,10 +36,33 @@ def jaccard_distance_loss(y_true, y_pred, smooth=100):
     @url: https://gist.github.com/wassname/f1452b748efcbeb4cb9b1d059dce6f96
     @author: wassname
     """
-    intersection = tf.reduce_sum(tf.abs(y_true * y_pred), axis=-1)
-    sum_ = tf.reduce_sum(tf.abs(y_true) + tf.abs(y_pred), axis=-1)
+    # Output shape
+    n_classes = y_pred.get_shape()[-1].value
+
+    # One hot encode set shape
+    y_true = tf.one_hot(tf.cast(y_true, tf.uint8), depth=n_classes)
+    y_true = array_ops.reshape(y_true, [-1, n_classes])
+    y_pred = array_ops.reshape(y_pred, [-1, n_classes])
+
+    intersection = tf.reduce_sum(y_true * y_pred, axis=0)
+    sum_ = tf.reduce_sum(y_true + y_pred, axis=0)
     jac = (intersection + smooth) / (sum_ - intersection + smooth)
-    return (1 - jac) * smooth
+    return 1.0 - tf.reduce_mean(jac)
+
+
+def sparse_dice_loss(y_true, y_pred, smooth=1):
+    # Output shape
+    n_classes = y_pred.get_shape()[-1].value
+
+    # One hot encode set shape
+    y_true = tf.one_hot(tf.cast(y_true, tf.uint8), depth=n_classes)
+    y_true = array_ops.reshape(y_true, [-1, n_classes])
+    y_pred = array_ops.reshape(y_pred, [-1, n_classes])
+
+    intersection = tf.reduce_sum(y_true * y_pred, axis=0)
+    union = tf.reduce_sum(y_true, axis=0) + tf.reduce_sum(y_pred, axis=0)
+    dice = (2 * intersection + smooth) / (union + smooth)
+    return 1.0 - tf.reduce_mean(dice)
 
 
 class ExponentialLogarithmicLoss(object):

@@ -1,16 +1,33 @@
 import subprocess
-import path
+import os
 
 
 class VersionController(object):
-    def __init__(self):
+    def __init__(self, logger=None):
         import MultiPlanarUNet
+        from MultiPlanarUNet.logging import ScreenLogger
         code_path = MultiPlanarUNet.__path__
         assert len(code_path) == 1
-        self.git_path = path.Path(code_path[0])
+        self.logger = logger or ScreenLogger()
+        self.git_path = os.path.abspath(code_path[0])
+        self._mem_path = None
+
+    def log_version(self, logger=None):
+        logger = logger or self.logger
+        logger("MultiPlanarUNet version: {} ({}, {})".format(self.version,
+                                                             self.branch,
+                                                             self.current_commit))
+
+    def __enter__(self):
+        self._mem_path = os.getcwd()
+        os.chdir(self.git_path)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        os.chdir(self._mem_path)
+        self._mem_path = None
 
     def git_query(self, string):
-        with self.git_path:
+        with self:
             p = subprocess.Popen(string.split(), stdout=subprocess.PIPE)
             out, _ = p.communicate()
             out = out.decode("utf-8").strip(" \n")

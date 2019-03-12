@@ -65,6 +65,8 @@ class Trainer(object):
                 l = loss_functions.__dict__[l]
                 if inspect.isclass(l):
                     loss_list.append(l(logger=self.logger, **kwargs))
+                else:
+                    loss_list.append(l)
         loss = loss_list
 
         # Find metrics both from standard keras.metrics module and own custom

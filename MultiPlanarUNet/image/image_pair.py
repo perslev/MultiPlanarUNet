@@ -258,9 +258,9 @@ class ImagePair(object):
         if isinstance(bg_value, str):
             # assuming '<number>pct' format
             bg_pct = int(bg_value.lower().replace(" ", "").split("pct")[0])
-            bg_value = np.percentile(self.image, bg_pct)
+            bg_value = [np.percentile(self.image[..., i], bg_pct) for i in range(self.n_channels)]
 
-            self.logger("OBS: Using %i percentile BG value of %.3f" % (
+            self.logger("OBS: Using %i percentile BG value of %s" % (
                 bg_pct, bg_value
             ))
         self.bg_value = bg_value
@@ -268,7 +268,7 @@ class ImagePair(object):
 
         # Apply scaling
         if self.scaler is None:
-            self.set_scaler(scaler)
+            self.set_scaler(scaler, ignore_less_eq=self.bg_value)
 
         # Set interpolator object
         self.set_interpolator_with_current(bg_value=self.bg_value,
@@ -348,12 +348,13 @@ class ImagePair(object):
         """
         self.interpolator = self.get_interpolator_with_current(*args, **kwargs)
 
-    def set_scaler(self, scaler):
+    def set_scaler(self, scaler, ignore_less_eq=None):
         """
         Sets a scaler on the ImagePair fit to the stored image
         See MultiPlanarUNet.preprocessing.scaling
         """
-        self.scaler = get_scaler(scaler=scaler).fit(self.image)
+        self.scaler = get_scaler(scaler=scaler,
+                                 ignore_less_eq=ignore_less_eq).fit(self.image)
 
     def apply_scaler(self):
         """
@@ -372,7 +373,9 @@ class ImagePair(object):
                       float, None or False
 
         Returns:
-            A float/int image background value
+            A list of float(s)/int(s) image background value pr. channel
         """
-        return bg_value if (bg_value is not None and bg_value is not False) \
-               else np.percentile(self.image, 1)
+        bg_value = bg_value if (bg_value is not None and bg_value is not False) \
+                            else np.percentile(self.image, 1)
+        return [bg_value] if not isinstance(bg_value,
+                                            (list, tuple, np.ndarray)) else bg_value
