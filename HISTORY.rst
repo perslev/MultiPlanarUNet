@@ -53,3 +53,10 @@ History
 * Note that these changes may affect performance negatively if using the v 0.2
   software on projects with models trained with version <0.2.0. Users will be
   warned if trying to do so.
+* v0.2.0 now checks which MultiPlanarUNet version was used to create/run code
+  in a give project. Using a new version of the software on an older project
+  folder is no longer allowed. This behaviour may however be overwritten
+  manually setting the __VERSION__ variable to the current software version in
+  the hyperparamter file of the project (not recommended, instead, downgrade
+  to a previous version by running 'git checkout v<VERSION>' inside the
+  MultiPlanarUNet code folder).
