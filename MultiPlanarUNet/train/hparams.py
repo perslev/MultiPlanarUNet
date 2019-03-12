@@ -21,6 +21,43 @@ def _check_deprecated_params(hparams, logger):
         warn_sparse_param(logger)
 
 
+def _check_version(hparams, logger):
+    from MultiPlanarUNet.bin.version import VersionController
+    vc = VersionController()
+    if "__VERSION__" not in hparams:
+        e = "Could not infer the software version used to produce the " \
+            "hyperparameter file of this project. Using a later " \
+            "version of the MultiPlanarUNet software on this project " \
+            "may produce unexpected results. If you wish to continue " \
+            "using this software version on this project dir, " \
+            "manually add the following line to the hyperparameter file:" \
+            " \n\n__VERSION__: {}\n".format(vc.version)
+        logger.warn(e)
+        raise RuntimeWarning(e)
+    hp_version = hparams["__VERSION__"]
+    if isinstance(hp_version, str) and vc.version != hp_version:
+        e = "Parameter file indicates that this project was created " \
+            "under MultiPlanarUNet version {}, but the current " \
+            "version is {}. If you wish to continue " \
+            "using this software version on this project dir, " \
+            "manually add the following line to the hyperparameter " \
+            "file:\n\n__VERSION__: {}\n".format(hp_version, vc.version,
+                                                vc.version)
+        logger.warn(e)
+        raise RuntimeWarning(e)
+
+
+def _set_version(hparams, logger=None):
+    from MultiPlanarUNet.bin.version import VersionController
+    vc = VersionController()
+    vc.log_version(logger)
+    v, b, c = vc.version, vc.branch, vc.current_commit
+    hparams.set_value(None, "__VERSION__", v)
+    hparams.set_value(None, "__BRANCH__", b)
+    hparams.set_value(None, "__COMMIT__", c)
+    hparams.save_current()
+
+
 class YAMLHParams(dict):
     def __init__(self, yaml_path, logger=None, no_log=False, **kwargs):
         dict.__init__(self, **kwargs)
@@ -56,7 +93,11 @@ class YAMLHParams(dict):
         self.no_log = no_log
         if not self.no_log:
             self.logger("YAML path:    %s" % self.yaml_path)
+
+        # Version controlling
         _check_deprecated_params(self, self.logger)
+        _check_version(self, logger)
+        _set_version(self, logger)
 
     @property
     def groups(self):
@@ -90,7 +131,11 @@ class YAMLHParams(dict):
         found = []
         for group_str in self:
             group = self[group_str]
-            if key in group:
+            try:
+                f = key in group
+            except TypeError:
+                f = False
+            if f:
                 found.append((group, group[key]))
         if len(found) > 1:
             self.logger("[ERROR] Found key '%s' in multiple groups (%s)" %
@@ -104,9 +149,26 @@ class YAMLHParams(dict):
         for item in self:
             self.logger("%s\t\t%s" % (item, self[item]))
 
+    def set_value_no_group(self, name, value, overwrite=False):
+        if name in self:
+            if not overwrite:
+                self.logger("Item of name '{}' already set with value '{}'."
+                            " Skipping.".format(name, value))
+                return False
+            # Remove existing
+            del self[name]
+            before, _, after = self.string_rep.partition(name)
+            after = after.split("\n", 1)[1]
+            self.string_rep = before + after
+        self[name] = value
+        self.string_rep = self.string_rep.rstrip("\n") + "\n{}: {}\n".format(name,
+                                                                             value)
+        return True
+
     def set_value(self, subdir, name, value, update_string_rep=True,
                   overwrite=False):
-
+        if subdir is None:
+            return self.set_value_no_group(name, value, overwrite=True)
         exists = name in self[subdir]
         cur_value = self[subdir].get(name)
         if not exists or (cur_value is None or cur_value is False) or overwrite:

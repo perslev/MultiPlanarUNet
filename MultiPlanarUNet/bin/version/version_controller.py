@@ -1,16 +1,33 @@
 import subprocess
-import path
+import os
 
 
 class VersionController(object):
-    def __init__(self):
+    def __init__(self, logger=None):
         import MultiPlanarUNet
+        from MultiPlanarUNet.logging import ScreenLogger
         code_path = MultiPlanarUNet.__path__
         assert len(code_path) == 1
-        self.git_path = path.Path(code_path[0])
+        self.logger = logger or ScreenLogger()
+        self.git_path = os.path.abspath(code_path[0])
+        self._mem_path = None
+
+    def log_version(self, logger=None):
+        logger = logger or self.logger
+        logger("MultiPlanarUNet version: {} ({}, {})".format(self.version,
+                                                             self.branch,
+                                                             self.current_commit))
+
+    def __enter__(self):
+        self._mem_path = os.getcwd()
+        os.chdir(self.git_path)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        os.chdir(self._mem_path)
+        self._mem_path = None
 
     def git_query(self, string):
-        with self.git_path:
+        with self:
             p = subprocess.Popen(string.split(), stdout=subprocess.PIPE)
             out, _ = p.communicate()
             out = out.decode("utf-8").strip(" \n")
@@ -40,23 +57,13 @@ class VersionController(object):
     def branch(self):
         return self.git_query("git symbolic-ref --short HEAD")
 
-    def set_branch_and_commit_hard(self, branch, commit_id):
-        """ Revert to a specific branch and commit ID """
-        self.set_branch(branch)
-        self.set_commit_hard(commit_id)
-
-    def set_commit_hard(self, commit_id):
+    def set_commit(self, commit_id):
         self.git_query("git reset --hard {}".format(str(commit_id)[:7]))
 
     def set_branch(self, branch):
-        if self.branch != branch:
-            self.git_query("git checkout {}".format(branch))
+        self.git_query("git checkout {}".format(branch))
 
     def set_version(self, version):
-        """
-        Checkout the branch corresponding to 'version' and reset to the latest
-        commit in the branch.
-        """
         version = str(version).lower().strip(" v")
         self.set_branch("v{}".format(version))
-        self.set_commit_hard(self.get_latest_commit_in_branch())
+        self.set_commit(self.get_latest_commit_in_branch())
