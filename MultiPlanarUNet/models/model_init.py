@@ -21,18 +21,20 @@ def model_initializer(hparams, continue_training, base_path, logger=None):
 
     if continue_training:
         from MultiPlanarUNet.utils import get_last_model, get_lr_at_epoch, \
-                                          clear_csv_after_epoch
+                                          clear_csv_after_epoch, get_last_epoch
         model_path, epoch = get_last_model(os.path.join(base_path, "model"))
         model.load_weights(model_path, by_name=True)
+        csv_path = os.path.join(base_path, "logs", "training.csv")
+        if epoch == 0:
+            epoch = get_last_epoch(csv_path)
+        else:
+            clear_csv_after_epoch(epoch, csv_path)
         hparams["fit"]["init_epoch"] = epoch+1
 
         # Get the LR at the continued epoch
         lr, name = get_lr_at_epoch(epoch, os.path.join(base_path, "logs"))
-        hparams["fit"]["optimizer_kwargs"][name] = lr
-
-        # Remove entries in training.csv file that occurred after the
-        # continued epoch
-        clear_csv_after_epoch(epoch, os.path.join(base_path, "logs", "training.csv"))
+        if lr:
+            hparams["fit"]["optimizer_kwargs"][name] = lr
 
         logger("[NOTICE] Training continues from:\n"
                "Model: %s\n"
@@ -40,5 +42,4 @@ def model_initializer(hparams, continue_training, base_path, logger=None):
                "LR:    %s" % (os.path.split(model_path)[-1], epoch, lr))
     else:
         hparams["fit"]["init_epoch"] = 0
-
     return model
