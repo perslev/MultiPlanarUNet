@@ -248,14 +248,9 @@ def entry_func(args=None):
 
     # Get GPU sets
     if num_GPUs:
-<<<<<<< HEAD
-        gpu_sets = get_free_GPU_sets(num_GPUs)
-    elif parser["num_jobs"] < 1:
-=======
         # Get GPU sets (up to the number of splits)
         gpu_sets = get_free_GPU_sets(num_GPUs)[:len(cv_folders)]
     elif not num_jobs or num_jobs < 0:
->>>>>>> v0.2.0
         raise ValueError("Should specify a number of jobs to run in parallel "
                          "with the --num_jobs flag when using 0 GPUs pr. "
                          "process (--num_GPUs=0 was set).")
