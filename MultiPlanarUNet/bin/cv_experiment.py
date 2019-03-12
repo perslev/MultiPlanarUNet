@@ -20,10 +20,12 @@ def get_parser():
                         help="Number of GPUs to use per process. This also "
                              "defines the number of parallel jobs to run.")
     parser.add_argument("--force_GPU", type=str, default="")
-    parser.add_argument("--num_jobs", type=int, default=0,
+    parser.add_argument("--num_jobs", type=int, default=None,
                         help="OBS: Only in effect when --num_GPUs=0. Sets"
                              " the number of jobs to run in parallel when no"
                              " GPUs are attached to each job.")
+    parser.add_argument("--run_split", type=int, default=None,
+                        help="Only run a specific split")
     parser.add_argument("--script_prototype", type=str, default="./script",
                         help="Path to text file listing commands and "
                              "arguments to execute under each sub-exp folder.")
@@ -31,6 +33,9 @@ def get_parser():
                         default="./train_hparams.yaml",
                         help="Prototype hyperparameter yaml file from which"
                              " sub-CV files will be made.")
+    parser.add_argument("--no_hparams", action="store_true",
+                        help="Do not move a hyperparameter yaml file into "
+                             "each split dir (one must be already there).")
     parser.add_argument("--start_from", type=int, default=0,
                         help="Start from CV split<start_from>. Default 0.")
     parser.add_argument("--wait_for", type=str, default="",
@@ -126,7 +131,8 @@ def parse_script(script, GPUs):
     return commands
 
 
-def run_sub_experiment(split_dir, out_dir, script, hparams, GPUs, GPU_queue, lock, logger):
+def run_sub_experiment(split_dir, out_dir, script, hparams, no_hparams,
+                       GPUs, GPU_queue, lock, logger):
 
     # Create sub-directory
     split = os.path.split(split_dir)[-1]
@@ -138,9 +144,10 @@ def run_sub_experiment(split_dir, out_dir, script, hparams, GPUs, GPU_queue, loc
     commands = parse_script(script, GPUs)
 
     # Move hparams and script files into folder
-    copy_yaml_and_set_data_dirs(in_path=hparams,
-                                out_path=out_hparams,
-                                data_dir=split_dir)
+    if not no_hparams:
+        copy_yaml_and_set_data_dirs(in_path=hparams,
+                                    out_path=out_hparams,
+                                    data_dir=split_dir)
 
     # Change directory and file permissions
     os.chdir(out_dir)
@@ -184,6 +191,18 @@ def run_sub_experiment(split_dir, out_dir, script, hparams, GPUs, GPU_queue, loc
     GPU_queue.put(GPUs)
 
 
+def _assert_run_split(start_from, monitor_GPUs_every, num_jobs):
+    if start_from != 0:
+        raise ValueError("Should specify either --run_split <split> or "
+                         "--start_from <split>, got both.")
+    if monitor_GPUs_every is not None:
+        raise ValueError("--monitor_GPUs_every is not a valid argument"
+                         " to use with --run_split.")
+    if num_jobs != 1:
+        raise ValueError("--num_jobs is not a valid argument to use with"
+                         " --run_split.")
+
+
 def entry_func(args=None):
     # Get parser
     parser = vars(get_parser().parse_args(args))
@@ -192,9 +211,13 @@ def entry_func(args=None):
     cv_dir = os.path.abspath(parser["CV_dir"])
     out_dir = os.path.abspath(parser["out_dir"])
     create_folders(out_dir)
-    start_from = parser["start_from"]
     await_PID = parser["wait_for"]
     monitor_GPUs_every = parser["monitor_GPUs_every"]
+    run_split = parser["run_split"]
+    start_from = parser["start_from"] or 0
+    num_jobs = parser["num_jobs"] or 1
+    if run_split:
+        _assert_run_split(start_from, monitor_GPUs_every, num_jobs)
 
     # Get a logger object
     logger = Logger(base_path="./", active_file="output",
@@ -208,9 +231,17 @@ def entry_func(args=None):
     # Get file paths
     script = os.path.abspath(parser["script_prototype"])
     hparams = os.path.abspath(parser["hparams_prototype"])
+    no_hparams = parser["no_hparams"]
 
     # Get list of folders of CV data to run on
     cv_folders = get_CV_folders(cv_dir)
+    if run_split:
+        if run_split < 0 or run_split >= len(cv_folders):
+            raise ValueError("--run_split should be in range [0-{}], "
+                             "got {}".format(
+                len(cv_folders)-1, run_split
+            ))
+        cv_folders = [cv_folders[run_split]]
 
     if parser["force_GPU"]:
         # Only these GPUs fill be chosen from
@@ -218,9 +249,9 @@ def entry_func(args=None):
         set_gpu(parser["force_GPU"])
     num_GPUs = parser["num_GPUs"]
     if num_GPUs:
-        # Get GPU sets
-        gpu_sets = get_free_GPU_sets(num_GPUs)
-    elif parser["num_jobs"] < 1:
+        # Get GPU sets (up to the number of splits)
+        gpu_sets = get_free_GPU_sets(num_GPUs)[:len(cv_folders)]
+    elif not num_jobs or num_jobs < 0:
         raise ValueError("Should specify a number of jobs to run in parallel "
                          "with the --num_jobs flag when using 0 GPUs pr. "
                          "process (--num_GPUs=0 was set).")
@@ -249,7 +280,8 @@ def entry_func(args=None):
             gpus = gpu_queue.get()
             t = Process(target=run_sub_experiment,
                         args=(cv_folder, out_dir, script, hparams,
-                              gpus, gpu_queue, lock, logger))
+                              no_hparams, gpus, gpu_queue,
+                              lock, logger))
             t.start()
             procs.append(t)
             for t in procs:
