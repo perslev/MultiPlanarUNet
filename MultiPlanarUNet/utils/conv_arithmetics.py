@@ -76,21 +76,29 @@ def compute_receptive_fields(layers, verbose=False):
             except AttributeError:
                 # Batch norm, flatten etc.
                 continue
+        kernel_size = np.array(kernel_size)
 
         # Get potential dilation rates
         try:
             dilation = np.array(layer.dilation_rate).astype(np.int)
         except AttributeError:
             dilation = np.ones(shape=[dim], dtype=np.int)
+        if hasattr(layer, "dilations"):
+            assert (dilation == 1).all()
+            dilation = np.array(layer.dilations)
+            dilation = dilation[dilation[:, 0].argmax()]
 
         # Get strides
         stride = layer.strides
 
+        # Get kernel size taking into account dilation rate
+        ks = kernel_size * dilation
+        m = np.where(dilation > 1)
+        ks[m] -= (dilation[m]-1)
+
         size = np.array(layer.output.get_shape().as_list()[1:-1])
         jump = output_feature_distance(jump, stride, dim)
-        receptive_field = output_receptive_field(receptive_field,
-                                                 kernel_size * dilation,
-                                                 jump, dim)
+        receptive_field = output_receptive_field(receptive_field, ks, jump, dim)
 
         # Add to list
         values.append((size, jump, receptive_field))
