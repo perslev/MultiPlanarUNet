@@ -235,7 +235,7 @@ def entry_func(args=None):
 
     # Get list of folders of CV data to run on
     cv_folders = get_CV_folders(cv_dir)
-    if run_split:
+    if run_split is not None:
         if run_split < 0 or run_split >= len(cv_folders):
             raise ValueError("--run_split should be in range [0-{}], "
                              "got {}".format(
