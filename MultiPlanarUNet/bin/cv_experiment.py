@@ -20,7 +20,7 @@ def get_parser():
                         help="Number of GPUs to use per process. This also "
                              "defines the number of parallel jobs to run.")
     parser.add_argument("--force_GPU", type=str,
-                        default="A list of one or more GPU IDs from "
+                        default="A list of one or more GPU IDs "
                                 "(comma separated) from which GPU resources "
                                 "will supplied to each split, independent of"
                                 " the current memory usage of the GPUs.")
@@ -223,17 +223,10 @@ def entry_func(args=None):
     if run_split:
         _assert_run_split(start_from, monitor_GPUs_every, num_jobs)
 
-    # Get a logger object
-    logger = Logger(base_path="./", active_file="output",
-                    print_calling_method=False, overwrite_existing=True)
-
     # Wait for PID?
     if await_PID:
         from MultiPlanarUNet.utils import await_PIDs
         await_PIDs(await_PID)
-
-    # Get number of GPUs per process
-    num_GPUs = parser["num_GPUs"]
 
     # Get file paths
     script = os.path.abspath(parser["script_prototype"])
@@ -249,6 +242,13 @@ def entry_func(args=None):
                 len(cv_folders)-1, run_split
             ))
         cv_folders = [cv_folders[run_split]]
+        log_appendix = "_split{}".format(run_split)
+    else:
+        log_appendix = ""
+
+    # Get a logger object
+    logger = Logger(base_path="./", active_file="output" + log_appendix,
+                    print_calling_method=False, overwrite_existing=True)
 
     if parser["force_GPU"]:
         # Only these GPUs fill be chosen from
