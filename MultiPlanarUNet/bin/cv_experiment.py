@@ -19,7 +19,11 @@ def get_parser():
     parser.add_argument("--num_GPUs", type=int, default=1,
                         help="Number of GPUs to use per process. This also "
                              "defines the number of parallel jobs to run.")
-    parser.add_argument("--force_GPU", type=str, default="")
+    parser.add_argument("--force_GPU", type=str,
+                        default="A list of one or more GPU IDs from "
+                                "(comma separated) from which GPU resources "
+                                "will supplied to each split, independent of"
+                                " the current memory usage of the GPUs.")
     parser.add_argument("--num_jobs", type=int, default=None,
                         help="OBS: Only in effect when --num_GPUs=0. Sets"
                              " the number of jobs to run in parallel when no"
@@ -246,7 +250,11 @@ def entry_func(args=None):
             ))
         cv_folders = [cv_folders[run_split]]
 
-    # Get GPU sets
+    if parser["force_GPU"]:
+        # Only these GPUs fill be chosen from
+        from MultiPlanarUNet.utils import set_gpu
+        set_gpu(parser["force_GPU"])
+    num_GPUs = parser["num_GPUs"]
     if num_GPUs:
         # Get GPU sets (up to the number of splits)
         gpu_sets = get_free_GPU_sets(num_GPUs)[:len(cv_folders)]
