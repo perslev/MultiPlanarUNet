@@ -50,7 +50,8 @@ def _check_version(hparams, logger):
 def _set_version(hparams, logger=None):
     from MultiPlanarUNet.bin.version import VersionController
     vc = VersionController()
-    vc.log_version(logger)
+    if logger:
+        vc.log_version(logger)
     v, b, c = vc.version, vc.branch, vc.current_commit
     hparams.set_value(None, "__VERSION__", v)
     hparams.set_value(None, "__BRANCH__", b)
