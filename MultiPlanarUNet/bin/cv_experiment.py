@@ -20,10 +20,10 @@ def get_parser():
                         help="Number of GPUs to use per process. This also "
                              "defines the number of parallel jobs to run.")
     parser.add_argument("--force_GPU", type=str,
-                        default="A list of one or more GPU IDs "
-                                "(comma separated) from which GPU resources "
-                                "will supplied to each split, independent of"
-                                " the current memory usage of the GPUs.")
+                        help="A list of one or more GPU IDs "
+                             "(comma separated) from which GPU resources "
+                             "will supplied to each split, independent of"
+                             " the current memory usage of the GPUs.")
     parser.add_argument("--num_jobs", type=int, default=None,
                         help="OBS: Only in effect when --num_GPUs=0. Sets"
                              " the number of jobs to run in parallel when no"
