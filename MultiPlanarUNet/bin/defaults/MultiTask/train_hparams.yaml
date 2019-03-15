@@ -70,7 +70,6 @@ fit: &FIT
 
   # Use class weights?
   class_weights: False
-  sparse: True
 
   # On-the-fly augmentation?
   # Leave empty or delete entirely if not

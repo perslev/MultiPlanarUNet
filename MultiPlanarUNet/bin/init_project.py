@@ -1,19 +1,20 @@
 from argparse import ArgumentParser
 import os
+from MultiPlanarUNet.train import YAMLHParams
 
 
 def copy_yaml_and_set_data_dirs(in_path, out_path, data_dir):
-    # Create YAML file
-    with open(out_path, "w") as out_yaml:
-        with open(in_path, "r") as in_yaml:
-            for line in in_yaml:
-                if "<<BASE_DIR_" in line:
-                    _type = line.split("<<BASE_DIR_")[-1].split(">>")[0]
-                    if data_dir:
-                        line = line.replace("<<BASE_DIR_%s>>" % _type, data_dir + "/%s" % _type.lower())
-                    else:
-                        line = line.replace("<<BASE_DIR_%s>>" % _type, "Null")
-                out_yaml.write(line)
+    hparams = YAMLHParams(in_path, no_log=True)
+    data_dir = data_dir or "Null"
+    hparams.set_value("train_data", "base_dir", data_dir + "/train",
+                      overwrite=True, err_on_missing_dir=True)
+    hparams.set_value("val_data", "base_dir", data_dir + "/val",
+                      overwrite=True, err_on_missing_dir=False)
+    hparams.set_value("test_data", "base_dir", data_dir + "/test",
+                      overwrite=True, err_on_missing_dir=False)
+    hparams.set_value("aug_data", "base_dir", data_dir + "/aug",
+                      overwrite=True, err_on_missing_dir=False)
+    hparams.save_current(out_path)
 
 
 def get_parser():

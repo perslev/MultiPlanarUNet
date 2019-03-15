@@ -44,35 +44,29 @@ __CB_csv: &CSV
   class_name: "CSVLogger"
   kwargs: {filename: "logs/training.csv", separator: ",", append: true}
 
-aug_data: &AUGDATA
-  # Inject augmented data?
-  add_aug: false
-
-  # Augmented datasets
-  # Add here as nested JSON objects
-  datasets: {
-    augmented: {
-      base_dir: <<BASE_DIR_AUG>>,
-      img_subdir: images,
-      label_subdir: labels,
-      sample_weight: 0.33
-    }
-  }
-
 train_data: &TRAINDATA
-  base_dir: <<BASE_DIR_TRAIN>>
+  base_dir: Null
   img_subdir: images
   label_subdir: labels
 
 val_data: &VALDATA
-  base_dir: <<BASE_DIR_VAL>>
+  base_dir: Null
   img_subdir: images
   label_subdir: labels
 
 test_data: &TESTDATA
-  base_dir: <<BASE_DIR_TEST>>
+  base_dir: Null
   img_subdir: images
   label_subdir: labels
+
+aug_data: &AUGDATA
+  # Set this to True to include augmented images in the folders described below
+  include: False
+
+  base_dir: Null,
+  img_subdir: images,
+  label_subdir: labels,
+  sample_weight: 0.33
 
 build: &BUILD
   #
@@ -106,7 +100,6 @@ fit: &FIT
 
   # Use class weights?
   class_weights: False
-  sparse: True
 
   # On-the-fly augmentation?
   # Leave empty or delete entirely if not

@@ -70,10 +70,15 @@ def _base_loader_func(hparams, just_one, no_val, logger, mtype):
     auditor.fill(hparams, mtype)
 
     # Add augmented data?
-    if hparams.get("aug_data") and hparams.get("aug_data")["add_aug"]:
-        for data in hparams["aug_data"]["datasets"].values():
-            logger("\n[*] Adding augmented data with weight ", data["sample_weight"])
-            train_data.add_augmented_images(ImagePairLoader(logger=logger, **data))
+    if hparams.get("aug_data"):
+        aug_data = hparams["aug_data"]
+        if "include" not in aug_data:
+            logger.warn("Found 'aug_data' group, but the group does not "
+                        "contain the key 'include', which is required in "
+                        "version 2.0 and above. OBS: Not including aug data!")
+        elif aug_data["include"]:
+            logger("\n[*] Adding augmented data with weight ", aug_data["sample_weight"])
+            train_data.add_augmented_images(ImagePairLoader(logger=logger, **aug_data))
 
     if just_one:
         # For testing purposes, run only on one train and one val image?

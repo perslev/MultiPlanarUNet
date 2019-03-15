@@ -166,9 +166,16 @@ class YAMLHParams(dict):
         return True
 
     def set_value(self, subdir, name, value, update_string_rep=True,
-                  overwrite=False):
+                  overwrite=False, err_on_missing_dir=True):
         if subdir is None:
             return self.set_value_no_group(name, value, overwrite=True)
+        if subdir not in self:
+            if err_on_missing_dir:
+                raise AttributeError("Subdir '{}' does not exist.".format(subdir))
+            else:
+                if not self.no_log:
+                    self.logger("Subdir {} does not exist. Skipping.".format(subdir))
+                return False
         exists = name in self[subdir]
         cur_value = self[subdir].get(name)
         if not exists or (cur_value is None or cur_value is False) or overwrite:
