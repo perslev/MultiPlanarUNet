@@ -166,7 +166,7 @@ def get_last_epoch(csv_file):
     if os.path.exists(csv_file):
         import pandas as pd
         df = pd.read_csv(csv_file)
-        epoch = int(df["epoch"][-1])
+        epoch = int(df["epoch"].to_numpy()[-1])
     return epoch
 
 
