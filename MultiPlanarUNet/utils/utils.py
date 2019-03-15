@@ -114,12 +114,19 @@ def get_last_model(model_dir):
     epochs = []
     for m in models:
         epochs.append(re.findall(r"@epoch_(\d+)_", m)[0])
-
     if epochs:
         last = np.argmax(epochs)
         return os.path.abspath(models[last]), int(epochs[int(last)])
     else:
-        return os.path.join(model_dir, "model_weights.h5"), 0
+        generic_path = os.path.join(model_dir, "model_weights.h5")
+        if os.path.exists(generic_path):
+            # Return epoch 0 as we dont know where else to start
+            # This may be changed elsewhere in the code based on the
+            # training data CSV file
+            return generic_path, 0
+        else:
+            # Start from scratch
+            return None, 0
 
 
 def get_lr_at_epoch(epoch, log_dir):
@@ -144,7 +151,10 @@ def clear_csv_after_epoch(epoch, csv_file):
         import pandas as pd
         df = pd.read_csv(csv_file)
         # Remove any trailing runs and remove after 'epoch'
-        df = df[np.flatnonzero(df["epoch"] == 0)[-1]:]
+        try:
+            df = df[np.flatnonzero(df["epoch"] == 0)[-1]:]
+        except IndexError:
+            pass
         df = df[:epoch+1]
         # Save again
         with open(csv_file, "w") as out_f:
