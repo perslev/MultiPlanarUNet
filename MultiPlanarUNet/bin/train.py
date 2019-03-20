@@ -94,8 +94,10 @@ def run(base_path, gpu_mon, num_GPUs, continue_training, force_GPU, just_one,
         gpu_mon.stop()
 
     # Build new model (or continue training an existing one)
-    org_model = model_initializer(hparams, continue_training, base_path,
-                                  logger)
+    org_model = model_initializer(hparams=hparams,
+                                  continue_training=continue_training,
+                                  project_dir=base_path,
+                                  logger=logger)
 
     # Initialize weights in final layer?
     if not continue_training and hparams["build"].get("biased_output_layer"):
