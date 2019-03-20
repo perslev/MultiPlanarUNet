@@ -125,8 +125,8 @@ def get_last_model(model_dir):
             # training data CSV file
             return generic_path, 0
         else:
-            # Start from scratch
-            return None, 0
+            # Start from scratch, or handle as see fit at call point
+            return None, None
 
 
 def get_lr_at_epoch(epoch, log_dir):

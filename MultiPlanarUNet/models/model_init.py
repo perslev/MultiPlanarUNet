@@ -36,6 +36,8 @@ def model_initializer(hparams, continue_training, project_dir,
         if epoch == 0:
             epoch = get_last_epoch(csv_path)
         else:
+            if epoch is None:
+                epoch = 0
             clear_csv_after_epoch(epoch, csv_path)
         hparams["fit"]["init_epoch"] = epoch+1
 
