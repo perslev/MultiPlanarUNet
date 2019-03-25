@@ -97,8 +97,8 @@ class YAMLHParams(dict):
 
         # Version controlling
         _check_deprecated_params(self, self.logger)
-        _check_version(self, logger)
-        _set_version(self, logger if not no_log else None)
+        _check_version(self, self.logger)
+        _set_version(self, self.logger if not no_log else None)
 
     @property
     def groups(self):
