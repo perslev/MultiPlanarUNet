@@ -3,7 +3,8 @@ from MultiPlanarUNet.logging import ScreenLogger
 from MultiPlanarUNet.evaluate import loss_functions
 from MultiPlanarUNet.evaluate import metrics as custom_metrics
 from MultiPlanarUNet.callbacks import SavePredictionImages, Validation, \
-                                      FGBatchBalancer, DividerLine
+                                      FGBatchBalancer, DividerLine, \
+                                      LearningCurve
 from MultiPlanarUNet.errors import raise_non_sparse_metric_or_loss_error
 from MultiPlanarUNet.utils import ensure_list_or_tuple
 
@@ -197,6 +198,9 @@ class Trainer(object):
         if not no_im:
             # Add save images cb
             callbacks.append(SavePredictionImages(train, val))
+
+        # Callback for plotting learning curves
+        callbacks.append(LearningCurve())
 
         # Get FGBatchBalancer callbacks, etc.
         if hasattr(train, "n_fg_slices"):

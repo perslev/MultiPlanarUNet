@@ -140,16 +140,6 @@ def run(base_path, gpu_mon, num_GPUs, continue_training, force_GPU, just_one,
     logger("Saving current model to: %s" % model_path)
     org_model.save_weights(model_path)
 
-    # Plot learning curves
-    from MultiPlanarUNet.utils.plotting import plot_training_curves
-    try:
-        plot_training_curves(os.path.join(base_path, "logs", "training.csv"),
-                             os.path.join(base_path, "logs", "learning_curve.png"),
-                             logy=True)
-    except Exception as e:
-        logger("Could not plot learning curves due to error:")
-        logger(e)
-
 
 def remove_previous_session(base_path):
     import shutil
