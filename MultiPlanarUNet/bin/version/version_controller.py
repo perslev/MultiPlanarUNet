@@ -28,8 +28,11 @@ class VersionController(object):
 
     def git_query(self, string):
         with self:
-            p = subprocess.Popen(string.split(), stdout=subprocess.PIPE)
-            out, _ = p.communicate()
+            try:
+                p = subprocess.Popen(string.split(), stdout=subprocess.PIPE)
+                out, _ = p.communicate()
+            except FileNotFoundError:
+                return None
             out = out.decode("utf-8").strip(" \n")
         return out
 
@@ -49,9 +52,12 @@ class VersionController(object):
     def get_latest_commit_in_branch(self, branch=None):
         branch = branch or self.branch
         url = self.remote_url
-        return self.git_query("git ls-remote {} refs/heads/{}".format(
+        commit = self.git_query("git ls-remote {} refs/heads/{}".format(
             url, branch
-        ))[:7]
+        ))
+        if commit is None:
+            raise OSError("Could not determine latest commit, did not find git.")
+        return commit[:7]
 
     @property
     def branch(self):
