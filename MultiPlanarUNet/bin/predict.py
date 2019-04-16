@@ -56,10 +56,13 @@ def get_argparser():
     parser.add_argument("--wait_for", type=str, default="",
                         help="Waiting for PID to terminate before starting "
                              "training process.")
+    parser.add_argument("--continue", action="store_true",
+                        help="Continue from a previsous, non-finished "
+                             "prediction session at 'out_dir'.")
     return parser
 
 
-def validate_folders(base_dir, out_dir, overwrite):
+def validate_folders(base_dir, out_dir, overwrite, _continue):
 
     # Check base (model) dir contains required files
     must_exist = ("train_hparams.yaml", "views.npz",
@@ -73,10 +76,10 @@ def validate_folders(base_dir, out_dir, overwrite):
             exit(0)
 
     # Check if output folder already exists
-    if not overwrite and os.path.exists(out_dir):
+    if not (overwrite or _continue) and os.path.exists(out_dir):
         from sys import exit
         print("[*] Output directory already exists at: '%s'"
-              "\n  Use --overwrite to overwrite" % out_dir)
+              "\n  Use --overwrite to overwrite or --continue to continue" % out_dir)
         exit(0)
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
@@ -115,6 +118,15 @@ def save_nii_files(combined, image, nii_res_dir, save_input_files):
             pass
 
 
+def remove_already_predicted(all_images, out_dir):
+    nii_dir = os.path.join(out_dir, "nii_files")
+    already_pred = [i.replace("_PRED", "").split(".")[0]
+                    for i in os.listdir(nii_dir)]
+    print("[OBS] Not predicting on images: {} "
+          "(--continue mode)".format(already_pred))
+    return {k: v for k, v in all_images.items() if k not in already_pred}
+
+
 def entry_func(args=None):
 
     # Get command line arguments
@@ -126,6 +138,7 @@ def entry_func(args=None):
     label = args["l"]
     await_PID = args["wait_for"]
     eval_prob = args["eval_prob"]
+    _continue = args["continue"]
     if analytical and majority:
         raise ValueError("Cannot specify both --analytical and --majority.")
 
@@ -139,7 +152,8 @@ def entry_func(args=None):
             data_dir = os.path.abspath(args["data_dir"])
 
             # Set with default sub dirs
-            hparams["test_data"] = {"base_dir": data_dir, "img_subdir": "images",
+            hparams["test_data"] = {"base_dir": data_dir,
+                                    "img_subdir": "images",
                                     "label_subdir": "labels"}
         except (AttributeError, TypeError):
             data_dir = hparams["test_data"]["base_dir"]
@@ -153,7 +167,7 @@ def entry_func(args=None):
     on_val = args["on_val"]
 
     # Check if valid dir structures
-    validate_folders(base_dir, out_dir, overwrite)
+    validate_folders(base_dir, out_dir, overwrite, _continue)
 
     # Import all needed modules (folder is valid at this point)
     import numpy as np
@@ -162,7 +176,7 @@ def entry_func(args=None):
     from MultiPlanarUNet.models.model_init import init_model
     from MultiPlanarUNet.utils import await_and_set_free_gpu, get_best_model, \
                                     create_folders, pred_to_class, set_gpu
-    from MultiPlanarUNet.logging import init_result_dicts, save_all
+    from MultiPlanarUNet.logging import init_result_dicts, save_all, load_result_dicts
     from MultiPlanarUNet.evaluate import dice_all
     from MultiPlanarUNet.utils.fusion import predict_volume, map_real_space_pred
     from MultiPlanarUNet.interpolation.sample_grid import get_voxel_grid_real_space
@@ -217,6 +231,25 @@ def entry_func(args=None):
     # garbage collection
     all_images = {image.id: image for image in image_pair_loader.images}
     image_pair_loader.images = None
+    if _continue:
+        all_images = remove_already_predicted(all_images, out_dir)
+
+    # Evaluate?
+    if not predict_mode:
+        if _continue:
+            csv_dir = os.path.join(out_dir, "csv")
+            results, detailed_res = load_result_dicts(csv_dir=csv_dir,
+                                                      views=views)
+        else:
+            # Prepare dictionary to store results in pd df
+            results, detailed_res = init_result_dicts(views, all_images, n_classes)
+
+        # Save to check correct format
+        save_all(results, detailed_res, out_dir)
+
+    # Define result paths
+    nii_res_dir = os.path.join(out_dir, "nii_files")
+    create_folders(nii_res_dir)
 
     """ Define UNet model """
     model_path = get_best_model(base_dir + "/model")
@@ -245,18 +278,6 @@ def entry_func(args=None):
         if num_GPUs > 1:
             print("Using multi-GPU model (%i GPUs)" % num_GPUs)
             fm = multi_gpu_model(fm, gpus=num_GPUs)
-
-    # Evaluate?
-    if not predict_mode:
-        # Prepare dictionary to store results in pd df
-        results, detailed_res = init_result_dicts(views, all_images, n_classes)
-
-        # Save to check correct format
-        save_all(results, detailed_res, out_dir)
-
-    # Define result paths
-    nii_res_dir = os.path.join(out_dir, "nii_files")
-    create_folders(nii_res_dir)
 
     """
     Finally predict on the images
@@ -319,22 +340,21 @@ def entry_func(args=None):
                 view_dices = dice_all(y, pred_to_class(pred, img_dims=3,
                                                        has_batch_dim=False),
                                       ignore_zero=False, n_classes=n_classes,
-                                      skip_if_no_y = False)
+                                      skip_if_no_y=False)
                 mapped_dices = dice_all(image.labels,
                                         pred_to_class(mapped_pred, img_dims=3,
                                                       has_batch_dim=False),
                                         ignore_zero=False, n_classes=n_classes,
                                         skip_if_no_y=False)
+                mean_dice = mapped_dices[~np.isnan(mapped_dices)][1:].mean()
 
                 # Print dice scores
                 print("View dice scores:   ", view_dices)
                 print("Mapped dice scores: ", mapped_dices)
-                print("Mean dice: ", end="", flush=True)
-                mean_dices = mapped_dices[~np.isnan(mapped_dices)][1:].mean()
-                print("%s (n=%i)" % (mean_dices, len(mapped_dices)-1))
+                print("Mean dice (n=%i): " % (len(mapped_dices)-1), mean_dice)
 
                 # Add to results
-                results[str(v)][n_image] = mean_dices
+                results.loc[image_id, str(v)] = mean_dice
                 detailed_res[str(v)][image_id] = mapped_dices[1:]
 
                 # Overwrite with so-far results
@@ -372,7 +392,7 @@ def entry_func(args=None):
 
             print("Combined dices: ", dices)
             print("Combined mean dice: ", mean_dice)
-            results["MJ"][n_image] = mean_dice
+            results.loc[image_id, "MJ"] = mean_dice
 
             # Overwrite with so-far results
             save_all(results, detailed_res, out_dir)
