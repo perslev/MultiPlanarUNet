@@ -24,12 +24,17 @@ def get_argparser():
                              'folders will be searched for.')
     parser.add_argument("--pred_subdir", type=str, default="predictions",
                         help="Subdirectory storing the 'csv' subfolder.")
+    parser.add_argument("--round", default=3, type=int)
     return parser
 
 
-def print_mj_or_detailed(df):
-    classes = df["class"]
-    ddf = df.drop(["class"], axis=1)
+def print_mj_or_detailed(df, round_):
+    classes = df.get("class")
+    if classes is not None:
+        ddf = df.drop(["class"], axis=1)
+    else:
+        classes = np.arange(1, df.shape[0]+1)
+        ddf = df
     means = np.nanmean(ddf.values, axis=1)
     stds = np.nanstd(ddf.values, axis=1)
     mins = np.nanmin(ddf.values, axis=1)
@@ -41,13 +46,14 @@ def print_mj_or_detailed(df):
         {c: [m, std, min, max, n] for c, m, std, min, max, n in zip(classes, means, stds, mins, maxs, N)}).T
     print_df.columns = ["Mean dice by class", "+/- STD", "min", "max", "N"]
 
-    print(np.round(print_df, 3))
-    print("\nOverall mean: %.3f +- %.3f" % (
-        np.nanmean(ddf.values), np.nanstd(ddf.values)))
+    print(np.round(print_df, round_))
+    print("\nOverall mean: %s +- %s" % (
+        np.nanmean(ddf.values).round(round_),
+        np.nanstd(ddf.values).round(round_)))
     print("--------------------------------")
 
 
-def print_res(df):
+def print_res(df, round_):
     to_drop = ("Unnamed: 0", "ID", "MJ")
     for d in to_drop:
         try:
@@ -58,21 +64,21 @@ def print_res(df):
 
     longest = max([len(v) for v in df])
     for v in df:
-        mean = np.nanmean(df[v])
-        print(("%s" % v).ljust(longest + 7) + "%.3f" % mean)
+        mean = np.nanmean(df[v]).round(round_)
+        print(("%s" % v).ljust(longest + 7) + "%s" % mean)
     print("--------------------------------")
 
 
-def print_results(results, folder):
+def print_results(results, folder, round_):
     print("\n[***] SUMMARY REPORT FOR FOLDER [***]\n%s\n" % folder)
 
     for file_ in results:
         df = results[file_]
 
         if file_ in ("MJ.csv", "detailed.csv"):
-            print_mj_or_detailed(df)
+            print_mj_or_detailed(df, round_)
         elif file_ == "results.csv":
-            print_res(df)
+            print_res(df, round_)
         else:
             raise ValueError("Unknown file type '%s'" % file_)
 
@@ -97,9 +103,13 @@ def pool_results(results):
             df = results[folder][file_]
             if pooled.get(file_) is not None:
                 if file_ in ("MJ.csv", "detailed.csv"):
-                    pooled[file_] = pd.merge(pooled[file_], df, on="class")
+                    pooled[file_] = pd.merge(pooled[file_], df,
+                                             left_index=True,
+                                             right_index=True)
                 elif file_ == "results.csv":
-                    pooled[file_] = pd.concat([pooled[file_], df], axis=0, sort=True)
+                    pooled[file_] = pd.concat([pooled[file_], df],
+                                              axis=0,
+                                              sort=True)
                 else:
                     raise ValueError("Unknown file type '%s'" % file_)
             else:
@@ -107,7 +117,7 @@ def pool_results(results):
     return pooled
 
 
-def parse_results(csv_folders):
+def parse_results(csv_folders, round_=3):
     results = {}
     for folder in csv_folders:
         results[folder] = parse_folder(folder)
@@ -117,7 +127,7 @@ def parse_results(csv_folders):
     else:
         folder = csv_folders[0]
 
-    print_results(results, folder)
+    print_results(results, folder, round_)
 
 
 def entry_func(args=None):
@@ -125,6 +135,7 @@ def entry_func(args=None):
     args = vars(get_argparser().parse_args(args))
     dir_ = os.path.abspath(args["root_dir"])
     p_dir = args["pred_subdir"]
+    round_ = args["round"]
 
     # Get folder/folders - 3 levels possible
     csv_folders = glob("%s/csv" % dir_)
@@ -143,7 +154,7 @@ def entry_func(args=None):
             print("-- " + os.path.abspath(d))
         in_ = input("\nCorrect? (Y/n) ")
         if in_.lower() not in ("n", "no"):
-            parse_results(csv_folders)
+            parse_results(csv_folders, round_)
 
 
 if __name__ == "__main__":
