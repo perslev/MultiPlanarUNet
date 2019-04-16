@@ -2,6 +2,7 @@ from ruamel.yaml import YAML
 import os
 import re
 from MultiPlanarUNet.logging import ScreenLogger
+import numpy as np
 
 
 def _cb_paths_to_abs_paths(callbacks, patterns, project_dir):
@@ -180,9 +181,15 @@ class YAMLHParams(dict):
         exists = name in self[subdir]
         cur_value = self[subdir].get(name)
         if not exists or (cur_value is None or cur_value is False) or overwrite:
+            # str rep of value
+            if isinstance(value, np.ndarray):
+                str_value = np.array2string(value, separator=", ")
+            else:
+                str_value = str(value)
+
             if not self.no_log:
                 self.logger("Setting value '%s' in subdir '%s' with "
-                            "name '%s'" % (value, subdir, name))
+                            "name '%s'" % (str_value, subdir, name))
 
             # Set the value in memory
             name_exists = name in self[subdir]
@@ -203,7 +210,7 @@ class YAMLHParams(dict):
                     Returns the full match with the
                     capture group replaced by str(value)
                     """
-                    return match.group().replace(match.groups(1)[0], str(value))
+                    return match.group().replace(match.groups(1)[0], str_value)
                 new_group = re.sub(pattern, rep_func, group)
 
                 if not name_exists:
@@ -212,7 +219,7 @@ class YAMLHParams(dict):
                     new_group = new_group.strip("\n")
                     temp = new_group.split("\n")[1]
                     indent = len(temp) - len(temp.lstrip())
-                    new_field = (" " * indent) + "%s: %s" % (name, value)
+                    new_field = (" " * indent) + "%s: %s" % (name, str_value)
                     new_group = "\n%s\n%s\n" % (new_group, new_field)
 
                 # Update string representation
