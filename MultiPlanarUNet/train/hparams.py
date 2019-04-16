@@ -25,6 +25,11 @@ def _check_deprecated_params(hparams, logger):
 def _check_version(hparams, logger):
     from MultiPlanarUNet.bin.version import VersionController
     vc = VersionController()
+    if not vc.check_git():
+        logger.warn("Path {} does not contain a Git repository, or Git is not"
+                    " installed on this system. The software verison match "
+                    "could not be varified against the hyperparameter file.")
+        return
     if "__VERSION__" not in hparams:
         e = "Could not infer the software version used to produce the " \
             "hyperparameter file of this project. Using a later " \
