@@ -60,3 +60,10 @@ History
   the hyperparamter file of the project (not recommended, instead, downgrade
   to a previous version by running 'git checkout v<VERSION>' inside the
   MultiPlanarUNet code folder).
+
+0.2.1 (2019-04-16)
+------------------
+* Various smaller changes and bug-fixes across the code base. Thread pools are now
+  generally limited to a maximum of 7 threads; The cv_experiment script now correctly
+  handles using the 'mp' script entry point in the 'script' file (before full paths 
+  to the given script had to be passed to the python interpreter)
