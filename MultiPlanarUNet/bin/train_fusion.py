@@ -73,7 +73,8 @@ def make_sets(images, sub_size, N):
 
 def _run_fusion_training(sets, logger, hparams, min_val_images, is_validation,
                          views, n_classes, unet, fusion_model_org, fusion_model,
-                         early_stopping, fm_batch_size, epochs, eval_prob):
+                         early_stopping, fm_batch_size, epochs, eval_prob,
+                         fusion_weights_path):
 
     for _round, _set in enumerate(sets):
         s = "Set %i/%i:\n%s" % (_round + 1, len(sets), _set)
@@ -170,6 +171,7 @@ def _run_fusion_training(sets, logger, hparams, min_val_images, is_validation,
                              epochs=epochs, callbacks=cbs, verbose=1)
         except KeyboardInterrupt:
             pass
+        fusion_model_org.save_weights(fusion_weights_path)
 
 
 def entry_func(args=None):
@@ -182,7 +184,7 @@ def entry_func(args=None):
     fm_batch_size = 1000000
 
     # Early stopping params
-    early_stopping = 4
+    early_stopping = 3
 
     # Project base path
     args = vars(get_argparser().parse_args(args))
@@ -318,7 +320,8 @@ def entry_func(args=None):
         _run_fusion_training(sets, logger, hparams, min_val_images,
                              is_validation, views, n_classes, unet,
                              fusion_model_org, fusion_model,
-                             early_stopping, fm_batch_size, epochs, eval_prob)
+                             early_stopping, fm_batch_size, epochs, eval_prob,
+                             fusion_weights)
     except KeyboardInterrupt:
         pass
     finally:
