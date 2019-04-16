@@ -39,14 +39,48 @@ def init_result_dicts(views, all_images, n_classes):
     results = {"ID": [image_id for image_id in sorted(all_images)]}
     results.update({str(v): [np.nan for _ in all_images] for v in views})
     results.update({"MJ": [np.nan for _ in all_images]})
+    results = pd.DataFrame(results)
 
     # Prepare dictionary of per class results
     inner = {"class": range(1, n_classes)}
     for image_id in all_images:
         inner.update({image_id: [np.nan for _ in range(1, n_classes)]})
-    pc_results = {str(v): copy.deepcopy(inner) for v in views}
-    pc_results.update({"MJ": copy.deepcopy(inner)})
+    pc_results = {str(v): pd.DataFrame(copy.deepcopy(inner)) for v in views}
+    pc_results.update({"MJ": pd.DataFrame(copy.deepcopy(inner))})
 
+    return results, pc_results
+
+
+def load_result_dicts(csv_dir, views):
+    from glob import glob
+    import re
+    regex = re.compile(r"[-]?\d{1}[.]\d+")
+
+    def match_view_and_file(view, path):
+        fname = os.path.splitext(os.path.split(path)[-1])[0]
+        path_view_components = np.array(re.findall(regex, fname), np.float)
+        if len(path_view_components) == 0:
+            # MJ.csv or results.csv
+            return False
+        assert len(path_view_components) == 3
+        assert len(view) == 3
+        return np.all(path_view_components.round(4) == view.round(4))
+
+    csv_dir = os.path.abspath(csv_dir)
+    pc_results = {"MJ": pd.read_csv(csv_dir + "/MJ.csv", index_col=False)}
+    results = pd.read_csv(csv_dir + "/results.csv", index_col=False)
+
+    paths = [p for p in glob(csv_dir + "/*csv")]
+    for v in views:
+        found_match = False
+        for path in paths:
+            if match_view_and_file(v, path):
+                pc_results[str(v)] = pd.read_csv(path, index_col=False)
+                found_match = True
+        if not found_match:
+            raise RuntimeError(
+                "Could not infer relationship between view {} and view "
+                "csv files")
     return results, pc_results
 
 
@@ -68,7 +102,7 @@ def results_to_csv(results, res_path, fname=None, transpose=False):
     # Save results
     df = to_df(results, transpose)
     with open(os.path.join(res_path, "%s.csv" % fname), "w") as out_file:
-        out_file.write(df.to_csv() + "\n")
+        out_file.write(df.to_csv(index=False) + "\n")
 
 
 def results_to_txt(results, res_path, fname=None, transpose=False):
@@ -97,6 +131,6 @@ def save_all(results, pc_results, out_dir):
     # Write detailed results
     for view in pc_results:
         r = pc_results[view]
-        view_str = str(view).replace("[", "").replace("]", "").replace(" ", "_")
+        view_str = str(view).replace("[", "").strip().replace("]", "").replace(" ", "_")
         results_to_txt(r, txt_res_dir, fname=view_str)
         results_to_csv(r, csv_res_dir, fname=view_str)
