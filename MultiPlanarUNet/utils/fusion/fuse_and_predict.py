@@ -134,8 +134,7 @@ def map_real_space_pred(pred, grid, inv_basis, voxel_grid_real_space, method="ne
 
     # Prepare thread pool of 10 workers
     from concurrent.futures import ThreadPoolExecutor
-    from multiprocessing import cpu_count
-    pool = ThreadPoolExecutor(max_workers=max(7, cpu_count()))
+    pool = ThreadPoolExecutor(max_workers=7)
 
     # Perform interpolation async.
     inds = np.arange(transformed_grid.shape[1])

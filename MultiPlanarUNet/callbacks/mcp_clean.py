@@ -23,6 +23,7 @@ class ModelCheckPointClean(ModelCheckpoint):
             return self.model
 
     def on_epoch_end(self, epoch, logs=None):
+        print()
         logs = logs or {}
         self.epochs_since_last_save += 1
         if self.epochs_since_last_save >= self.period:

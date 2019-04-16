@@ -301,7 +301,11 @@ def create_folders(folders, create_deep=False):
     make_func = os.mkdir if not create_deep else os.makedirs
     if isinstance(folders, str):
         if not os.path.exists(folders):
-            make_func(folders)
+            try:
+                make_func(folders)
+            except FileExistsError:
+                # If running many jobs in parallel this may occur
+                pass
     else:
         folders = list(folders)
         for f in folders:

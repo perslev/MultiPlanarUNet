@@ -9,15 +9,16 @@ def copy_yaml_and_set_data_dirs(in_path, out_path, data_dir):
     val = data_dir + "/val" if data_dir else "Null"
     test = data_dir + "/test" if data_dir else "Null"
     aug = data_dir + "/aug" if data_dir else "Null"
+    dir_name = "base_dir" if "base_dir" in hparams["train_data"] else "data_dir"
 
     # Set values in parameter file and save to new location
-    hparams.set_value("train_data", "base_dir", train,
+    hparams.set_value("train_data", dir_name, train,
                       overwrite=True, err_on_missing_dir=True)
-    hparams.set_value("val_data", "base_dir", val,
+    hparams.set_value("val_data", dir_name, val,
                       overwrite=True, err_on_missing_dir=False)
-    hparams.set_value("test_data", "base_dir", test,
+    hparams.set_value("test_data", dir_name, test,
                       overwrite=True, err_on_missing_dir=False)
-    hparams.set_value("aug_data", "base_dir", aug,
+    hparams.set_value("aug_data", dir_name, aug,
                       overwrite=True, err_on_missing_dir=False)
     hparams.save_current(out_path)
 

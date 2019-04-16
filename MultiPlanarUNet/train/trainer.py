@@ -94,7 +94,7 @@ class Trainer(object):
 
     def fit(self, train, val, callbacks, n_epochs, train_im_per_epoch,
             val_im_per_epoch, hparams, batch_size=8, verbose=1, init_epoch=0,
-            no_im=False, use_multiprocessing=True, val_ignore_class_zero=True,
+            no_im=False, use_multiprocessing=False, val_ignore_class_zero=True,
             **unused_fit_kwargs):
 
         # Crop labels?
@@ -230,7 +230,7 @@ class Trainer(object):
             "callbacks": callbacks,
             "initial_epoch": init_epoch,
             "use_multiprocessing": use_multiprocessing,
-            "workers": cpu_count()-1,
+            "workers": min(15, cpu_count()-1),
             "max_queue_size": 5,
             "shuffle": False
         }

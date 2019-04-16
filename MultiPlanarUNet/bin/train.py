@@ -49,7 +49,7 @@ def validate_path(base_path):
 def validate_hparams(hparams):
     # Tests for valid hparams
 
-    if hparams["fit"]["class_weights"]:
+    if hparams["fit"].get("class_weights"):
         # Only currently supported loss
         assert hparams["fit"]["loss"] in ("WeightedSemanticCCE",
                                           "GeneralizedDiceLoss",
