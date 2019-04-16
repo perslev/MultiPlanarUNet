@@ -129,7 +129,7 @@ def parse_script(script, GPUs):
             line = line.split("#")[0]
             # Get all arguments, remove if concerning GPU (controlled here)
             cmd = list(filter(lambda x: "gpu" not in x.lower(), line.split()))
-            if "python" in line:
+            if "python" in line or line[:2] == "mp" or line[:2] == "ds":
                 cmd.append("--force_GPU=%s" % GPUs)
             commands.append(cmd)
     return commands
