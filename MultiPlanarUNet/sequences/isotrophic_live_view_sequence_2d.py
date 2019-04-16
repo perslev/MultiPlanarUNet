@@ -73,8 +73,7 @@ class IsotrophicLiveViewSequence2D(IsotrophicLiveViewSequence):
 
         # Prepare thread pool
         from concurrent.futures import ThreadPoolExecutor
-        from multiprocessing import cpu_count
-        pool = ThreadPoolExecutor(max_workers=max(7, cpu_count()))
+        pool = ThreadPoolExecutor(max_workers=7)
 
         def _do(offset, ind):
             im, lab, real_axis, inv_basis = self.sample_at(offset,
