@@ -1,6 +1,7 @@
 import os
 import inspect
 from MultiPlanarUNet.utils.decorators import accepts
+from contextlib import contextmanager
 
 
 class Logger(object):
@@ -13,6 +14,7 @@ class Logger(object):
         else:
             self.path = self.base_path
         self.overwrite_existing = overwrite_existing
+        self._enabled = True
 
         # Get built in print function
         # (if overwritten globally, Logger still maintains a reference to the
@@ -59,6 +61,20 @@ class Logger(object):
         # Add reference to model folder in log
         ref = "Log for model in: %s" % self.base_path
         self._add_to_log(ref, no_print=True)
+
+    @property
+    def enabled(self):
+        return self._enabled
+
+    @enabled.setter
+    def enabled(self, value):
+        self._enabled = bool(value)
+
+    @contextmanager
+    def disabled_in_context(self):
+        self.enabled = False
+        yield self
+        self.enabled = True
 
     @property
     def print_to_screen(self):
@@ -116,6 +132,8 @@ class Logger(object):
         self._add_to_log(*args, **kwargs)
 
     def __call__(self, *args, print_calling_method=None, **kwargs):
+        if not self.enabled:
+            return None
         caller = inspect.stack()[1]
         caller = "'%s' in '%s'" % (caller[3], caller[1].rpartition("/")[2])
         self._log(caller, print_calling_method, *args, **kwargs)
