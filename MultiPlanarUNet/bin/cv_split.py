@@ -23,14 +23,6 @@ def get_parser():
     parser.add_argument("--lab_sub_dir", type=str, default="labels",
                         help="Subfolder under 'data_dir' in which labels are "
                              "stored (default=labels)")
-    parser.add_argument("--aug_sub_dir", type=str, default="",
-                        help="Optional subfolder under 'data_dir' in which "
-                             "augmented files are stored. OBS: Assumes images "
-                             "in sub-dir 'images' and labels in subdir 'labels"
-                             "'. OBS: Augmented images must have identical "
-                             "file name to the real image counterpart "
-                             "(leading changes in augmented file name are "
-                             "accepted).")
     parser.add_argument("--copy", action="store_true",
                         help="Copy files to CV-subfolders instead of "
                              "symlinking (not recommended)")
@@ -52,6 +44,7 @@ def get_parser():
                              "N_train=60, N_val=20 and N_test=20 images")
     parser.add_argument("--test_fraction", type=float, default=0.20,
                         help="Fraction of data size used for test if CV=1.")
+    parser.add_argument("--common_prefix_length", type=int, required=False, default=0)
     return parser
 
 
@@ -75,28 +68,41 @@ def create_view_folders(out_dir, n_splits):
             os.mkdir(split_dir)
 
 
+def pair_by_names(images, common_prefix_length):
+    from collections import defaultdict
+    names = [os.path.split(i)[-1][:common_prefix_length] for i in images]
+    inds = defaultdict(list)
+    for i, item in enumerate(names):
+        inds[item].append(i)
+    pairs = inds.values()
+    return [tuple(np.array(images)[i]) for i in pairs]
+
+
 def add_images(images, im_folder_path, label_folder_path, im_dir, lab_dir,
                link_func=os.symlink):
     for image in images:
-        # Get file name
-        file_name = os.path.split(image)[-1]
+        if not isinstance(image, (list, tuple, np.ndarray)):
+            image = (image,)
+        for im in image:
+            # Get file name
+            file_name = os.path.split(im)[-1]
 
-        # Get label path (OBS: filenames must match!)
-        label = image.replace(im_dir, lab_dir)
+            # Get label path (OBS: filenames must match!)
+            lab = im.replace(im_dir, lab_dir)
 
-        if not os.path.exists(label):
-            raise OSError("No label file found at '%s'. OBS: image and "
-                          "label files must have exactly the same name. "
-                          "Images should be located at '%s' and labels at"
-                          " '%s'" % (label, im_folder_path, label_folder_path))
+            if not os.path.exists(lab):
+                raise OSError("No label file found at '%s'. OBS: image and "
+                              "label files must have exactly the same name. "
+                              "Images should be located at '%s' and labels at"
+                              " '%s'" % (lab, im_folder_path, label_folder_path))
 
-        # Get relative paths
-        rel_image = os.path.relpath(image, im_folder_path)
-        rel_label = os.path.relpath(label, label_folder_path)
+            # Get relative paths
+            rel_image = os.path.relpath(im, im_folder_path)
+            rel_label = os.path.relpath(lab, label_folder_path)
 
-        # Symlink or copy
-        link_func(rel_image, im_folder_path + "/%s" % file_name)
-        link_func(rel_label, label_folder_path + "/%s" % file_name)
+            # Symlink or copy
+            link_func(rel_image, im_folder_path + "/%s" % file_name)
+            link_func(rel_label, label_folder_path + "/%s" % file_name)
 
 
 def _add_to_file_list_fallback(rel_image_path, image_path,
@@ -139,15 +145,13 @@ def entry_func(args=None):
         out_dir = os.path.join(data_dir, parser["out_dir"], "fixed_split")
     im_dir = os.path.join(data_dir, parser["im_sub_dir"])
     lab_dir = os.path.join(data_dir, parser["lab_sub_dir"])
-    if parser["aug_sub_dir"]:
-        aug_dir = os.path.join(data_dir, parser["aug_sub_dir"])
-    else:
-        aug_dir = None
+
     copy = parser["copy"]
     file_list = parser["file_list"]
     regex = parser["file_regex"]
     val_frac = parser["validation_fraction"]
     test_frac = parser["test_fraction"]
+    common_prefix_length = parser["common_prefix_length"]
 
     if n_splits == 1 and not test_frac:
         raise ValueError("Must specify --test_fraction with --CV=1.")
@@ -161,15 +165,9 @@ def entry_func(args=None):
     # Create sub-folders
     create_view_folders(out_dir, n_splits)
 
-    # Get images
+    # Get images and pair by subject ID if common_prefix_length > 0
     images = glob(os.path.join(im_dir, regex))
-
-    if aug_dir:
-        aug_im_dir = os.path.join(aug_dir, parser["im_sub_dir"])
-        aug_lab_dir = os.path.join(aug_dir, parser["lab_sub_dir"])
-        aug_images = glob(os.path.join(aug_im_dir, regex))
-        aug_labels = glob(os.path.join(aug_lab_dir, regex))
-        assert(len(aug_images) == len(aug_labels))
+    images = pair_by_names(images, common_prefix_length)
 
     # Get validation size
     N_total = len(images)
@@ -215,23 +213,20 @@ def entry_func(args=None):
         train_path = os.path.join(split_path, "train")
         train_im_path = os.path.join(train_path, parser["im_sub_dir"])
         train_label_path = os.path.join(train_path, parser["lab_sub_dir"])
-        val_path = os.path.join(split_path, "val")
-        val_im_path = os.path.join(val_path, parser["im_sub_dir"])
-        val_label_path = os.path.join(val_path, parser["lab_sub_dir"])
+        if N_val:
+            val_path = os.path.join(split_path, "val")
+            val_im_path = os.path.join(val_path, parser["im_sub_dir"])
+            val_label_path = os.path.join(val_path, parser["lab_sub_dir"])
+        else:
+            val_path, val_im_path, val_label_path = (None,) * 3
         test_path = os.path.join(split_path, "test")
         test_im_path = os.path.join(test_path, parser["im_sub_dir"])
         test_label_path = os.path.join(test_path, parser["lab_sub_dir"])
-        if aug_dir:
-            aug_path = os.path.join(split_path, "aug")
-            aug_im_path = os.path.join(aug_path, parser["im_sub_dir"])
-            aug_label_path = os.path.join(aug_path, parser["lab_sub_dir"])
-        else:
-            aug_path, aug_im_path, aug_label_path = None, None, None
 
         # Create folders if not existing
         create_folders([train_path, val_path, train_im_path, train_label_path,
                         val_im_path, val_label_path, test_path, test_im_path,
-                        test_label_path, aug_path, aug_im_path, aug_label_path])
+                        test_label_path])
 
         # Copy or symlink?
         if copy:
@@ -255,22 +250,9 @@ def entry_func(args=None):
         training = remaining[N_val:]
 
         # Add
-        add_images(validation, val_im_path, val_label_path, im_dir, lab_dir, move_func)
+        if validation:
+            add_images(validation, val_im_path, val_label_path, im_dir, lab_dir, move_func)
         add_images(training, train_im_path, train_label_path, im_dir, lab_dir, move_func)
-
-        # Add augmented images to training dir?
-        if aug_dir:
-            # Get list of train file names
-            train_fnames = [os.path.split(f)[-1] for f in training]
-            augmented = []
-            for aug_im in aug_images:
-                aug_im_fname = os.path.split(aug_im)[-1]
-                if any([t_fn in aug_im_fname for t_fn in train_fnames]):
-                    augmented.append(aug_im)
-
-            # Add the images
-            add_images(augmented, aug_im_path, aug_label_path,
-                       aug_im_dir, aug_lab_dir, move_func)
 
 
 if __name__ == "__main__":
