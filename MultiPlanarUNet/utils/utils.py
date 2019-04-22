@@ -86,27 +86,28 @@ def add_noise_to_views(views, sd):
 
 
 def get_best_model(model_dir):
-    val_models = glob.glob(os.path.join(model_dir, "@epoch*val_loss*"))
-    dice_models = glob.glob(os.path.join(model_dir, "@epoch*val_dice*"))
-    if val_models and dice_models:
-        raise RuntimeError("Found both val_loss and dice_loss weight files."
-                           " Which to use is undefined.")
-
-    if val_models:
-        metric = np.argmin
-        models = val_models
-    else:
-        metric = np.argmax
-        models = dice_models
-
-    scores = []
-    for m in models:
-        scores.append(re.findall(r"(\d+[.]\d+)", m)[0])
-
-    if scores:
-        return os.path.abspath(models[metric(np.array(scores))])
-    else:
-        return os.path.abspath(os.path.join(model_dir, "model_weights.h5"))
+    if len(os.listdir(model_dir)) == 0:
+        raise OSError("Model dir {} is empty.".format(model_dir))
+    # look for models, order: val_dice, val_loss, dice, loss, model_weights
+    patterns = [
+        ("@epoch*val_dice*", np.argmax),
+        ("@epoch*val_loss*", np.argmin),
+        ("@epoch*dice*", np.argmax),
+        ("@epoch*loss*", np.argmin)
+    ]
+    for pattern, select_func in patterns:
+        models = glob.glob(os.path.join(model_dir, pattern))
+        if models:
+            scores = []
+            for m in models:
+                scores.append(re.findall(r"(\d+[.]\d+)", m)[0])
+            return os.path.abspath(models[select_func(np.array(scores))])
+    m = os.path.abspath(os.path.join(model_dir, "model_weights.h5"))
+    if not os.path.exists(m):
+        raise OSError("Did not find any model files matching the patterns {} "
+                      "and did not find a model_weights.h5 file."
+                      "".format(patterns))
+    return m
 
 
 def get_last_model(model_dir):
@@ -298,21 +299,23 @@ def random_split(X, y, fraction):
 
 
 def create_folders(folders, create_deep=False):
+    def safe_make(path, make_func):
+        try:
+            make_func(path)
+        except FileExistsError:
+            # If running many jobs in parallel this may occur
+            pass
     make_func = os.mkdir if not create_deep else os.makedirs
     if isinstance(folders, str):
         if not os.path.exists(folders):
-            try:
-                make_func(folders)
-            except FileExistsError:
-                # If running many jobs in parallel this may occur
-                pass
+            safe_make(folders, make_func)
     else:
         folders = list(folders)
         for f in folders:
             if f is None:
                 continue
             if not os.path.exists(f):
-                make_func(f)
+                safe_make(f, make_func)
 
 
 @contextlib.contextmanager
