@@ -1,6 +1,7 @@
 import os
 import inspect
 from MultiPlanarUNet.utils.decorators import accepts
+from MultiPlanarUNet.utils import create_folders
 from contextlib import contextmanager
 
 
@@ -13,6 +14,7 @@ class Logger(object):
             self.path = os.path.join(self.base_path, "logs")
         else:
             self.path = self.base_path
+        create_folders([self.path])
         self.overwrite_existing = overwrite_existing
         self._enabled = True
 
@@ -20,9 +22,6 @@ class Logger(object):
         # (if overwritten globally, Logger still maintains a reference to the
         # true print function)
         self.print_f = __builtins__["print"]
-
-        if not os.path.exists(self.path):
-            os.mkdir(self.path)
 
         # Print options
         self.separator = "-" * 80
