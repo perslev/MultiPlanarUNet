@@ -81,10 +81,6 @@ class ImagePair(object):
         self._labels = None
         self.scaler = None
 
-        # Background value and class, set by some methods
-        self.bg_value = None
-        self.bg_class = None
-
         # ViewInterpolator object initialized with set_interpolator_object
         self.interpolator = None
 
@@ -263,16 +259,14 @@ class ImagePair(object):
             self.logger("OBS: Using %i percentile BG value of %s" % (
                 bg_pct, bg_value
             ))
-        self.bg_value = bg_value
-        self.bg_class = bg_class
 
         # Apply scaling
         if self.scaler is None:
-            self.set_scaler(scaler, ignore_less_eq=self.bg_value)
+            self.set_scaler(scaler, ignore_less_eq=bg_value)
 
         # Set interpolator object
-        self.set_interpolator_with_current(bg_value=self.bg_value,
-                                           bg_class=self.bg_class)
+        self.set_interpolator_with_current(bg_value=bg_value,
+                                           bg_class=bg_class)
 
     def unload(self, unload_scaler=False):
         """
@@ -282,7 +276,7 @@ class ImagePair(object):
 
         Args:
             unload_scaler: boolean indicating whether or not to also clear the
-                           currently set scaler object. Not clearning this may
+                           currently set scaler object. Not clearing this may
                            be useful if the ImagePair is loaded/unloaded often
                            (in a data queue for instance), as the scaler
                            parameters may take time to estimate, but will be
