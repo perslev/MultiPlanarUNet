@@ -230,8 +230,8 @@ class Trainer(object):
             "callbacks": callbacks,
             "initial_epoch": init_epoch,
             "use_multiprocessing": use_multiprocessing,
-            "workers": min(15, cpu_count()-1),
-            "max_queue_size": 5,
+            "workers": min(7, cpu_count()-1),
+            "max_queue_size": 25,
             "shuffle": False
         }
         if self.target_tensor:
