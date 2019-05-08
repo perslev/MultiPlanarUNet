@@ -19,11 +19,14 @@ def get_parser():
     parser.add_argument("--num_GPUs", type=int, default=1,
                         help="Number of GPUs to use per process. This also "
                              "defines the number of parallel jobs to run.")
-    parser.add_argument("--force_GPU", type=str,
+    parser.add_argument("--force_GPU", type=str, default="",
                         help="A list of one or more GPU IDs "
                              "(comma separated) from which GPU resources "
                              "will supplied to each split, independent of"
                              " the current memory usage of the GPUs.")
+    parser.add_argument("--ignore_GPU", type=str, default="",
+                        help="A list of one or more GPU IDs "
+                             "(comma separated) that will not be considered.")
     parser.add_argument("--num_jobs", type=int, default=None,
                         help="OBS: Only in effect when --num_GPUs=0. Sets"
                              " the number of jobs to run in parallel when no"
@@ -65,12 +68,14 @@ def _get_GPU_sets(free_gpus, num_GPUs):
                                                                num_GPUs)]
 
 
-def get_free_GPU_sets(num_GPUs):
+def get_free_GPU_sets(num_GPUs, ignore_gpus=None):
     from MultiPlanarUNet.utils.system import GPUMonitor
     mon = GPUMonitor()
+    ignore_gpus = _gpu_string_to_list(ignore_gpus or "", as_int=True)
     free_gpus = sorted(mon.free_GPUs, key=lambda x: int(x))
-    total_GPUs = len(free_gpus)
     mon.stop()
+    free_gpus = list(filter(lambda gpu: gpu not in ignore_gpus, free_gpus))
+    total_GPUs = len(free_gpus)
 
     if total_GPUs % num_GPUs or not free_gpus:
         if total_GPUs < num_GPUs:
@@ -78,23 +83,24 @@ def get_free_GPU_sets(num_GPUs):
                              "GPU count of '%i' - must be evenly divisible." %
                              (num_GPUs, total_GPUs))
         else:
-            full_sequence = list(map(str, range(0, max(map(int, free_gpus))+1)))
-            full_sets = _get_GPU_sets(full_sequence, num_GPUs)
-            valid_sets = []
-            for s in full_sets:
-                ok_len = len(s.split(",")) == num_GPUs
-                ok_gpus = all([gpu in free_gpus for gpu in s.split(",")])
-                if ok_len and ok_gpus:
-                    valid_sets.append(s)
-            if not valid_sets:
-                raise ValueError("No free GPU sets")
-            else:
-                return valid_sets
+            raise NotImplementedError
+            # full_sequence = list(map(str, range(0, max(map(int, free_gpus))+1)))
+            # full_sets = _get_GPU_sets(full_sequence, num_GPUs)
+            # valid_sets = []
+            # for s in full_sets:
+            #     ok_len = len(s.split(",")) == num_GPUs
+            #     ok_gpus = all([gpu in free_gpus for gpu in s.split(",")])
+            #     if ok_len and ok_gpus:
+            #         valid_sets.append(s)
+            # if not valid_sets:
+            #     raise ValueError("No free GPU sets")
+            # else:
+            #     return valid_sets
     else:
         return _get_GPU_sets(free_gpus, num_GPUs)
 
 
-def monitor_GPUs(every, gpu_queue, num_GPUs, current_pool, stop_event):
+def monitor_GPUs(every, gpu_queue, num_GPUs, ignore_GPU, current_pool, stop_event):
     import time
     # Make flat version of the list of gpu sets
     current_pool = [gpu for sublist in current_pool for gpu in sublist.split(",")]
@@ -102,7 +108,7 @@ def monitor_GPUs(every, gpu_queue, num_GPUs, current_pool, stop_event):
         # Get available GPU sets. Will raise ValueError if no full set is
         # available
         try:
-            gpu_sets = get_free_GPU_sets(num_GPUs)
+            gpu_sets = get_free_GPU_sets(num_GPUs, ignore_GPU)
             for gpu_set in gpu_sets:
                 if any([g in current_pool for g in gpu_set.split(",")]):
                     # If one or more GPUs are already in use - this may happen
@@ -207,6 +213,24 @@ def _assert_run_split(start_from, monitor_GPUs_every, num_jobs):
                          " --run_split.")
 
 
+def _assert_force_and_ignore_gpus(force_gpu, ignore_gpu):
+    force_gpu = _gpu_string_to_list(force_gpu)
+    ignore_gpu = _gpu_string_to_list(ignore_gpu)
+    overlap = set(force_gpu) & set(ignore_gpu)
+    if overlap:
+        raise RuntimeError("Cannot both force and ignore GPU(s) {}. "
+                           "Got forced GPUs {} and ignored GPUs {}".format(
+            overlap, force_gpu, ignore_gpu
+        ))
+
+
+def _gpu_string_to_list(gpu_list, as_int=False):
+    str_gpus = list(filter(None, gpu_list.replace(" ", "").split(",")))
+    if as_int:
+        return list(map(int, str_gpus))
+    return str_gpus
+
+
 def entry_func(args=None):
     # Get parser
     parser = vars(get_parser().parse_args(args))
@@ -216,10 +240,18 @@ def entry_func(args=None):
     out_dir = os.path.abspath(parser["out_dir"])
     create_folders(out_dir)
     await_PID = parser["wait_for"]
-    monitor_GPUs_every = parser["monitor_GPUs_every"]
     run_split = parser["run_split"]
     start_from = parser["start_from"] or 0
     num_jobs = parser["num_jobs"] or 1
+
+    # GPU settings
+    num_GPUs = parser["num_GPUs"]
+    force_GPU = parser["force_GPU"]
+    ignore_GPU = parser["ignore_GPU"]
+    monitor_GPUs_every = parser["monitor_GPUs_every"]
+
+    # User input assertions
+    _assert_force_and_ignore_gpus(force_GPU, ignore_GPU)
     if run_split:
         _assert_run_split(start_from, monitor_GPUs_every, num_jobs)
 
@@ -250,14 +282,13 @@ def entry_func(args=None):
     logger = Logger(base_path="./", active_file="output" + log_appendix,
                     print_calling_method=False, overwrite_existing=True)
 
-    if parser["force_GPU"]:
+    if force_GPU:
         # Only these GPUs fill be chosen from
         from MultiPlanarUNet.utils import set_gpu
-        set_gpu(parser["force_GPU"])
-    num_GPUs = parser["num_GPUs"]
+        set_gpu(force_GPU)
     if num_GPUs:
         # Get GPU sets (up to the number of splits)
-        gpu_sets = get_free_GPU_sets(num_GPUs)[:len(cv_folders)]
+        gpu_sets = get_free_GPU_sets(num_GPUs, ignore_GPU)[:len(cv_folders)]
     elif not num_jobs or num_jobs < 0:
         raise ValueError("Should specify a number of jobs to run in parallel "
                          "with the --num_jobs flag when using 0 GPUs pr. "
@@ -277,7 +308,8 @@ def entry_func(args=None):
         # Start a process monitoring new GPU availability over time
         stop_event = Event()
         t = Process(target=monitor_GPUs, args=(monitor_GPUs_every, gpu_queue,
-                                               num_GPUs, gpu_sets, stop_event))
+                                               num_GPUs, ignore_GPU,
+                                               gpu_sets, stop_event))
         t.start()
         procs.append(t)
     else:
