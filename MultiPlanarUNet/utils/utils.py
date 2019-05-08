@@ -100,7 +100,7 @@ def get_best_model(model_dir):
         if models:
             scores = []
             for m in models:
-                scores.append(re.findall(r"(\d+[.]\d+)", m)[0])
+                scores.append(float(re.findall(r"(\d+[.]\d+)", m)[0]))
             return os.path.abspath(models[select_func(np.array(scores))])
     m = os.path.abspath(os.path.join(model_dir, "model_weights.h5"))
     if not os.path.exists(m):
@@ -114,7 +114,7 @@ def get_last_model(model_dir):
     models = glob.glob(os.path.join(model_dir, "@epoch*"))
     epochs = []
     for m in models:
-        epochs.append(re.findall(r"@epoch_(\d+)_", m)[0])
+        epochs.append(int(re.findall(r"@epoch_(\d+)_", m)[0]))
     if epochs:
         last = np.argmax(epochs)
         return os.path.abspath(models[last]), int(epochs[int(last)])
