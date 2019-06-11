@@ -366,18 +366,18 @@ def highlighted(string):
     return "%s\n%s\n%s" % (border, string, border)
 
 
-def await_PIDs(PIDs, timeout=120):
+def await_PIDs(PIDs, check_every=120):
     if isinstance(PIDs, str):
         for pid in PIDs.split(","):
-            wait_for(int(pid), timeout=timeout)
+            wait_for(int(pid), check_every=check_every)
     else:
-        wait_for(PIDs, timeout=timeout)
+        wait_for(PIDs, check_every=check_every)
 
 
-def wait_for(PID, timeout=120):
+def wait_for(PID, check_every=120):
     """
     Check for a running process with PID 'PID' and only return when the process
-    is no longer running. Checks the process list every 'timeout' seconds.
+    is no longer running. Checks the process list every 'check_every' seconds.
     """
     if not PID:
         return
@@ -387,10 +387,10 @@ def wait_for(PID, timeout=120):
         except ValueError as e:
             raise ValueError("Cannot wait for PID '%s', must be an integer"
                              % PID) from e
-    _wait_for(PID, timeout)
+    _wait_for(PID, check_every)
 
 
-def _wait_for(PID, timeout=120):
+def _wait_for(PID, check_every=120):
     still_running = True
     import subprocess
     import time
@@ -405,8 +405,8 @@ def _wait_for(PID, timeout=120):
 
         still_running = bool(output)
         if still_running:
-            print("Process %i still running... (sleeping %i seconds)" % (PID, timeout))
-            time.sleep(timeout)
+            print("Process %i still running... (sleeping %i seconds)" % (PID, check_every))
+            time.sleep(check_every)
 
 
 def check_kwargs(kwargs, allowed, func=None):
