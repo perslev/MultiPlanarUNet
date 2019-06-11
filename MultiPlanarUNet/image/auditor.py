@@ -16,7 +16,7 @@ def _audit_classes(nii_lab_paths, logger):
                                  replace=False)
     classes = []
     for l in lab_paths:
-        classes.append(np.unique(nib.load(l).get_data()))
+        classes.extend(np.unique(nib.load(l).get_data()))
     classes = np.unique(classes)
     n_classes = classes.shape[0]
 
