@@ -100,12 +100,12 @@ class IsotrophicLiveViewSequence(BaseSequence):
         return batch_y[:, self.label_crop[0, 0]:-self.label_crop[0, 1],
                        :self.label_crop[1, 0]:-self.label_crop[1, 1]]
 
-    def get_X_store_yw(self):
-        pass
-
     def is_valid_im(self, im, bg_value):
         # Image slice should not be out of bounds (complete background)
-        return np.any(~np.isclose(im, bg_value))
+        valid = []
+        for i, chn_bg_val in enumerate(bg_value):
+            valid.append(np.any(~np.isclose(im[..., i], chn_bg_val)))
+        return any(valid)
 
     def validate_lab_vec(self, lab, has_fg, cur_batch_size):
         new_mask = has_fg + np.isin(self.fg_classes, lab)

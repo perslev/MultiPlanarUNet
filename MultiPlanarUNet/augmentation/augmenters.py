@@ -6,7 +6,7 @@ class Augmenter(object):
     """
     Not yet implemented
     """
-    def __call__(self, batch_x, batch_y, batch_w=None, bg_values=None):
+    def __call__(self, batch_x, batch_y, bg_values, batch_w=None):
         raise NotImplemented
 
 
@@ -83,7 +83,7 @@ class Elastic(Augmenter):
         else:
             return self._sigma
 
-    def __call__(self, batch_x, batch_y, batch_w=None, bg_values=None):
+    def __call__(self, batch_x, batch_y, bg_values, batch_w=None):
         """
         Deform all images in a batch of images (using linear intrp) and
         corresponding labels (using nearest intrp)
@@ -91,15 +91,12 @@ class Elastic(Augmenter):
         # Only augment some of the images (determined by apply_prob)
         augment_mask = np.random.rand(len(batch_x)) <= self.apply_prob
 
-        if bg_values is None:
-            bg_values = [None] * len(batch_x)
-
         augmented_x, augmented_y = [], []
-        for i, (augment, x, y, bg_val) in enumerate(zip(augment_mask,
-                                                        batch_x, batch_y,
-                                                        bg_values)):
+        for i, (augment, x, y, bg_vals) in enumerate(zip(augment_mask,
+                                                         batch_x, batch_y,
+                                                         bg_values)):
             if augment:
-                x, y = self.trans_func(x, y, self.alpha, self.sigma, bg_val)
+                x, y = self.trans_func(x, y, self.alpha, self.sigma, bg_vals)
                 if batch_w is not None:
                     batch_w[i] = self.weight
             augmented_x.append(x)

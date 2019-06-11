@@ -54,6 +54,7 @@ def _base_loader_func(hparams, just_one, no_val, logger, mtype):
 
     # Get basic ScreenLogger if no logger is passed
     logger = logger or ScreenLogger()
+    logger("Looking for images...")
 
     # Get data loaders
     train_data = ImagePairLoader(logger=logger, **hparams["train_data"])

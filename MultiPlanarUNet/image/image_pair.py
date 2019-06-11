@@ -370,6 +370,6 @@ class ImagePair(object):
             A list of float(s)/int(s) image background value pr. channel
         """
         bg_value = bg_value if (bg_value is not None and bg_value is not False) \
-                            else np.percentile(self.image, 1)
+                            else [np.percentile(self.image[..., i], 1) for i in range(self.n_channels)]
         return [bg_value] if not isinstance(bg_value,
                                             (list, tuple, np.ndarray)) else bg_value

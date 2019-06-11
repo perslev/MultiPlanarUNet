@@ -39,6 +39,7 @@ class ViewInterpolator(object):
             raise ValueError("'bg_value' should be a list of length "
                              "'n_channels'. Got {} for n_channels={}".format(
                 bg_value, self.n_channels))
+        self.bg_value = bg_value
 
         # Store potential transformation to regular grid
         self.rot_mat = None

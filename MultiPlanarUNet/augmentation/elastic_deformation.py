@@ -24,6 +24,8 @@ def elastic_transform_2d(image, labels, alpha, sigma, bg_val=0.0):
     shape = image.shape[:2]
     channels = image.shape[-1]
     dtype = image.dtype
+    bg_val = bg_val if isinstance(bg_val, (list, tuple, np.ndarray)) \
+        else [bg_val] * channels
 
     # Define coordinate system
     coords = np.arange(shape[0]), np.arange(shape[1])
@@ -34,7 +36,7 @@ def elastic_transform_2d(image, labels, alpha, sigma, bg_val=0.0):
         im_intrps.append(RegularGridInterpolator(coords, image[..., i],
                                                  method="linear",
                                                  bounds_error=False,
-                                                 fill_value=bg_val,
+                                                 fill_value=bg_val[i],
                                                  dtype=np.float32))
 
     # Get random elastic deformations
@@ -88,6 +90,8 @@ def elastic_transform_3d(image, labels, alpha, sigma, bg_val=0.0):
     shape = image.shape[:3]
     channels = image.shape[-1]
     dtype = image.dtype
+    bg_val = bg_val if isinstance(bg_val, (list, tuple, np.ndarray)) \
+        else [bg_val] * channels
 
     # Define coordinate system
     coords = np.arange(shape[0]), np.arange(shape[1]), np.arange(shape[2])
@@ -98,7 +102,7 @@ def elastic_transform_3d(image, labels, alpha, sigma, bg_val=0.0):
         im_intrps.append(RegularGridInterpolator(coords, image[..., i],
                                                  method="linear",
                                                  bounds_error=False,
-                                                 fill_value=bg_val,
+                                                 fill_value=bg_val[i],
                                                  dtype=np.float32))
 
     # Get random elastic deformations
