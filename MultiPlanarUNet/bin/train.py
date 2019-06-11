@@ -4,8 +4,10 @@ import os
 
 
 def get_argparser():
-    parser = ArgumentParser(description='Fit a MultiPlanarUNet model defined in a project folder. '
-                                        'Invoke "init_project" to start a new project.')
+    parser = ArgumentParser(description='Fit a MultiPlanarUNet model defined '
+                                        'in a project folder. '
+                                        'Invoke "init_project" to start a '
+                                        'new project.')
     parser.add_argument("--project_dir", type=str, default="./",
                         help='path to MultiPlanarUNet project folder')
     parser.add_argument("--num_GPUs", type=int, default=1,
@@ -14,7 +16,8 @@ def get_argparser():
     parser.add_argument("--continue_training", action="store_true",
                         help="Continue the last training session")
     parser.add_argument("--overwrite", action='store_true',
-                        help='overwrite previous training session in the project path')
+                        help='overwrite previous training session in the '
+                             'project path')
     parser.add_argument("--just_one", action="store_true",
                         help="For testing purposes, run only on the first "
                              "training and validation samples.")
@@ -48,14 +51,12 @@ def validate_path(base_path):
 
 def validate_hparams(hparams):
     # Tests for valid hparams
-
     if hparams["fit"].get("class_weights"):
         # Only currently supported loss
         assert hparams["fit"]["loss"] in ("WeightedSemanticCCE",
                                           "GeneralizedDiceLoss",
                                           "WeightedCrossEntropyWithLogits",
                                           "FocalLoss")
-
     if hparams["fit"]["loss"] == "WeightedCrossEntropyWithLogits":
         assert bool(hparams["fit"]["class_weights"])
         assert hparams["build"]["out_activation"] == "linear"
@@ -63,8 +64,10 @@ def validate_hparams(hparams):
 
 def run(base_path, gpu_mon, num_GPUs, continue_training, force_GPU, just_one,
         no_val, no_images, debug, wait_for, logger, train_images_per_epoch,
-            val_images_per_epoch, **kwargs):
+        val_images_per_epoch, **kwargs):
+    """
 
+    """
     from MultiPlanarUNet.train import Trainer, YAMLHParams
     from MultiPlanarUNet.models import model_initializer
     from MultiPlanarUNet.preprocessing import get_preprocessing_func
@@ -133,7 +136,7 @@ def run(base_path, gpu_mon, num_GPUs, continue_training, force_GPU, just_one,
                     val_im_per_epoch=val_images_per_epoch,
                     hparams=hparams, no_im=no_images, **hparams["fit"])
 
-    # Save final model weights (usually not used, but maybe....?)
+    # Save final model weights
     if not os.path.exists("%s/model" % base_path):
         os.mkdir("%s/model" % base_path)
     model_path = "%s/model/model_weights.h5" % base_path
