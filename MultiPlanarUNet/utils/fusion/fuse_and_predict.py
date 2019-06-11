@@ -31,7 +31,7 @@ def predict_single(image, model, hparams, verbose=1):
     # Create a ImagePairLoader with only the given file
     from MultiPlanarUNet.image import ImagePairLoader
     image_pair_loader = ImagePairLoader(predict_mode=True,
-                                        single_file_mode=True,
+                                        initialize_empty=True,
                                         no_log=bool(verbose))
     image_pair_loader.add_image(image)
 
