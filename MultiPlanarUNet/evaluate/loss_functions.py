@@ -65,6 +65,13 @@ def sparse_dice_loss(y_true, y_pred, smooth=1):
     return 1.0 - tf.reduce_mean(dice)
 
 
+def sparse_dice_ce_loss(y_true, y_pred, smooth=1, dice_weight=1, ce_weight=1):
+    from tensorflow._api.v1.keras.losses import sparse_categorical_crossentropy
+    dice_loss = sparse_dice_loss(y_true, y_pred, smooth)
+    ce_loss = tf.reduce_mean(sparse_categorical_crossentropy(y_true, y_pred))
+    return dice_weight * dice_loss + ce_weight * ce_loss
+
+
 class ExponentialLogarithmicLoss(object):
     """
     https://link.springer.com/content/pdf/10.1007%2F978-3-030-00931-1_70.pdf
