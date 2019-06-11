@@ -21,7 +21,8 @@ class ImagePairLoader(object):
     """
     def __init__(self, base_dir="./", img_subdir="images",
                  label_subdir="labels", logger=None,
-                 sample_weight=1.0, predict_mode=False, single_file_mode=False,
+                 sample_weight=1.0, predict_mode=False,
+                 initialize_empty=False,
                  no_log=False, **kwargs):
         """
         Initializes the ImagePairLoader object from all .nii files in a folder
@@ -37,8 +38,8 @@ class ImagePairLoader(object):
               the ImagePairLoader also does not immediately load data into mem
 
         If single_file_mode=True, the class is initialized but no images are
-        loaded. Images can be manually added through the add_image, add_images
-        and add_augmented_images methods.
+        loaded. Images can be manually added through the add_image and
+        add_images methods.
 
         Args:
             base_dir:           A path to a directory storing the 'img_subdir'
@@ -51,7 +52,7 @@ class ImagePairLoader(object):
             predict_mode:       Boolean whether labels exist for the images.
                                 If True, the labels are assumed stored in the
                                 label_subdir with names identical to the images
-            single_file_mode:   Boolean, if True do not load any images at init
+            initialize_empty:   Boolean, if True do not load any images at init
                                 This may be useful for manually assigning
                                 individual image files to the object.
             no_log:             Boolean, whether to not log to screen/file
@@ -70,8 +71,8 @@ class ImagePairLoader(object):
         else:
             self.labels_path = None
 
-        # Load images unless single_file_mode is specified
-        if not single_file_mode:
+        # Load images unless initialize_empty is specified
+        if not initialize_empty:
             # Get paths to all images
             self.image_paths = self.get_image_paths()
 
@@ -87,9 +88,9 @@ class ImagePairLoader(object):
         else:
             self.images = []
 
-        if not single_file_mode and not self.image_paths:
+        if not initialize_empty and not self.image_paths:
             raise OSError("No image files found at %s." % self.images_path)
-        if not single_file_mode and not predict_mode and not self.label_paths:
+        if not initialize_empty and not predict_mode and not self.label_paths:
             raise OSError("No label files found at %s." % self.labels_path)
 
         if not no_log:
@@ -303,12 +304,6 @@ class ImagePairLoader(object):
             # Passed as list?
             self.images += list(image_pair_loader)
         return self
-
-    def add_augmented_images(self, aug_loader):
-        """
-        Alias for add_images, see docstring for add_images
-        """
-        return self.add_images(aug_loader)
 
     def get_class_weights(self, as_array=True, return_counts=False, unload=False):
         """

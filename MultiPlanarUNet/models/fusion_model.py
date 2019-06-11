@@ -45,6 +45,8 @@ class FusionLayer(Layer):
 class FusionModel(Model):
     def __init__(self, n_inputs, n_classes, weight="Simple", logger=None,
                  verbose=True):
+        self.n_inputs = n_inputs
+        self.n_classes = n_classes
 
         # Set Logger object
         self.logger = logger or ScreenLogger()

@@ -135,7 +135,7 @@ def entry_func(args=None):
     else:
         predict_mode = not bool(label)
         image_pair_loader = ImagePairLoader(predict_mode=predict_mode,
-                                            single_file_mode=True)
+                                            initialize_empty=True)
         image_pair_loader.add_image(ImagePair(_file, label))
 
     # Put them into a dict and remove from image_pair_loader to gain more control with

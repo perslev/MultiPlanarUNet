@@ -58,7 +58,6 @@ class IsotrophicLiveViewSequence2D(IsotrophicLiveViewSequence):
 
         # Define offsets
         offsets = np.linspace(-bounds, bounds, n_planes)
-
         self.logger("Sampling %i planes from "
                     "offset %.3f to %.3f..." % (n_planes, offsets[0],
                                                 offsets[-1]))
