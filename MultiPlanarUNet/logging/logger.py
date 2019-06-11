@@ -3,6 +3,7 @@ import inspect
 from MultiPlanarUNet.utils.decorators import accepts
 from MultiPlanarUNet.utils import create_folders
 from contextlib import contextmanager
+from threading import Lock
 
 
 class Logger(object):
@@ -33,6 +34,9 @@ class Logger(object):
         self.currently_logging = {}
         self.prefix = "" if log_prefix is None else str(log_prefix)
         self.active_log_file = active_file or "log"
+
+        # For using the logger from multiple threads
+        self.lock = Lock()
 
     def __repr__(self):
         return "<MultiPlanarUNet.logging.Logger object>"
@@ -130,30 +134,22 @@ class Logger(object):
                                                             self.currently_logging[self.active_log_file]))
         self._add_to_log(*args, **kwargs)
 
-    def __call__(self, *args, print_calling_method=None, **kwargs):
+    def __call__(self, *args,
+                 print_calling_method=None,
+                 out_file=None,
+                 **kwargs):
         if not self.enabled:
             return None
-        caller = inspect.stack()[1]
-        caller = "'%s' in '%s'" % (caller[3], caller[1].rpartition("/")[2])
-        self._log(caller, print_calling_method, *args, **kwargs)
+        with self.lock:
+            cur_file = self.active_log_file
+            self.active_log_file = out_file or cur_file
+            caller = inspect.stack()[1]
+            caller = "'%s' in '%s'" % (caller[3], caller[1].rpartition("/")[2])
+            self._log(caller, print_calling_method, *args, **kwargs)
+            self.active_log_file = cur_file
 
     def warn(self, *args, **kwargs):
-        cur_file = self.active_log_file
-        self.active_log_file = "warnings"
-        self.__call__("[WARNING]", *args, print_calling_method=False, **kwargs)
-        self.active_log_file = cur_file
-
-    def __enter__(self):
-        """
-        Context manager
-        Sets logger as global print function within context
-        """
-        __builtins__["print"] = self
-        return self
-
-    def __exit__(self, *args):
-        """
-        Revert to default print function in global scope
-        """
-        __builtins__["print"] = self.print_f
-        return self
+        self.__call__("[WARNING]", *args,
+                      print_calling_method=False,
+                      out_file="warnings",
+                      **kwargs)
