@@ -149,12 +149,8 @@ def prepare_for_multi_view_unet(hparams, just_one=False, no_val=False,
                                 base_path='./'):
 
     # Load the data
-    train_data, val_data, logger, auditor = _base_loader_func(hparams, just_one, no_val, logger, "2d")
-
-    # Dump auditor for testing use
-    import pickle
-    with open(os.path.join(base_path, "auditor.pickle"), "wb") as out_f:
-        pickle.dump(auditor, out_f)
+    train_data, val_data, logger, auditor = _base_loader_func(hparams, just_one,
+                                                              no_val, logger, "2d")
 
     # Load or create a set of views (determined by 'continue_training')
     # This function will add the views to hparams["fit"]["views"] and
