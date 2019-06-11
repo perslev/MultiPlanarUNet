@@ -6,11 +6,8 @@ class Augmenter(object):
     """
     Not yet implemented
     """
-    def __init__(self):
-        pass
-
-    def __call__(self, batch_x, batch_y):
-        pass
+    def __call__(self, batch_x, batch_y, batch_w=None, bg_values=None):
+        raise NotImplemented
 
 
 class Elastic(Augmenter):
