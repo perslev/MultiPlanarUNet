@@ -40,13 +40,16 @@ def init_result_dicts(views, all_images, n_classes):
     results.update({str(v): [np.nan for _ in all_images] for v in views})
     results.update({"MJ": [np.nan for _ in all_images]})
     results = pd.DataFrame(results)
+    results = results.set_index("ID")
 
     # Prepare dictionary of per class results
     inner = {"class": range(1, n_classes)}
     for image_id in all_images:
         inner.update({image_id: [np.nan for _ in range(1, n_classes)]})
+    views = list(views) + ["MJ"]
     pc_results = {str(v): pd.DataFrame(copy.deepcopy(inner)) for v in views}
-    pc_results.update({"MJ": pd.DataFrame(copy.deepcopy(inner))})
+    pc_results = {key: df.set_index("class") for key, df in pc_results.items()}
+    # pc_results.update({"MJ": pd.DataFrame(copy.deepcopy(inner))})
 
     return results, pc_results
 
@@ -67,15 +70,15 @@ def load_result_dicts(csv_dir, views):
         return np.all(path_view_components.round(4) == view.round(4))
 
     csv_dir = os.path.abspath(csv_dir)
-    pc_results = {"MJ": pd.read_csv(csv_dir + "/MJ.csv", index_col=False)}
-    results = pd.read_csv(csv_dir + "/results.csv", index_col=False)
+    pc_results = {"MJ": pd.read_csv(csv_dir + "/MJ.csv", index_col=0)}
+    results = pd.read_csv(csv_dir + "/results.csv", index_col=0)
 
     paths = [p for p in glob(csv_dir + "/*csv")]
     for v in views:
         found_match = False
         for path in paths:
             if match_view_and_file(v, path):
-                pc_results[str(v)] = pd.read_csv(path, index_col=False)
+                pc_results[str(v)] = pd.read_csv(path, index_col=0)
                 found_match = True
         if not found_match:
             raise RuntimeError(
@@ -102,7 +105,7 @@ def results_to_csv(results, res_path, fname=None, transpose=False):
     # Save results
     df = to_df(results, transpose)
     with open(os.path.join(res_path, "%s.csv" % fname), "w") as out_file:
-        out_file.write(df.to_csv(index=False) + "\n")
+        out_file.write(df.to_csv(index=True) + "\n")
 
 
 def results_to_txt(results, res_path, fname=None, transpose=False):

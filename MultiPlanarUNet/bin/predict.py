@@ -5,10 +5,18 @@ Mathias Perslev
 March 2018
 """
 
-import os
-from argparse import ArgumentParser
-import readline
+# Direct import of some MultiPlanarUNet modules, others are loaded when needed
+# in individual functions below
+from MultiPlanarUNet.utils.utils import create_folders, get_best_model, \
+                                        pred_to_class, await_PIDs
+from MultiPlanarUNet.logging.log_results import save_all
+from MultiPlanarUNet.evaluate.metrics import dice_all
 
+from argparse import ArgumentParser
+import os
+import numpy as np
+import nibabel as nib
+import readline
 readline.parse_and_bind('tab: complete')
 
 
@@ -18,23 +26,19 @@ def get_argparser():
                         help='Path to MultiPlanarUNet project folder')
     parser.add_argument("-f", help="Predict on a single file")
     parser.add_argument("-l", help="Optional single label file to use with -f")
-    parser.add_argument("--data_dir", type=str, default=None,
-                        help="Directory storing data. "
-                             "Must contain sub-folder 'images'. Optional, "
-                             "otherwise test data folder from "
-                             "train_parameters.yaml is used.")
+    parser.add_argument("--dataset", type=str, default="test",
+                        help="Which dataset of those stored in the hparams "
+                             "file the evaluation should be performed on. "
+                             "Has no effect if a single file is specified "
+                             "with -f.")
     parser.add_argument("--out_dir", type=str, default="predictions",
                         help="Output folder to store results")
     parser.add_argument("--num_GPUs", type=int, default=1,
                         help="Number of GPUs to use for this job")
-    parser.add_argument("--analytical", action='store_true',
-                        help="Use analytically derived fusion weights "
-                             "over fusion layer approach "
-                             "(for backwards compatibility)")
-    parser.add_argument("--majority", action="store_true",
-                        help="No fusion model, sum softmax probabilities into"
-                             " one volume and argmax in the end. Exclusive "
-                             "with --analytical.")
+    parser.add_argument("--sum_fusion", action="store_true",
+                        help="Fuse the mutliple segmentation volumes into one"
+                             " by summing over the probability axis instead "
+                             "of applying a learned fusion model.")
     parser.add_argument("--overwrite", action='store_true',
                         help='Overwrite previous results at the output folder')
     parser.add_argument("--no_eval", action="store_true",
@@ -63,7 +67,6 @@ def get_argparser():
 
 
 def validate_folders(base_dir, out_dir, overwrite, _continue):
-
     # Check base (model) dir contains required files
     must_exist = ("train_hparams.yaml", "views.npz",
                   "model")
@@ -85,31 +88,25 @@ def validate_folders(base_dir, out_dir, overwrite, _continue):
         os.mkdir(out_dir)
 
 
-def save_nii_files(combined, image, nii_res_dir, save_input_files):
-    from MultiPlanarUNet.utils import create_folders
-    import nibabel as nib
-    import os
-
+def save_nii_files(merged, image_pair, nii_res_dir, save_input_files):
     # Extract data if nii files
     try:
-        combined = combined.get_data()
+        merged = merged.get_data()
     except AttributeError:
-        combined = nib.Nifti1Image(combined, affine=image.affine)
-
-    volumes = [combined, image.image_obj, image.labels_obj]
-    labels = ["%s_PRED.nii.gz" % image.id, "%s_IMAGE.nii.gz" % image.id,
-              "%s_LABELS.nii.gz" % image.id]
-
+        merged = nib.Nifti1Image(merged, affine=image_pair.affine)
+    volumes = [merged, image_pair.image_obj, image_pair.labels_obj]
+    labels = ["%s_PRED.nii.gz" % image_pair.id,
+              "%s_IMAGE.nii.gz" % image_pair.id,
+              "%s_LABELS.nii.gz" % image_pair.id]
     if not save_input_files:
         volumes = volumes[:1]
         labels = labels[:1]
         p = os.path.abspath(nii_res_dir)  # Save file directly in nii_res_dir
     else:
         # Create sub-folder under nii_res_dir
-        p = os.path.join(nii_res_dir, image.id)
+        p = os.path.join(nii_res_dir, image_pair.id)
     create_folders(p)
 
-    # Save
     for nii, fname in zip(volumes, labels):
         try:
             nib.save(nii, "%s/%s" % (p, fname))
@@ -121,293 +118,354 @@ def save_nii_files(combined, image, nii_res_dir, save_input_files):
 def remove_already_predicted(all_images, out_dir):
     nii_dir = os.path.join(out_dir, "nii_files")
     already_pred = [i.replace("_PRED", "").split(".")[0]
-                    for i in os.listdir(nii_dir)]
+                    for i in filter(None, os.listdir(nii_dir))]
     print("[OBS] Not predicting on images: {} "
           "(--continue mode)".format(already_pred))
     return {k: v for k, v in all_images.items() if k not in already_pred}
 
 
-def entry_func(args=None):
-
-    # Get command line arguments
-    args = vars(get_argparser().parse_args(args))
-    base_dir = os.path.abspath(args["project_dir"])
-    analytical = args["analytical"]
-    majority = args["majority"]
-    _file = args["f"]
-    label = args["l"]
-    await_PID = args["wait_for"]
-    eval_prob = args["eval_prob"]
-    _continue = args["continue"]
-    if analytical and majority:
-        raise ValueError("Cannot specify both --analytical and --majority.")
-
-    # Get settings from YAML file
+def load_hparams(base_dir):
     from MultiPlanarUNet.train.hparams import YAMLHParams
-    hparams = YAMLHParams(os.path.join(base_dir, "train_hparams.yaml"))
+    return YAMLHParams(os.path.join(base_dir, "train_hparams.yaml"))
 
-    if not _file:
-        try:
-            # Data specified from command line?
-            data_dir = os.path.abspath(args["data_dir"])
 
-            # Set with default sub dirs
-            hparams["test_data"] = {"base_dir": data_dir,
-                                    "img_subdir": "images",
-                                    "label_subdir": "labels"}
-        except (AttributeError, TypeError):
-            data_dir = hparams["test_data"]["base_dir"]
+def set_test_set(hparams, dataset):
+    hparams['test_dataset'] = hparams[dataset.strip("_dataset") + "_dataset"]
+
+
+def set_gpu_vis(args):
+    force_gpu = args.force_GPU
+    if not force_gpu:
+        # Wait for free GPU
+        from MultiPlanarUNet.utils import await_and_set_free_gpu
+        await_and_set_free_gpu(N=args.num_GPUs, sleep_seconds=120)
+        num_GPUs = args.num_GPUs
     else:
-        data_dir = False
-    out_dir = os.path.abspath(args["out_dir"])
-    overwrite = args["overwrite"]
-    predict_mode = args["no_eval"]
-    save_input_files = args["save_input_files"]
-    no_argmax = args["no_argmax"]
-    on_val = args["on_val"]
+        from MultiPlanarUNet.utils import set_gpu
+        set_gpu(force_gpu)
+        num_GPUs = len(force_gpu.split(","))
+    return num_GPUs
 
-    # Check if valid dir structures
-    validate_folders(base_dir, out_dir, overwrite, _continue)
 
-    # Import all needed modules (folder is valid at this point)
-    import numpy as np
+def get_image_pair_loader(args, hparams, out_dir):
     from MultiPlanarUNet.image import ImagePairLoader, ImagePair
-    from MultiPlanarUNet.models import FusionModel
-    from MultiPlanarUNet.models.model_init import init_model
-    from MultiPlanarUNet.utils import await_and_set_free_gpu, get_best_model, \
-                                    create_folders, pred_to_class, set_gpu
+    if not args.f:
+        # No single file was specified with -f flag, load the desired dataset
+        dataset = args.dataset.replace("_data", "") + "_data"
+        image_pair_loader = ImagePairLoader(predict_mode=args.no_eval,
+                                            **hparams[dataset])
+    else:
+        predict_mode = not bool(args.l)
+        image_pair_loader = ImagePairLoader(predict_mode=predict_mode,
+                                            initialize_empty=True)
+        image_pair_loader.add_image(ImagePair(args.f, args.l))
+
+    # Put image pairs into a dict and remove from image_pair_loader to gain
+    # more control with garbage collection
+    image_pair_dict = {image.id: image for image in image_pair_loader.images}
+    image_pair_loader.images = None
+    if vars(args)["continue"]:
+        # Remove images that were already predicted
+        image_pair_dict = remove_already_predicted(image_pair_dict, out_dir)
+    return image_pair_loader, image_pair_dict
+
+
+def get_results_dicts(out_dir, views, image_pairs_dict, n_classes, _continue):
     from MultiPlanarUNet.logging import init_result_dicts, save_all, load_result_dicts
-    from MultiPlanarUNet.evaluate import dice_all
+    if _continue:
+        csv_dir = os.path.join(out_dir, "csv")
+        results, detailed_res = load_result_dicts(csv_dir=csv_dir, views=views)
+    else:
+        # Prepare dictionary to store results in pd df
+        results, detailed_res = init_result_dicts(views, image_pairs_dict, n_classes)
+    # Save to check correct format
+    save_all(results, detailed_res, out_dir)
+    return results, detailed_res
+
+
+def get_model(project_dir, num_GPUs, build_hparams):
+    from MultiPlanarUNet.models.model_init import init_model
+    model_path = get_best_model(project_dir + "/model")
+    weights_name = os.path.splitext(os.path.split(model_path)[1])[0]
+    print("\n[*] Loading model weights:\n", model_path)
+    model = init_model(build_hparams)
+    model.load_weights(model_path, by_name=True)
+    if num_GPUs > 1:
+        print("[*] Creating multi-GPU model... (N={})".format(num_GPUs))
+        from tensorflow.keras.utils import multi_gpu_model
+        # n_classes = model.n_classes
+        model = multi_gpu_model(model, gpus=num_GPUs)
+        # model.n_classes = n_classes
+    return model, weights_name
+
+
+def get_fusion_model(n_views, n_classes, project_dir, weights_name, num_GPUs):
+    from MultiPlanarUNet.models import FusionModel
+    fm = FusionModel(n_inputs=n_views, n_classes=n_classes)
+    # Load fusion weights
+    weights = project_dir + "/model/fusion_weights/%s_fusion_" \
+                            "weights.h5" % weights_name
+    print("\n[*] Loading fusion model weights:\n", weights)
+    fm.load_weights(weights)
+    print("\nLoaded weights:\n\n%s\n%s\n---" % tuple(
+        fm.layers[-1].get_weights()))
+
+    # Multi-gpu?
+    if num_GPUs > 1:
+        from tensorflow.keras.utils import multi_gpu_model
+        print("Creating multi-GPU fusion model (N={})".format(num_GPUs))
+        fm = multi_gpu_model(fm, gpus=num_GPUs)
+    return fm
+
+
+def evaluate(pred, true, n_classes, ignore_zero=False):
+    pred = pred_to_class(pred, img_dims=3, has_batch_dim=False)
+    return dice_all(y_true=true,
+                    y_pred=pred,
+                    ignore_zero=ignore_zero,
+                    n_classes=n_classes,
+                    skip_if_no_y=False)
+
+
+def _per_view_evaluation(image_id, pred, true, mapped_pred, mapped_true, view,
+                         n_classes, results, per_view_results, out_dir, args):
+    if np.random.rand() > args.eval_prob:
+        print("Skipping evaluation for view %s... "
+              "(eval_prob=%.3f)" % (view, args.eval_prob))
+        return
+
+    # Evaluate the raw view performance
+    view_dices = evaluate(pred, true, n_classes)
+    mapped_dices = evaluate(mapped_pred, mapped_true, n_classes)
+    mean_dice = mapped_dices[~np.isnan(mapped_dices)][1:].mean()
+
+    # Print dice scores
+    print("View dice scores:   ", view_dices)
+    print("Mapped dice scores: ", mapped_dices)
+    print("Mean dice (n=%i): " % (len(mapped_dices) - 1), mean_dice)
+
+    # Add to results
+    results.loc[image_id, str(view)] = mean_dice
+    per_view_results[str(view)][image_id] = mapped_dices[1:]
+
+    # Overwrite with so-far results
+    save_all(results, per_view_results, out_dir)
+
+
+def _merged_eval(image_id, pred, true, n_classes, results,
+                 per_view_results, out_dir):
+    # Calculate combined prediction dice
+    dices = evaluate(pred, true, n_classes, ignore_zero=True)
+    mean_dice = dices[~np.isnan(dices)].mean()
+    per_view_results["MJ"][image_id] = dices
+
+    print("Combined dices: ", dices)
+    print("Combined mean dice: ", mean_dice)
+    results.loc[image_id, "MJ"] = mean_dice
+
+    # Overwrite with so-far results
+    save_all(results, per_view_results, out_dir)
+
+
+def _multi_view_predict_on(image_pair, image_pair_loader, model,
+                           views, hparams, results, per_view_results,
+                           out_dir, args):
     from MultiPlanarUNet.utils.fusion import predict_volume, map_real_space_pred
     from MultiPlanarUNet.interpolation.sample_grid import get_voxel_grid_real_space
 
-    # Wait for PID?
-    if await_PID:
-        from MultiPlanarUNet.utils import await_PIDs
-        await_PIDs(await_PID)
-
-    # Set GPU device
-    # Fetch GPU(s)
-    num_GPUs = args["num_GPUs"]
-    force_gpu = args["force_GPU"]
-    # Wait for free GPU
-    if not force_gpu:
-        await_and_set_free_gpu(N=num_GPUs, sleep_seconds=120)
-        num_GPUs = 1
-    else:
-        set_gpu(force_gpu)
-        num_GPUs = len(force_gpu.split(","))
-
-    # Read settings from the project hyperparameter file
+    # Set image_pair_loader object with only the given file
+    image_pair_loader.images = [image_pair]
     n_classes = hparams["build"]["n_classes"]
 
-    # Get views
-    views = np.load("%s/views.npz" % base_dir)["arr_0"]
+    # Load views
+    kwargs = hparams["fit"]
+    kwargs.update(hparams["build"])
+    seq = image_pair_loader.get_sequencer(views=views, **kwargs)
 
-    # Force settings
-    hparams["fit"]["max_background"] = 1
-    hparams["fit"]["test_mode"] = True
-    hparams["fit"]["mix_planes"] = False
-    hparams["fit"]["live_intrp"] = False
-    if "use_bounds" in hparams["fit"]:
-        del hparams["fit"]["use_bounds"]
-    del hparams["fit"]["views"]
+    # Get voxel grid in real space
+    voxel_grid_real_space = get_voxel_grid_real_space(image_pair)
 
-    if hparams["build"]["out_activation"] == "linear":
-        # Trained with logit targets?
-        hparams["build"]["out_activation"] = "softmax" if n_classes > 1 else "sigmoid"
+    # Prepare tensor to store combined prediction
+    d = image_pair.image.shape[:-1]
+    combined = np.empty(
+        shape=(len(views), d[0], d[1], d[2], n_classes),
+        dtype=np.float32
+    )
+    print("Predicting on brain hyper-volume of shape:", combined.shape)
 
-    # Set ImagePairLoader object
-    if not _file:
-        data = "test_data" if not on_val else "val_data"
-        image_pair_loader = ImagePairLoader(predict_mode=predict_mode, **hparams[data])
+    # Predict for each view
+    for n_view, view in enumerate(views):
+        print("\n[*] (%i/%i) View: %s" % (n_view + 1, len(views), view))
+        # for each view, predict on all voxels and map the predictions
+        # back into the original coordinate system
+
+        # Sample planes from the image at grid_real_space grid
+        # in real space (scanner RAS) coordinates.
+        X, y, grid, inv_basis = seq.get_view_from(image_pair.id, view,
+                                                  n_planes="same+20")
+
+        # Predict on volume using model
+        pred = predict_volume(model, X, axis=2, batch_size=seq.batch_size)
+
+        # Map the real space coordiante predictions to nearest
+        # real space coordinates defined on voxel grid
+        mapped_pred = map_real_space_pred(pred, grid, inv_basis,
+                                          voxel_grid_real_space,
+                                          method="nearest")
+        combined[n_view] = mapped_pred
+
+        if not args.no_eval:
+            _per_view_evaluation(image_id=image_pair.id,
+                                 pred=pred,
+                                 true=y,
+                                 mapped_pred=mapped_pred,
+                                 mapped_true=image_pair.labels,
+                                 view=view,
+                                 n_classes=n_classes,
+                                 results=results,
+                                 per_view_results=per_view_results,
+                                 out_dir=out_dir,
+                                 args=args)
+    return combined
+
+
+def merge_multi_view_preds(multi_view_preds, fusion_model, args):
+    fm = fusion_model
+    if not args.sum_fusion:
+        # Combine predictions across views using Fusion model
+        print("\nFusing views (fusion model)...")
+        d = multi_view_preds.shape
+        multi_view_preds = np.moveaxis(multi_view_preds, 0, -2)
+        multi_view_preds = multi_view_preds.reshape((-1, fm.n_inputs, fm.n_classes))
+        merged = fm.predict(multi_view_preds, batch_size=10**4, verbose=1)
+        merged = merged.reshape((d[1], d[2], d[3], fm.n_classes))
     else:
-        predict_mode = not bool(label)
-        image_pair_loader = ImagePairLoader(predict_mode=predict_mode,
-                                            single_file_mode=True)
-        image_pair_loader.add_image(ImagePair(_file, label))
+        print("\nFusion views (sum)...")
+        merged = np.sum(multi_view_preds, axis=0)
+    merged_map = pred_to_class(merged.squeeze(), img_dims=3).astype(np.uint8)
+    return merged, merged_map
 
-    # Put them into a dict and remove from image_pair_loader to gain more control with
-    # garbage collection
-    all_images = {image.id: image for image in image_pair_loader.images}
-    image_pair_loader.images = None
-    if _continue:
-        all_images = remove_already_predicted(all_images, out_dir)
 
-    # Evaluate?
-    if not predict_mode:
-        if _continue:
-            csv_dir = os.path.join(out_dir, "csv")
-            results, detailed_res = load_result_dicts(csv_dir=csv_dir,
-                                                      views=views)
-        else:
-            # Prepare dictionary to store results in pd df
-            results, detailed_res = init_result_dicts(views, all_images, n_classes)
-
-        # Save to check correct format
-        save_all(results, detailed_res, out_dir)
-
-    # Define result paths
-    nii_res_dir = os.path.join(out_dir, "nii_files")
-    create_folders(nii_res_dir)
-
-    """ Define UNet model """
-    model_path = get_best_model(base_dir + "/model")
-    unet = init_model(hparams["build"])
-    unet.load_weights(model_path, by_name=True)
-
-    if num_GPUs > 1:
-        from tensorflow.keras.utils import multi_gpu_model
-        n_classes = unet.n_classes
-        unet = multi_gpu_model(unet, gpus=num_GPUs)
-        unet.n_classes = n_classes
-
-    weights_name = os.path.splitext(os.path.split(model_path)[1])[0]
-    if not analytical and not majority:
-        # Get Fusion model
-        fm = FusionModel(n_inputs=len(views), n_classes=n_classes)
-
-        weights = base_dir + "/model/fusion_weights/%s_fusion_weights.h5" % weights_name
-        print("\n[*] Loading weights:\n", weights)
-
-        # Load fusion weights
-        fm.load_weights(weights)
-        print("\nLoaded weights:\n\n%s\n%s\n---" % tuple(fm.layers[-1].get_weights()))
-
-        # Multi-gpu?
-        if num_GPUs > 1:
-            print("Using multi-GPU model (%i GPUs)" % num_GPUs)
-            fm = multi_gpu_model(fm, gpus=num_GPUs)
-
-    """
-    Finally predict on the images
-    """
-    image_ids = sorted(all_images)
-    N_images = len(image_ids)
+def run_predictions_and_eval(image_pair_loader, image_pair_dict, model,
+                             fusion_model, views, hparams, args, results,
+                             per_view_results, out_dir, nii_res_dir):
+    image_ids = sorted(image_pair_dict)
+    n_images = len(image_ids)
     for n_image, image_id in enumerate(image_ids):
-        print("\n[*] (%i/%s) Running on: %s" % (n_image+1, N_images, image_id))
+        print("\n[*] (%i/%s) Running on: %s" % (n_image + 1, n_images, image_id))
+        image_pair = image_pair_dict[image_id]
 
-        # Set image_pair_loader object with only the given file
-        image = all_images[image_id]
-        image_pair_loader.images = [image]
+        # Get prediction through all views
+        multi_view_preds = _multi_view_predict_on(
+            image_pair=image_pair,
+            image_pair_loader=image_pair_loader,
+            model=model,
+            views=views,
+            hparams=hparams,
+            results=results,
+            per_view_results=per_view_results,
+            out_dir=out_dir,
+            args=args
+        )
 
-        # Load views
-        kwargs = hparams["fit"]
-        kwargs.update(hparams["build"])
-        seq = image_pair_loader.get_sequencer(views=views, **kwargs)
-
-        # Get voxel grid in real space
-        voxel_grid_real_space = get_voxel_grid_real_space(image)
-
-        # Prepare tensor to store combined prediction
-        d = image.image.shape[:-1]
-        if not majority:
-            combined = np.empty(shape=(len(views), d[0], d[1], d[2], n_classes),
-                                dtype=np.float32)
-        else:
-            combined = np.empty(shape=(d[0], d[1], d[2], n_classes), dtype=np.float32)
-        print("Predicting on brain hyper-volume of shape:", combined.shape)
-
-        # Predict for each view
-        for n_view, v in enumerate(views):
-            print("\n[*] (%i/%i) View: %s" % (n_view+1, len(views), v))
-            # for each view, predict on all voxels and map the predictions
-            # back into the original coordinate system
-
-            # Sample planes from the image at grid_real_space grid
-            # in real space (scanner RAS) coordinates.
-            X, y, grid, inv_basis = seq.get_view_from(image.id, v,
-                                                      n_planes="same+20")
-
-            # Predict on volume using model
-            pred = predict_volume(unet, X, axis=2, batch_size=seq.batch_size)
-
-            # Map the real space coordiante predictions to nearest
-            # real space coordinates defined on voxel grid
-            mapped_pred = map_real_space_pred(pred, grid, inv_basis,
-                                              voxel_grid_real_space,
-                                              method="nearest")
-            if not majority:
-                combined[n_view] = mapped_pred
-            else:
-                combined += mapped_pred
-
-            if n_classes == 1:
-                # Set to background if outside pred domain
-                combined[n_view][np.isnan(combined[n_view])] = 0.
-
-            if not predict_mode and np.random.rand() <= eval_prob:
-                view_dices = dice_all(y, pred_to_class(pred, img_dims=3,
-                                                       has_batch_dim=False),
-                                      ignore_zero=False, n_classes=n_classes,
-                                      skip_if_no_y=False)
-                mapped_dices = dice_all(image.labels,
-                                        pred_to_class(mapped_pred, img_dims=3,
-                                                      has_batch_dim=False),
-                                        ignore_zero=False, n_classes=n_classes,
-                                        skip_if_no_y=False)
-                mean_dice = mapped_dices[~np.isnan(mapped_dices)][1:].mean()
-
-                # Print dice scores
-                print("View dice scores:   ", view_dices)
-                print("Mapped dice scores: ", mapped_dices)
-                print("Mean dice (n=%i): " % (len(mapped_dices)-1), mean_dice)
-
-                # Add to results
-                results.loc[image_id, str(v)] = mean_dice
-                detailed_res[str(v)][image_id] = mapped_dices[1:]
-
-                # Overwrite with so-far results
-                save_all(results, detailed_res, out_dir)
-            else:
-                print("Skipping evaluation for this view... "
-                      "(eval_prob=%.3f, predict_mode=%s)" % (eval_prob,
-                                                             predict_mode))
-
-        if not analytical and not majority:
-            # Combine predictions across views using Fusion model
-            print("\nFusing views...")
-            combined = np.moveaxis(combined, 0, -2).reshape((-1, len(views), n_classes))
-            combined = fm.predict(combined, batch_size=10**4, verbose=1).reshape((d[0], d[1], d[2], n_classes))
-        elif analytical:
-            print("\nFusing views (analytical)...")
-            combined = np.sum(combined, axis=0)
-
-        if not no_argmax:
-            print("\nComputing majority vote...")
-            combined = pred_to_class(combined.squeeze(), img_dims=3).astype(np.uint8)
-
-        if not predict_mode:
-            if no_argmax:
-                # MAP only for dice calculation
-                c_temp = pred_to_class(combined, img_dims=3).astype(np.uint8)
-            else:
-                c_temp = combined
-
-            # Calculate combined prediction dice
-            dices = dice_all(image.labels, c_temp, n_classes=n_classes,
-                             ignore_zero=True, skip_if_no_y=False)
-            mean_dice = dices[~np.isnan(dices)].mean()
-            detailed_res["MJ"][image_id] = dices
-
-            print("Combined dices: ", dices)
-            print("Combined mean dice: ", mean_dice)
-            results.loc[image_id, "MJ"] = mean_dice
-
-            # Overwrite with so-far results
-            save_all(results, detailed_res, out_dir)
+        # Merge the multi view predictions into a final segmentation
+        merged, merged_map = merge_multi_view_preds(multi_view_preds,
+                                                    fusion_model, args)
+        if not args.no_eval:
+            _merged_eval(
+                image_id=image_id,
+                pred=merged_map,
+                true=image_pair.labels,
+                n_classes=hparams["build"]["n_classes"],
+                results=results,
+                per_view_results=per_view_results,
+                out_dir=out_dir
+            )
 
         # Save combined prediction volume as .nii file
         print("Saving .nii files...")
-        save_nii_files(combined, image, nii_res_dir, save_input_files)
+        save_nii_files(merged=merged_map if not args.no_argmax else merged,
+                       image_pair=image_pair,
+                       nii_res_dir=nii_res_dir,
+                       save_input_files=args.save_input_files)
 
         # Remove image from dictionary and image_pair_loader to free memory
-        del all_images[image_id]
-        image_pair_loader.images.remove(image)
+        del image_pair_dict[image_id]
+        image_pair_loader.images = []
 
-    if not predict_mode:
+
+def assert_args(args):
+    pass
+
+
+def entry_func(args=None):
+    # Get command line arguments
+    args = get_argparser().parse_args(args)
+    assert_args(args)
+
+    # Get most important paths
+    project_dir = os.path.abspath(args.project_dir)
+    out_dir = os.path.abspath(args.out_dir)
+    nii_res_dir = os.path.join(out_dir, "nii_files")
+    create_folders(nii_res_dir, create_deep=True)
+
+    # Check if valid dir structures
+    validate_folders(project_dir, out_dir,
+                     overwrite=args.overwrite,
+                     _continue=vars(args)["continue"])
+
+    # Get settings from YAML file
+    hparams = load_hparams(project_dir)
+
+    # Get dataset
+    image_pair_loader, image_pair_dict = get_image_pair_loader(args, hparams,
+                                                               out_dir)
+
+    # Wait for PID to terminate before continuing, if specified
+    if args.wait_for:
+        await_PIDs(args.wait_for, check_every=120)
+
+    # Set GPU device
+    num_GPUs = set_gpu_vis(args)
+
+    # Get views
+    views = np.load("%s/views.npz" % project_dir)["arr_0"]
+    del hparams['fit']['views']
+
+    # Prepare result dicts
+    results, per_view_results = None, None
+    if not args.no_eval:
+        results, per_view_results = get_results_dicts(out_dir, views,
+                                                      image_pair_dict,
+                                                      hparams["build"]["n_classes"],
+                                                      vars(args)["continue"])
+
+    # Get model and load weights, assign to one or more GPUs
+    model, weights_name = get_model(project_dir, num_GPUs, hparams['build'])
+    fusion_model = None
+    if not args.sum_fusion:
+        fusion_model = get_fusion_model(n_views=len(views),
+                                        n_classes=hparams["build"]["n_classes"],
+                                        project_dir=project_dir,
+                                        weights_name=weights_name,
+                                        num_GPUs=num_GPUs)
+
+    run_predictions_and_eval(
+        image_pair_loader=image_pair_loader,
+        image_pair_dict=image_pair_dict,
+        model=model,
+        fusion_model=fusion_model,
+        views=views,
+        hparams=hparams,
+        args=args,
+        results=results,
+        per_view_results=per_view_results,
+        out_dir=out_dir,
+        nii_res_dir=nii_res_dir
+    )
+    if not args.no_eval:
         # Write final results
-        save_all(results, detailed_res, out_dir)
+        save_all(results, per_view_results, out_dir)
 
 
 if __name__ == "__main__":

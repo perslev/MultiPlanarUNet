@@ -67,3 +67,10 @@ History
   generally limited to a maximum of 7 threads; The cv_experiment script now correctly
   handles using the 'mp' script entry point in the 'script' file (before full paths 
   to the given script had to be passed to the python interpreter)
+
+0.2.2 (2019-06-17)
+------------------
+* Process has started to re-factor/re-write scripts in the bin module to make
+  them clearer, remove deprecated command-line arguments etc.
+* Evaluation results as stored in .csv files are now always saved and loaded
+  with an index column as the first column of the file.
