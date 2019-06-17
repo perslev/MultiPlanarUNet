@@ -17,9 +17,9 @@ aug_data: &AUGDATA
   # Set this to True to include augmented images in the folders described below
   include: False
 
-  base_dir: Null,
-  img_subdir: images,
-  label_subdir: labels,
+  base_dir: Null
+  img_subdir: images
+  label_subdir: labels
   sample_weight: 0.33
 
 task_specifics:

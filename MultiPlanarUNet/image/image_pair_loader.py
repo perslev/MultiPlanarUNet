@@ -65,7 +65,7 @@ class ImagePairLoader(object):
         self.images_path = os.path.join(self.data_dir, img_subdir)
 
         # Labels included?
-        self.predict_mode = predict_mode
+        self.predict_mode = predict_mode or not label_subdir
         if not predict_mode:
             self.labels_path = os.path.join(self.data_dir, label_subdir)
         else:

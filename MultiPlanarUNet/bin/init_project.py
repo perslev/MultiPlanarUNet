@@ -5,21 +5,15 @@ from MultiPlanarUNet.train import YAMLHParams
 
 def copy_yaml_and_set_data_dirs(in_path, out_path, data_dir):
     hparams = YAMLHParams(in_path, no_log=True)
-    train = data_dir + "/train" if data_dir else "Null"
-    val = data_dir + "/val" if data_dir else "Null"
-    test = data_dir + "/test" if data_dir else "Null"
-    aug = data_dir + "/aug" if data_dir else "Null"
     dir_name = "base_dir" if "base_dir" in hparams["train_data"] else "data_dir"
 
     # Set values in parameter file and save to new location
-    hparams.set_value("train_data", dir_name, train,
-                      overwrite=True, err_on_missing_dir=True)
-    hparams.set_value("val_data", dir_name, val,
-                      overwrite=True, err_on_missing_dir=False)
-    hparams.set_value("test_data", dir_name, test,
-                      overwrite=True, err_on_missing_dir=False)
-    hparams.set_value("aug_data", dir_name, aug,
-                      overwrite=True, err_on_missing_dir=False)
+    data_ids = ("train", "val", "test", "aug")
+    for dataset in data_ids:
+        path = (data_dir + "/{}".format(dataset)) if data_dir else "Null"
+        dataset = dataset + "_data"
+        if not hparams.get(dataset) or not hparams[dataset].get("base_dir"):
+            hparams.set_value(dataset, dir_name, path, True, True)
     hparams.save_current(out_path)
 
 

@@ -2,6 +2,10 @@ import sklearn.preprocessing as preprocessing
 import numpy as np
 
 
+def assert_scaler(scaler):
+    return scaler in preprocessing.__dict__
+
+
 def get_scaler(scaler, *args, ignore_less_eq=None, **kwargs):
     scaler = preprocessing.__dict__[scaler]
     return MultiChannelScaler(scaler=scaler,
@@ -9,10 +13,9 @@ def get_scaler(scaler, *args, ignore_less_eq=None, **kwargs):
                               *args, **kwargs)
 
 
-def apply_scaling(X, scaler):
-
+def apply_scaling(X, scaler, ignore_less_eq=None):
     # Get scaler
-    multi_scaler = get_scaler(scaler)
+    multi_scaler = get_scaler(scaler, ignore_less_eq=ignore_less_eq)
 
     # Fit and apply transformation
     return multi_scaler.fit_transform(X)
