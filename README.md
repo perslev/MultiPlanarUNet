@@ -115,18 +115,25 @@ annotated images must be stored in a folder under the following structure:
 ```
 
 The names of these folders may be customized in the parameter file (see below), 
-but default to those shown above.
-
-All images must be stored in the ``.nii``/```.nii.gz``` format. The image and 
-corresponding label map files must be identically named.
+but default to those shown above. The image and corresponding label map files 
+must be identically named.
 
 The ```aug``` folder may store additional images that can be included during 
 training with a lower weight assigned in optimization.
 
-**NOTE:** It is important that the .nii files store correct affines for mapping
+**File formatting:** All images must be stored in the ``.nii``/```.nii.gz``` format. 
+It is important that the .nii files store correct 4x4 affines for mapping
 voxel coordinates to the scanner space. Specifically, the framework needs to
-know the voxel size along all three image dimensions in order to sample 
-isotrophic images in the scanner space.
+know the voxel size and axis orientations in order to sample isotrophic images 
+in the scanner space.
+
+Images should be arrays of dimension 4 with the first 3 corresponding to the 
+image dimensions and the last the channels dimension (e.g. [256, 256, 256, 3] 
+for a 256x256x256 image with 3 channels). Label maps should be identically 
+shaped in the first 3 dimensions and have a single channel 
+(e.g. [256, 256, 256, 1]). The label at a given voxel should be an integer 
+representing the class at the given position. The background class is normally 
+denoted '0'.
 
 **Initializing a Project**\
 Once the data is stored under the above folder structure, a Multi-Planar 
