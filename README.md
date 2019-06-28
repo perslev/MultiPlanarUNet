@@ -1,5 +1,12 @@
 # Multi-Planar UNet
 
+Implementation of the Multi-Planar UNet as described in: 
+
+Mathias Perslev, Erik Dam, Akshay Pai, and Christian Igel. One Network To 
+Segment Them All: A General, Lightweight System for Accurate 3D Medical Image
+Segmentation. In: *Medical Image Computing and Computer Assisted Intervention 
+(MICCAI), accepted*
+
 ## Quick Start
 **Installation**
 
@@ -53,7 +60,7 @@ get started. It may also serve as a strong baseline method for general purpose
 semantic segmentation of medical images.
 
 ## Method
-The base model is a just slightly modified 2D UNet (https://arxiv.org/abs/1505.04597) 
+The base model is a slightly modified 2D UNet (https://arxiv.org/abs/1505.04597) 
 trained under a multi-planar framework. Specifically, the 2D model is
 fed images sampled across multiple views onto the image volume simultaneously:
 
@@ -65,8 +72,7 @@ each class from each view individually to maximuse the performance.
 
 ![](resources/multi_planar_model.png)
 
-The method is described in detail below.
-https://1drv.ms/b/s!AhgI3jIn2dNrhcp8yLYv0_EsC97u9A
+![](resources/multi_planar_augmentation.png)
 
 ## Usage
 
