@@ -80,7 +80,7 @@ class IsotrophicLiveViewSequence2D(IsotrophicLiveViewSequence):
                                                            image.scaler, kwargs)
             return im, lab, real_axis, inv_basis, ind
 
-        # Perform interpolation async.
+        # Perform interpolation
         inds = np.arange(offsets.shape[0])
         result = pool.map(_do, offsets, inds)
 

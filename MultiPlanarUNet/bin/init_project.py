@@ -1,14 +1,16 @@
 from argparse import ArgumentParser
 import os
-from MultiPlanarUNet.train import YAMLHParams
 
 
 def copy_yaml_and_set_data_dirs(in_path, out_path, data_dir):
-    hparams = YAMLHParams(in_path, no_log=True)
+    from MultiPlanarUNet.train.hparams import YAMLHParams
+    hparams = YAMLHParams(in_path, no_log=True, no_version_control=True)
     dir_name = "base_dir" if "base_dir" in hparams["train_data"] else "data_dir"
 
     # Set values in parameter file and save to new location
-    data_ids = ("train", "val", "test", "aug")
+    data_ids = ("train", "val", "test") + (("aug",)
+                                           if hparams.get("aug_data")
+                                           else ())
     for dataset in data_ids:
         path = (data_dir + "/{}".format(dataset)) if data_dir else "Null"
         dataset = dataset + "_data"
@@ -25,6 +27,8 @@ def get_parser():
     required = parser.add_argument_group('required named arguments')
     optional = parser.add_argument_group('optional named arguments')
 
+    models = [m for m in os.listdir(os.path.split(__file__)[0] + "/defaults")
+              if m != "__init__.py"]
     required.add_argument('--name', type=str, required=True,
                         help='the name of the project folder')
     optional.add_argument('--root', type=str, default=os.path.abspath("./"),
@@ -32,10 +36,10 @@ def get_parser():
                                'which the project will be initialized')
     optional.add_argument("--model", type=str, default="MultiPlanar",
                           help="Specify a model type parameter file "
-                               "('MultiPlanar', '3D', 'MultiTask')")
+                               "({}), default="
+                               "'MultiPlanar'".format(", ".join(models)))
     optional.add_argument("--data_dir", type=str, default=None,
                           help="Root data folder for the project")
-
     return parser
 
 

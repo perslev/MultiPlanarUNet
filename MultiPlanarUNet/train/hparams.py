@@ -17,7 +17,7 @@ def _cb_paths_to_abs_paths(callbacks, patterns, project_dir):
 
 
 def _check_deprecated_params(hparams, logger):
-    if hparams["fit"].get("sparse"):
+    if hparams.get('fit') and hparams["fit"].get("sparse"):
         from MultiPlanarUNet.errors.deprecated_warnings import warn_sparse_param
         warn_sparse_param(logger)
 
@@ -66,7 +66,8 @@ def _set_version(hparams, logger=None):
 
 
 class YAMLHParams(dict):
-    def __init__(self, yaml_path, logger=None, no_log=False, **kwargs):
+    def __init__(self, yaml_path, logger=None, no_log=False,
+                 no_version_control=False, **kwargs):
         dict.__init__(self, **kwargs)
 
         # Set logger or default print
@@ -87,7 +88,7 @@ class YAMLHParams(dict):
         # Set dict elements
         self.update({k: hparams[k] for k in hparams if k[:4] != "__CB"})
 
-        if self["fit"].get("callbacks"):
+        if self.get('fit') and self["fit"].get("callbacks"):
             # Convert potential callback paths to absolute paths
             cb = _cb_paths_to_abs_paths(callbacks=self["fit"]["callbacks"],
                                         patterns=("log.?dir",
@@ -103,8 +104,9 @@ class YAMLHParams(dict):
 
         # Version controlling
         _check_deprecated_params(self, self.logger)
-        _check_version(self, self.logger)
-        _set_version(self, self.logger if not no_log else None)
+        if not no_version_control:
+            _check_version(self, self.logger)
+            _set_version(self, self.logger if not no_log else None)
 
     @property
     def groups(self):

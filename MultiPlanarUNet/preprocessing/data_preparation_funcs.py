@@ -245,18 +245,18 @@ def prepare_for_multi_task_2d(hparams, just_one=False, no_val=False, logger=None
                          base_path=base_path,
                          auditor=None)
 
-    # Get per-task sequencers
+    # Get per-task sequences
     train_seqs = []
     val_seqs = []
     for task in tasks:
-        logger("Fetching sequencers for task %s" % task["name"])
+        logger("Fetching sequences for task %s" % task["name"])
 
         # Create hparams dict that combines the common hparams and
         # task-specific hparams
         task_hparams = dict(hparams["fit"])
         task_hparams.update(task["hparams"]["task_specifics"])
 
-        # Get sequencers for training and validation
+        # Get sequences for training and validation
         train = task["train"].get_sequencer(is_validation=False, **task_hparams)
         val = task["val"].get_sequencer(is_validation=True, **task_hparams)
 
@@ -264,7 +264,7 @@ def prepare_for_multi_task_2d(hparams, just_one=False, no_val=False, logger=None
         train_seqs.append(train)
         val_seqs.append(val)
 
-    # Create the training and validation sequencers
+    # Create the training and validation sequences
     # These will produce batches shared across the N tasks
     from MultiPlanarUNet.sequences import MultiTaskSequence
     train = MultiTaskSequence(train_seqs, hparams["build"]["task_names"])

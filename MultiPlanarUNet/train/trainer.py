@@ -20,31 +20,15 @@ from tensorflow.python.framework.errors_impl import ResourceExhaustedError, \
 class Trainer(object):
     """
     Handles initialization and logging of model fitting sessions.
-    Fits models as implemented in thesis.models
-    Stores logs, models etc. in a SQLite3 db as implemented in thesis.database
-
-    USAGE
-    -----
-    Trainer(project_folder, model, hparams)
-
-    project_folder : string, path to project folder
-                     If folder is empty, the folder is used directly.
-                     Otherwise a sub-folder is created named based on the
-                     passed model & hparams objects.
-    model          : Model object, model to fit
-    hparams        : HParams object, stores hyperparameters of the fitting
     """
-    def __init__(self, model, logger=None):
+    def __init__(self, model, org_model=None, logger=None):
         self.model = model
         self.logger = logger if logger is not None else ScreenLogger()
-        self.target_tensor = None
 
-        # Extra reference to original (non multiple-GPU) model
-        # Is set from train.py as needed
-        self.org_model = None
+        # Extra reference to original (non GPU-distributed) model
+        self.org_model = org_model or model
 
-    def compile_model(self, optimizer, optimizer_kwargs, loss, metrics,
-                      target_tensors=None, **kwargs):
+    def compile_model(self, optimizer, optimizer_kwargs, loss, metrics, **kwargs):
         # Initialize optimizer
         optimizer = optimizers.__dict__[optimizer]
         optimizer = optimizer(**optimizer_kwargs)
@@ -84,12 +68,10 @@ class Trainer(object):
 
         # Compile the model
         self.model.compile(optimizer=optimizer, loss=loss,
-                           metrics=init_metrics, target_tensors=target_tensors)
+                           metrics=init_metrics)
         self.logger("Optimizer:   %s" % optimizer)
         self.logger("Loss funcs:  %s" % loss)
         self.logger("Metrics:     %s" % init_metrics)
-        if target_tensors is not None:
-            self.target_tensor = True
         return self
 
     def fit(self, train, val, callbacks, n_epochs, train_im_per_epoch,
@@ -132,10 +114,6 @@ class Trainer(object):
                             "by 2 (now %i)" % batch_size)
                 if batch_size < 1:
                     self.logger("[ERROR] Batch size negative or zero!")
-                    fitting = False
-                if self.target_tensor:
-                    self.logger("[ERROR] You are fitting on a tf.data.Dataset "
-                                "object; manually lower the batch size.")
                     fitting = False
             except KeyboardInterrupt:
                 fitting = False
@@ -234,9 +212,4 @@ class Trainer(object):
             "max_queue_size": 25,
             "shuffle": False
         }
-        if self.target_tensor:
-            fit_func = self.model.fit
-            del fit_kwargs["generator"]
-        else:
-            fit_func = self.model.fit_generator
-        fit_func(**fit_kwargs)
+        self.model.fit_generator(**fit_kwargs)

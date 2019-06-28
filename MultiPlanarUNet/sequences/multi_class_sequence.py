@@ -16,7 +16,7 @@ class MultiTaskSequence(Sequence):
         self.sequencers = sequencers
         self.log()
 
-        # Redirect setattrs to the sub-sequencers
+        # Redirect setattrs to the sub-sequences
         self.redirect = True
 
     def log(self):

@@ -28,7 +28,7 @@ class ImagePairLoader(object):
         Initializes the ImagePairLoader object from all .nii files in a folder
         or pair of folders if labels are also specified.
 
-        If single_file_mode=False, the following actions are taken immediately
+        If initialize_empty=False, the following actions are taken immediately
         on initialization:
             - All .nii/.nii.gz image files are found in base_dir/img_subdir
             - Unless predict_mode=True, finds all .nii/.nii.gz label files in
@@ -37,7 +37,7 @@ class ImagePairLoader(object):
               pairs. Not that since ImagePairs do not eagerly load data,
               the ImagePairLoader also does not immediately load data into mem
 
-        If single_file_mode=True, the class is initialized but no images are
+        If initialize_empty=True, the class is initialized but no images are
         loaded. Images can be manually added through the add_image and
         add_images methods.
 

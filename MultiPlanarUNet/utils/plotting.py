@@ -176,7 +176,9 @@ def imshow_orientation(*args, show=False, cmap="gray"):
         return fig
 
 
-def plot_all_training_curves(glob_path, out_path, raise_error=False, **kwargs):
+def plot_all_training_curves(glob_path, out_path, raise_error=False,
+                             logger=None, **kwargs):
+    logger = logger or ScreenLogger()
     try:
         from glob import glob
         paths = glob(glob_path)
@@ -194,10 +196,11 @@ def plot_all_training_curves(glob_path, out_path, raise_error=False, **kwargs):
                 save_path = out_path
             plot_training_curves(p, save_path, **kwargs)
     except Exception as e:
-        s = "Could not plot training curves."
+        s = "Could not plot training curves. ({})".format(e)
         if raise_error:
             raise RuntimeError(s) from e
-        print(s)
+        else:
+            logger.warn(s)
 
 
 def plot_training_curves(csv_path, save_path, logy=False):
@@ -234,16 +237,21 @@ def plot_training_curves(csv_path, save_path, logy=False):
     ax2 = fig.add_subplot(312)
 
     # Get all other columns
-    no_plot = ("lr", "learning_rate", "epoch", "loss", "val_loss",
+    no_plot = ("learning_rate", "epoch", "loss",
                "train_time_total", "train_time_epoch")
-    to_plot = [col for col in df.columns if col not in no_plot]
-
-    for col in to_plot:
-        ax2.plot(epochs, df[col], label=col, lw=2)
+    plotted = 0
+    for col in df.columns:
+        if any([s in col for s in no_plot[1:]]) or col == "lr":
+            continue
+        else:
+            plotted += 1
+            ax2.plot(epochs, df[col], label=col, lw=2)
 
     # Add legend, labels and title
-    leg = ax2.legend(loc=0)
-    leg.get_frame().set_linewidth(0)
+    if plotted <= 8:
+        # Otherwise it takes up all the space
+        leg = ax2.legend(loc=0, ncol=int(np.ceil(plotted/5)))
+        leg.get_frame().set_linewidth(0)
     ax2.set_xlabel("Epoch", size=16)
     ax2.set_ylabel("Metric", size=16)
     ax2.set_title("Training and validation metrics", size=20)
