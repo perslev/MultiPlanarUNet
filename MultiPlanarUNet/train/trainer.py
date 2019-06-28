@@ -30,7 +30,7 @@ class Trainer(object):
 
     def compile_model(self, optimizer, optimizer_kwargs, loss, metrics, **kwargs):
         # Initialize optimizer
-        optimizer = optimizers.__dict__[optimizer]
+        optimizer = getattr(optimizers, optimizer)
         optimizer = optimizer(**optimizer_kwargs)
 
         # Make sure sparse metrics and loss are specified sparse
@@ -43,11 +43,11 @@ class Trainer(object):
         # Initialize loss(es)
         loss_list = []
         for l in loss:
-            if l in losses.__dict__:
-                loss_list.append(losses.get(l))
-            else:
+            try:
+                loss_list.append(getattr(losses, l))
+            except AttributeError:
                 import inspect
-                l = loss_functions.__dict__[l]
+                l = getattr(loss_functions, l)
                 if inspect.isclass(l):
                     loss_list.append(l(logger=self.logger, **kwargs))
                 else:
@@ -57,11 +57,11 @@ class Trainer(object):
         # Find metrics both from standard keras.metrics module and own custom
         init_metrics = []
         for m in metrics:
-            if m in TF_metrics.__dict__:
-                init_metrics.append(TF_metrics.get(m))
-            else:
+            try:
+                init_metrics.append(getattr(TF_metrics, m))
+            except AttributeError:
                 import inspect
-                metric = custom_metrics.__dict__[m]
+                metric = getattr(custom_metrics, m)
                 if inspect.isclass(metric):
                     metric = metric(logger=self.logger, **kwargs)
                 init_metrics.append(metric)

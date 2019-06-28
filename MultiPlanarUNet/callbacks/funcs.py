@@ -35,19 +35,19 @@ def init_callback_objects(callbacks, logger):
             start_from = callback.get("start_from")
             if callback.get("pass_logger"):
                 kwargs["logger"] = logger
-            if cls_name in dir(tfcb):
-                cb = tfcb.__dict__[cls_name](**kwargs)
-            elif cls_name in dir(tcb):
-                cb = tcb.__dict__[cls_name](**kwargs)
-            else:
-                raise ValueError("No callback named %s" % cls_name)
-
+            try:
+                cb = getattr(tfcb, cls_name)
+            except AttributeError:
+                try:
+                    cb = getattr(tcb, cls_name)
+                except AttributeError as e:
+                    raise ValueError("No callback named %s" % cls_name) from e
+            cb = cb(**kwargs)
         if start_from:
             logger("OBS: '%s' activates at epoch %i" % (cls_name, start_from))
             cb = DelayedCallback(callback=cb,
                                  start_from=start_from,
                                  logger=logger)
-
         cb_objs.append(cb)
         cb_dict[cls_name] = cb
         logger("[%i] Using callback: %s(%s)" % (i+1, cb.__class__.__name__,
