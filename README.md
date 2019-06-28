@@ -81,9 +81,12 @@ mp --help
 
 # Launch the train script
 mp train [arguments passed to 'train'...]
+
+# Invoke the help menu of a sub-script
+mp train --help
 ```
 
-**NOTE:** You only need to specify the training data in the format described 
+You only need to specify the training data in the format described 
 below. Training, evaluation and prediction will be handled automatically if 
 using the above scripts.
 
@@ -120,11 +123,18 @@ corresponding label map files must be identically named.
 The ```aug``` folder may store additional images that can be included during 
 training with a lower weight assigned in optimization.
 
+**NOTE:** It is important that the .nii files store correct affines for mapping
+voxel coordinates to the scanner space. Specifically, the framework needs to
+know the voxel size along all three image dimensions in order to sample 
+isotrophic images in the scanner space.
+
 **Initializing a Project**\
 Once the data is stored under the above folder structure, a Multi-Planar 
 project can be initialized as follows:
 
 ```
+# Initialize a project at 'my_folder'
+# The --data_dir flag is optional
 mp init_project --name my_project --data_dir ./data_folder
 ```
 
@@ -183,7 +193,14 @@ folder but without corresponding label files using the ``--no_eval`` flag or on
 single files as follows:
 
 ```
+# Predict on all images in 'test' folder without label files
+mp predict --no_eval
+
+# Predict on a single image
 mp predict -f ./new_image.nii.gz
+
+# Preidct on a single image and do eval against its label file
+mp predict -f ./im/new_image.nii.gz -l ./lab/new_image.nii.gz
 ```
 
 **Performance Summary**\
