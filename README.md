@@ -2,13 +2,13 @@
 
 Implementation of the Multi-Planar UNet as described in: 
 
-Mathias Perslev, Erik Dam, Akshay Pai, and Christian Igel. One Network To 
+`Mathias Perslev, Erik Dam, Akshay Pai, and Christian Igel. One Network To 
 Segment Them All: A General, Lightweight System for Accurate 3D Medical Image
 Segmentation. In: *Medical Image Computing and Computer Assisted Intervention 
-(MICCAI), accepted*
+(MICCAI), accepted*`
 
 ## Quick Start
-**Installation**
+#### Installation
 
 ```
 git clone https://github.com/perslev/MultiPlanarUNet
@@ -24,7 +24,7 @@ cd MultiPlanarUNet
 git pull
 ```
 
-**Usage**
+#### Usage
 ```
 usage: mp [script] [script args...]
 
@@ -42,7 +42,7 @@ Available scripts:
 ...
 ```
 
-# Overview
+## Overview
 This package implements fully autonomous deep learning based 
 segmentation of any 3D medical image. It uses a fixed 
 hyperparameter set and a fixed model topology, eliminating the need for
@@ -96,7 +96,7 @@ You only need to specify the training data in the format described
 below. Training, evaluation and prediction will be handled automatically if 
 using the above scripts.
 
-**Preparing the data**\
+#### Preparing the data
 In order to train a model to solve a specific task, a set of manually 
 annotated images must be stored in a folder under the following structure:
 
@@ -127,7 +127,8 @@ must be identically named.
 The ```aug``` folder may store additional images that can be included during 
 training with a lower weight assigned in optimization.
 
-**File formatting:** All images must be stored in the ``.nii``/```.nii.gz``` format. 
+#### File formatting
+All images must be stored in the ``.nii``/```.nii.gz``` format. 
 It is important that the .nii files store correct 4x4 affines for mapping
 voxel coordinates to the scanner space. Specifically, the framework needs to
 know the voxel size and axis orientations in order to sample isotrophic images 
@@ -141,7 +142,7 @@ shaped in the first 3 dimensions and have a single channel
 representing the class at the given position. The background class is normally 
 denoted '0'.
 
-**Initializing a Project**\
+#### Initializing a Project
 Once the data is stored under the above folder structure, a Multi-Planar 
 project can be initialized as follows:
 
@@ -160,7 +161,7 @@ automatically.
 However, note that a 3D model is also supported, which can be selected by 
 specifying the ```--model=3D``` flag (default=```---model=MultiPlanar```).
 
-**Training**\
+#### Training
 The model can now be trained as follows:
 
 ```
@@ -181,7 +182,7 @@ the project folder. Typically, after training, the folder will look as follows:
 |- views.png             # Visualization of the views used
 ```
 
-**Fusion Model Training**\
+#### Fusion Model Training
 When using the MultiPlanar model, a fusion model must also be trained after 
 the base model has been trained. This model will learn to map the multiple 
 predictions of the base model through each view to one, stronger segmentation
@@ -190,7 +191,7 @@ volume:
 mp train_fusion --num_GPUs=2
 ```
 
-**Predict and evaluate**\
+#### Predict and evaluate
 The trained model can now be evaluated on the testing data in 
 ```data_folder/test``` by invoking:
 
@@ -216,7 +217,7 @@ mp predict -f ./new_image.nii.gz
 mp predict -f ./im/new_image.nii.gz -l ./lab/new_image.nii.gz
 ```
 
-**Performance Summary**\
+#### Performance Summary
 A summary of the performance can be produced by invoking the following command
 from inside the ```my_project``` folder or ```predictions``` sub-folder:
 
@@ -267,7 +268,7 @@ with sub-folders ```train```, ```val```, ```test``` and ```aug``` (optionally,
 set with the ```--aug_sub_dir``` flag). Inside these sub-folders, images a 
 symlinked to their original position to safe storage.
 
-**Running a CV Experiment**\
+#### Running a CV Experiment
 A cross-validation experiment can now be performed. On systems with multiple
 GPUs, each fold can be assigned a given number of the total pool of GPUs in 
 which case multiple folds will run in parallel and new once automatically start
