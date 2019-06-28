@@ -309,7 +309,10 @@ class Validation(Callback):
         count_thread.start()
 
         # Get tensors to run and their names
-        metrics_tensors = self.model.metrics_tensors
+        try:
+            metrics_tensors = self.model.metrics_tensors
+        except AttributeError:
+            metrics_tensors = self.model._all_metrics_tensors
         metrics_names = self.model.metrics_names
         assert "loss" in metrics_names and metrics_names.index("loss") == 0
         assert len(metrics_names)-1 == len(metrics_tensors)
@@ -657,7 +660,7 @@ class LearningCurve(Callback):
     """
     """
     def __init__(self, log_dir="logs", out_dir="logs", fname="curve.png",
-                 csv_regex="*training.csv"):
+                 csv_regex="*training.csv", logger=None):
         """
         """
         super().__init__()
@@ -666,9 +669,11 @@ class LearningCurve(Callback):
             os.makedirs(out_dir)
         self.csv_regex = os.path.join(os.path.abspath(log_dir), csv_regex)
         self.save_path = os.path.join(out_dir, fname)
+        self.logger = logger or ScreenLogger()
 
     def on_epoch_end(self, epoch, logs={}):
         plot_all_training_curves(self.csv_regex,
                                  self.save_path,
                                  logy=True,
-                                 raise_error=False)
+                                 raise_error=False,
+                                 logger=self.logger)
