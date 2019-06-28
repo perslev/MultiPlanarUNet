@@ -70,7 +70,7 @@ At test-time, the model predict along each of the views and recreates a set of f
 These volumes are majority voted into one using a learned function that weights
 each class from each view individually to maximuse the performance.
 
-![](resources/multi_planar_model.png)
+![](resources/multi_planar_model_updated.png)
 
 ![](resources/multi_planar_augmentation.png)
 
