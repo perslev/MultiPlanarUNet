@@ -12,6 +12,14 @@ def get_test_suite(test_class):
     return suite
 
 
+def _mod_name_to_cls_name(modname):
+    """
+    Converts the name of a module (such as test_image_pair) to the test suite
+    class name (such as TestImagePair)
+    """
+    return "".join(map(lambda x: x.capitalize(), modname.split("_")))
+
+
 def _run(test_pkg_name):
     runner = unittest.TextTestRunner()
     test_mod = importlib.import_module("{}.{}".format(_TESTS_PKG,
@@ -24,7 +32,7 @@ def _run(test_pkg_name):
         print("Adding test module '{}'".format(m.name))
         mod = importlib.import_module("{}.{}.{}".format(_TESTS_PKG,
                                                         test_pkg_name, m.name))
-        cls_name = "Test" + m.name.split("_")[-1].capitalize()
+        cls_name = _mod_name_to_cls_name(m.name)
         try:
             suite = get_test_suite(getattr(mod, cls_name))
         except AttributeError:
