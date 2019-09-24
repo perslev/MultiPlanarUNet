@@ -15,6 +15,10 @@ from MultiPlanarUNet.logging import ScreenLogger
 from MultiPlanarUNet.interpolation.sample_grid import get_real_image_size, get_pix_dim
 from MultiPlanarUNet.interpolation.view_interpolator import ViewInterpolator
 
+# Errors
+from MultiPlanarUNet.errors.image_errors import (NoLabelFileError,
+                                                 ReadOnlyAttributeError)
+
 # w2 negative threshold is too strict for this data set
 nib.Nifti1Header.quaternion_threshold = -1e-6
 
@@ -110,17 +114,25 @@ class ImagePair(object):
                         np.round(get_pix_dim(self), 3)
                     ), print_calling_method=print_calling_method)
 
-    def __getattr__(self, item):
-        if item in self.__dict__:
-            return self.__dict__[item]
-        else:
-            try:
-                return getattr(self.image_obj, item)
-            except AttributeError as e:
-                raise AttributeError("No attribute named '%s' defined for "
-                                     "instance of 'ImagePair' or contained "
-                                     "'%s' image object"
-                                     % (item, type(self.image_obj).__name__)) from e
+    @property
+    def affine(self):
+        return self.image_obj.affine
+
+    @affine.setter
+    def affine(self, affine):
+        raise ReadOnlyAttributeError("Manually setting the affine attribute "
+                                     "is not allowed. Initialize a new "
+                                     "ImagePair object.")
+
+    @property
+    def header(self):
+        return self.image_obj.header
+
+    @header.setter
+    def header(self, header):
+        raise ReadOnlyAttributeError("Manually setting the header attribute "
+                                     "is not allowed. Initialize a new "
+                                     "ImagePair object.")
 
     @property
     def image(self):
@@ -139,8 +151,9 @@ class ImagePair(object):
 
     @image.setter
     def image(self, image):
-        raise AttributeError("Manually setting the image attribute is not "
-                             "allowed. Initialize a new ImagePair object.")
+        raise ReadOnlyAttributeError("Manually setting the image attribute "
+                                     "is not allowed. Initialize a new "
+                                     "ImagePair object.")
 
     @property
     def labels(self):
@@ -149,14 +162,15 @@ class ImagePair(object):
             try:
                 self._labels = self.labels_obj.get_fdata(caching="unchanged").astype(self.lab_dtype)
             except AttributeError as e:
-                raise AttributeError("No label file attached to "
-                                     "this ImagePair object.") from e
+                raise NoLabelFileError("No label file attached to "
+                                       "this ImagePair object.") from e
         return self._labels
 
     @labels.setter
     def labels(self, labels):
-        raise AttributeError("Manually setting the labels attribute is not "
-                             "allowed. Initialize a new ImagePair object.")
+        raise ReadOnlyAttributeError("Manually setting the labels "
+                                     "attribute is not allowed. "
+                                     "Initialize a new ImagePair object.")
 
     @staticmethod
     def _validate_path(path):
