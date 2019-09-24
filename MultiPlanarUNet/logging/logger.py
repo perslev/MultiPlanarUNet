@@ -110,6 +110,7 @@ class Logger(object):
     @accepts(str)
     def active_log_file(self, file_name):
         if self.prefix:
+            file_name = file_name.replace(self.prefix + "_", "")
             file_name = self.prefix.rstrip("_") + "_" + file_name
         self._active_log_file = file_name
         if file_name not in self.log_files:
