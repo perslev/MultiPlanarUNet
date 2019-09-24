@@ -62,6 +62,13 @@ def get_argparser():
                         help="Sets the batch size used in the fusion model "
                              "training process. Lowering this number may "
                              "resolve GPU memory issues. Defaults to 2**17.")
+    parser.add_argument("--epochs", type=int, default=30,
+                        help="Number of epochs to train on each subset of "
+                             "images (default=30)")
+    parser.add_argument("--early_stopping", type=int, default=3,
+                        help="Number of non-improving epochs before premature "
+                             "training round termination is invoked. "
+                             "(default=3)")
     parser.add_argument("--continue_training", action='store_true')
     parser.add_argument("--force_GPU", type=str, default="")
     parser.add_argument("--eval_prob", type=float, default=1.0,
@@ -216,11 +223,11 @@ def entry_func(args=None):
     min_val_images = 15
 
     # Fusion model training params
-    epochs = 30
+    epochs = args['epochs']
     fm_batch_size = args["batch_size"]
 
     # Early stopping params
-    early_stopping = 3
+    early_stopping = args["early_stopping"]
 
     # Wait for PID?
     if await_PID:
