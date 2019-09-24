@@ -1,3 +1,15 @@
+"""
+MultiPlanarUNet train script
+Optimizes a MultiPlanarUNet model in a specified project folder
+
+Typical usage:
+--------------
+mp init_project --name my_project --data_dir ~/path/to/data
+cd my_project
+mp train --num_GPUs=1
+--------------
+"""
+
 from argparse import ArgumentParser
 import sys
 import os
