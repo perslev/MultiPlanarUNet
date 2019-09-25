@@ -34,6 +34,7 @@ class TestImagePairWithValidImage(unittest.TestCase):
         self.im = ImagePair(img_path=self.image_path)
 
     def test_stored_image_matches_disk_image(self):
+        """ Tests if the stored image matches the Nifti image saved to disk """
 
         # Assert some fields are as expected
         self.assertTrue(self.im.predict_mode,
@@ -56,6 +57,7 @@ class TestImagePairWithValidImage(unittest.TestCase):
                             "identical to the one saved to disk.")
 
     def test_error_raising(self):
+        """ Asserts that proper errors are raised with illegal usage """
 
         # Check errors are raised with illegal actions
         from MultiPlanarUNet.errors.image_errors import (NoLabelFileError,
@@ -82,6 +84,8 @@ class TestImagePairWithValidImage(unittest.TestCase):
             self.im.affine = [1, 2, 3]
 
     def test_shape_values(self):
+        """ Tests that the ImagePair stores correct image coordinates """
+        
         # Check voxel coordinates center
         self.assertListEqual(list(self.im.center), [5.5, 6.5, 7.5],
                              msg="Error in calculation of image voxel center "
