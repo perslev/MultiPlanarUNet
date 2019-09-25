@@ -33,7 +33,7 @@ def get_argparser():
     parser.add_argument("--strides", type=int, default=None,
                         help="Predict on strided overlapping boxes "
                              "instead of only non-overlapping.")
-    parser.add_argument("--extra", default=0,
+    parser.add_argument("--extra", default="2x",
                         help="Sample N extra patches to perform majority voting")
     parser.add_argument("--force_GPU", type=int, default=-1)
     parser.add_argument("--save_only_pred", action="store_true",
@@ -170,7 +170,9 @@ def entry_func(args=None):
         image = all_images[image_id]
         image_pair_loader.images = [image]
 
-        seq = image_pair_loader.get_sequencer(n_classes=n_classes, no_log=True,
+        seq = image_pair_loader.get_sequencer(n_classes=n_classes,
+                                              no_log=True,
+                                              dim=dim,
                                               **hparams["fit"])
 
         if mode.lower() == "iso_live_3d":

@@ -191,8 +191,10 @@ def prepare_for_3d_unet(hparams, just_one=False, no_val=False, logger=None,
 
     # Get 3D patch sequence generators
     train = train_data.get_sequencer(n_classes=hparams["build"]["n_classes"],
+                                     dim=hparams["build"]["dim"],
                                      **hparams["fit"])
     val = val_data.get_sequencer(n_classes=hparams["build"]["n_classes"],
+                                 dim=hparams["build"]["dim"],
                                  is_validation=True, **hparams["fit"])
 
     # Compute class weights if specified, added to hparams
