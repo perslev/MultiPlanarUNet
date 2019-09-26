@@ -163,6 +163,25 @@ def get_logger(project_dir, overwrite_existing):
     return logger
 
 
+def get_gpu_monitor(num_GPUs, logger):
+    """
+    Args:
+        num_GPUs: Number of GPUs to train on
+        logger: A MultiPlanarUNet logger object that will be passed to
+                the GPUMonitor
+
+    Returns:
+        If num_GPUs >= 0, returns a GPUMonitor object, otherwise returns None
+    """
+    if num_GPUs >= 0:
+        # Initialize GPUMonitor in separate fork now before memory builds up
+        from MultiPlanarUNet.utils.system import GPUMonitor
+        gpu_mon = GPUMonitor(logger)
+    else:
+        gpu_mon = None
+    return gpu_mon
+
+
 def set_gpu(gpu_mon, args):
     """
     Sets the GPU visibility based on the passed arguments. Takes an already
@@ -368,12 +387,8 @@ def entry_func(args=None):
     logger = get_logger(project_dir, args.continue_training)
     logger("Fitting model in path:\n%s" % project_dir)
 
-    if args.num_GPUs >= 0:
-        # Initialize GPUMonitor in separate fork now before memory builds up
-        from MultiPlanarUNet.utils.system import GPUMonitor
-        gpu_mon = GPUMonitor(logger)
-    else:
-        gpu_mon = None
+    # Start GPU monitor process, if num_GPUs > 0
+    gpu_mon = get_gpu_monitor(args.num_GPUs, logger)
 
     try:
         run(project_dir=project_dir, gpu_mon=gpu_mon, logger=logger, args=args)
