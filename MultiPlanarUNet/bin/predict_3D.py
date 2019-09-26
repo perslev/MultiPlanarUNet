@@ -78,7 +78,7 @@ def entry_func(args=None):
         pass
 
     # Get settings from YAML file
-    from MultiPlanarUNet.train.hparams import YAMLHParams
+    from MultiPlanarUNet.hyperparameters import YAMLHParams
     hparams = YAMLHParams(os.path.join(base_dir, "train_hparams.yaml"))
 
     # Set strides

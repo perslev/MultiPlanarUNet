@@ -13,13 +13,13 @@ readline.parse_and_bind('tab: complete')
 def get_argparser():
     parser = ArgumentParser(description='Create a toy dataset - Useful '
                                         'for testing purposes')
-    parser.add_argument("--out_dir", type=str,
+    parser.add_argument("--out_dir", type=str, required=True,
                         help="Path to a dir in which the toy data will be "
                              "stored. Must be a non-existing or empty dir.")
     parser.add_argument("--N", type=int, default=10, required=False,
                         help='The number of train, val and test images to '
                              'create.')
-    parser.add_argument("--image_size", type=int, default=192,
+    parser.add_argument("--image_size", type=int, default=128,
                         help="Voxel size of image.")
     parser.add_argument("--N_train", type=int, default=0, required=False,
                         help='The number of train images to create. '

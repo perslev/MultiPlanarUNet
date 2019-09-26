@@ -28,7 +28,8 @@ def _check_version(hparams, logger):
     if not vc.check_git():
         logger.warn("Path {} does not contain a Git repository, or Git is not"
                     " installed on this system. The software verison match "
-                    "could not be varified against the hyperparameter file.")
+                    "could not be varified against the hyperparameter file."
+                    "".format(vc.git_path))
         return
     if "__VERSION__" not in hparams:
         e = "Could not infer the software version used to produce the " \

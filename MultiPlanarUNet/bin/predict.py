@@ -125,7 +125,7 @@ def remove_already_predicted(all_images, out_dir):
 
 
 def load_hparams(base_dir):
-    from MultiPlanarUNet.train.hparams import YAMLHParams
+    from MultiPlanarUNet.hyperparameters import YAMLHParams
     return YAMLHParams(os.path.join(base_dir, "train_hparams.yaml"))
 
 

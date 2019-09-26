@@ -4,8 +4,7 @@ from tensorflow.keras.callbacks import Callback
 from MultiPlanarUNet.evaluate.metrics import dice_all
 from MultiPlanarUNet.utils import highlighted
 from MultiPlanarUNet.logging import ScreenLogger
-from MultiPlanarUNet.utils.plotting import imshow_with_label_overlay, imshow, \
-                                           plot_all_training_curves
+from MultiPlanarUNet.utils.plotting import imshow_with_label_overlay, imshow
 
 import numpy as np
 import pandas as pd
@@ -656,24 +655,3 @@ class SavePredictionImages(Callback):
             self.pred_and_save(self.val_data, "val_%s" % epoch)
 
 
-class LearningCurve(Callback):
-    """
-    """
-    def __init__(self, log_dir="logs", out_dir="logs", fname="curve.png",
-                 csv_regex="*training.csv", logger=None):
-        """
-        """
-        super().__init__()
-        out_dir = os.path.abspath(out_dir)
-        if not os.path.exists(out_dir):
-            os.makedirs(out_dir)
-        self.csv_regex = os.path.join(os.path.abspath(log_dir), csv_regex)
-        self.save_path = os.path.join(out_dir, fname)
-        self.logger = logger or ScreenLogger()
-
-    def on_epoch_end(self, epoch, logs={}):
-        plot_all_training_curves(self.csv_regex,
-                                 self.save_path,
-                                 logy=True,
-                                 raise_error=False,
-                                 logger=self.logger)

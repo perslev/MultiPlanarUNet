@@ -45,7 +45,7 @@ class Auditor(object):
     number of unique classes across them.
 
     Suggested parameters are stored for both 2D and 3D models on this object
-    The selected parameters can be written to a MultiPlanarUnet.train.hparams
+    The selected parameters can be written to a MultiPlanarUNet YAMLHParams
     object which in turn may write them to the train_hparams.yaml file on disk.
 
     The heuristic covers 3 parameters:

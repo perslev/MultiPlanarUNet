@@ -3,7 +3,7 @@ import os
 
 
 def copy_yaml_and_set_data_dirs(in_path, out_path, data_dir):
-    from MultiPlanarUNet.train.hparams import YAMLHParams
+    from MultiPlanarUNet.hyperparameters import YAMLHParams
     hparams = YAMLHParams(in_path, no_log=True, no_version_control=True)
     dir_name = "base_dir" if "base_dir" in hparams["train_data"] else "data_dir"
 
