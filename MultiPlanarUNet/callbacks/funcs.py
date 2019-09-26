@@ -36,12 +36,9 @@ def init_callback_objects(callbacks, logger):
             if callback.get("pass_logger"):
                 kwargs["logger"] = logger
             try:
-                cb = getattr(tfcb, cls_name)
-            except AttributeError:
-                try:
-                    cb = getattr(tcb, cls_name)
-                except AttributeError as e:
-                    raise ValueError("No callback named %s" % cls_name) from e
+                cb = getattr(tfcb, cls_name, None) or getattr(tcb, cls_name)
+            except AttributeError as e:
+                raise ValueError("No callback named %s" % cls_name) from e
             cb = cb(**kwargs)
         if start_from:
             logger("OBS: '%s' activates at epoch %i" % (cls_name, start_from))
