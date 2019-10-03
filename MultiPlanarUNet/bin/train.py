@@ -1,3 +1,15 @@
+"""
+MultiPlanarUNet train script
+Optimizes a MultiPlanarUNet model in a specified project folder
+
+Typical usage:
+--------------
+mp init_project --name my_project --data_dir ~/path/to/data
+cd my_project
+mp train --num_GPUs=1
+--------------
+"""
+
 from argparse import ArgumentParser
 import sys
 import os
@@ -8,8 +20,6 @@ def get_argparser():
                                         'in a project folder. '
                                         'Invoke "init_project" to start a '
                                         'new project.')
-    parser.add_argument("--project_dir", type=str, default="./",
-                        help='path to MultiPlanarUNet project folder')
     parser.add_argument("--num_GPUs", type=int, default=1,
                         help="Number of GPUs to use for this job (default=1)")
     parser.add_argument("--force_GPU", type=str, default="",
@@ -43,6 +53,17 @@ def get_argparser():
     return parser
 
 
+def validate_project_dir(project_dir):
+    if not os.path.exists(project_dir) or \
+            not os.path.exists(os.path.join(project_dir, "train_hparams.yaml")):
+        raise RuntimeError("The script was launched from directory:\n'%s'"
+                           "\n... but this is not a valid project folder.\n\n"
+                           "* Make sure to launch the script from within a "
+                           "MultiPlanarNet project directory\n"
+                           "* Make sure that the directory contains a "
+                           "'train_hparams.yaml' file." % project_dir)
+
+
 def validate_args(args):
     """
     Checks that the passed commandline arguments are valid
@@ -51,10 +72,10 @@ def validate_args(args):
         args: argparse arguments
     """
     if args.continue_training and args.overwrite:
-        print("Cannot both continue training and overwrite the "
-              "previous training session. Remove the --overwrite "
-              "flag if trying to continue a previous training "
-              "session.")
+        raise ValueError("Cannot both continue training and overwrite the "
+                         "previous training session. Remove the --overwrite "
+                         "flag if trying to continue a previous training "
+                         "session.")
     if args.train_images_per_epoch <= 0:
         raise ValueError("train_images_per_epoch must be a positive integer")
     if args.val_images_per_epoch <= 0:
@@ -64,12 +85,6 @@ def validate_args(args):
         raise ValueError("Should not specify both --force_GPU and --num_GPUs")
     if args.num_GPUs < 0:
         raise ValueError("num_GPUs must be a positive integer")
-    if not os.path.exists(args.project_dir) or \
-            not os.path.exists(os.path.join(args.project_dir,
-                                            "train_hparams.yaml")):
-        raise OSError("Path: %s is not a valid project folder.\n"
-                      "Make sure the folder exists and contains a "
-                      "'train_hparams.yaml' file." % args.project_dir)
 
 
 def validate_hparams(hparams):
@@ -82,15 +97,22 @@ def validate_hparams(hparams):
         hparams: A YAMLHParams object
     """
     # Tests for valid hparams
-    if hparams["fit"].get("class_weights"):
-        # Only currently supported loss
-        assert hparams["fit"]["loss"] in ("WeightedSemanticCCE",
-                                          "GeneralizedDiceLoss",
-                                          "WeightedCrossEntropyWithLogits",
-                                          "FocalLoss")
+    if hparams["fit"].get("class_weights") and hparams["fit"]["loss"] not in \
+            ("WeightedSemanticCCE", "GeneralizedDiceLoss",
+             "WeightedCrossEntropyWithLogits", "FocalLoss"):
+        # Only currently supported losses
+        raise ValueError("Invalid loss function '{}' used with the "
+                         "'class_weights' "
+                         "parameter".format(hparams["fit"]["loss"]))
     if hparams["fit"]["loss"] == "WeightedCrossEntropyWithLogits":
-        assert bool(hparams["fit"]["class_weights"])
-        assert hparams["build"]["out_activation"] == "linear"
+        if not bool(hparams["fit"]["class_weights"]):
+            raise ValueError("Must specify 'class_weights' argument with loss"
+                             "'WeightedCrossEntropyWithLogits'.")
+        if not hparams["build"]["out_activation"] == "linear":
+            raise ValueError("Must use out_activation: linear parameter with "
+                             "loss 'WeightedCrossEntropyWithLogits'")
+    if not hparams["train_data"]["base_dir"]:
+        raise ValueError("No training data folder specified in parameter file.")
 
 
 def remove_previous_session(project_folder):
@@ -113,6 +135,51 @@ def remove_previous_session(project_folder):
             shutil.rmtree(p)
         else:
             os.remove(p)
+
+
+def get_logger(project_dir, overwrite_existing):
+    """
+    Initialises and returns a Logger object for a given project directory.
+    If a logfile already exists at the specified location, it will be
+    overwritten if continue_training == True, otherwise raises RuntimeError
+
+    Args:
+        project_dir: Path to a MultiPlanarUNet project folder
+        overwrite_existing: Whether to overwrite existing logfile in project_dir
+
+    Returns:
+        A MultiPlanarUNet Logger object initialized in project_dir
+    """
+    # Define Logger object
+    from MultiPlanarUNet.logging import Logger
+    try:
+        logger = Logger(base_path=project_dir,
+                        print_to_screen=True,
+                        overwrite_existing=overwrite_existing)
+    except OSError as e:
+        raise RuntimeError("[*] A training session at '%s' already exists."
+                           "\n    Use the --overwrite flag to "
+                           "overwrite." % project_dir) from e
+    return logger
+
+
+def get_gpu_monitor(num_GPUs, logger):
+    """
+    Args:
+        num_GPUs: Number of GPUs to train on
+        logger: A MultiPlanarUNet logger object that will be passed to
+                the GPUMonitor
+
+    Returns:
+        If num_GPUs >= 0, returns a GPUMonitor object, otherwise returns None
+    """
+    if num_GPUs >= 0:
+        # Initialize GPUMonitor in separate fork now before memory builds up
+        from MultiPlanarUNet.utils.system import GPUMonitor
+        gpu_mon = GPUMonitor(logger)
+    else:
+        gpu_mon = None
+    return gpu_mon
 
 
 def set_gpu(gpu_mon, args):
@@ -248,7 +315,7 @@ def run(project_dir, gpu_mon, logger, args):
         args: argparse arguments
     """
     # Read in hyperparameters from YAML file
-    from MultiPlanarUNet.train import Trainer, YAMLHParams
+    from MultiPlanarUNet.hyperparameters import YAMLHParams
     hparams = YAMLHParams(project_dir + "/train_hparams.yaml", logger=logger)
     validate_hparams(hparams)
 
@@ -273,6 +340,7 @@ def run(project_dir, gpu_mon, logger, args):
                                  logger=logger, args=args)
 
     # Get trainer and compile model
+    from MultiPlanarUNet.train import Trainer
     trainer = Trainer(model, org_model=org_model, logger=logger)
     trainer.compile_model(n_classes=hparams["build"].get("n_classes"),
                           **hparams["fit"])
@@ -303,33 +371,24 @@ def entry_func(args=None):
     Args:
         args: None or arguments passed from mp
     """
+    # Check for project dir
+    project_dir = os.path.abspath("./")
+    validate_project_dir(project_dir)
+
     # Get and check args
     args = get_argparser().parse_args(args)
     validate_args(args)
 
     # Get project folder and remove previous session if --overwrite
-    project_dir = os.path.abspath(args.project_dir)
     if args.overwrite:
         remove_previous_session(project_dir)
 
-    # Define Logger object
-    from MultiPlanarUNet.logging import Logger
-    try:
-        logger = Logger(base_path=project_dir,
-                        print_to_screen=True,
-                        overwrite_existing=args.continue_training)
-    except OSError:
-        print("[*] A training session at '%s' already exists."
-              "\n    Use the --overwrite flag to overwrite." % project_dir)
-        sys.exit(0)
+    # Get logger object. Overwrites previous logfile if args.continue_training
+    logger = get_logger(project_dir, args.continue_training)
     logger("Fitting model in path:\n%s" % project_dir)
 
-    if args.num_GPUs >= 0:
-        # Initialize GPUMonitor in separate fork now before memory builds up
-        from MultiPlanarUNet.utils.system import GPUMonitor
-        gpu_mon = GPUMonitor(logger)
-    else:
-        gpu_mon = None
+    # Start GPU monitor process, if num_GPUs > 0
+    gpu_mon = get_gpu_monitor(args.num_GPUs, logger)
 
     try:
         run(project_dir=project_dir, gpu_mon=gpu_mon, logger=logger, args=args)

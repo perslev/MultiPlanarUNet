@@ -84,15 +84,6 @@ class IsotrophicLiveViewSequence(BaseSequence):
         else:
             return self.force_all_fg_switch
 
-    @property
-    def store_y(self):
-        return self._store_y
-
-    @store_y.setter
-    def store_y(self, value):
-        self._store_y = value
-        self.stored_y = []
-
     def get_class_weights(self, as_array=False):
         return gcw(self.image_pair_loader, as_array=as_array)
 

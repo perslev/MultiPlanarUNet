@@ -1,15 +1,14 @@
 import subprocess
 import os
+import pkgutil
 
 
 class VersionController(object):
     def __init__(self, logger=None):
-        import MultiPlanarUNet
-        from MultiPlanarUNet.logging import ScreenLogger
-        code_path = MultiPlanarUNet.__path__
-        assert len(code_path) == 1
+        from MultiPlanarUNet.logging.default_logger import ScreenLogger
+        code_path = pkgutil.get_loader("MultiPlanarUNet").path
         self.logger = logger or ScreenLogger()
-        self.git_path = os.path.split(os.path.abspath(code_path[0]))[0]
+        self.git_path = os.path.split(os.path.split(code_path)[0])[0]
         self._mem_path = None
 
     def log_version(self, logger=None):

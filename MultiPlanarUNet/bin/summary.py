@@ -1,8 +1,5 @@
 """
-Prediction/evaluation script
-
-Mathias Perslev
-May 2018
+TODO: Add description
 """
 
 import os

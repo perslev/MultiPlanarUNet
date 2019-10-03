@@ -20,7 +20,6 @@ __CB_mcp_clean: &MCP_CLEAN
   # Model checkpoint
   nickname: "mcp_clean"
   class_name: "ModelCheckPointClean"
-  start_from: 30
   kwargs: {filepath: "./model/@epoch_{epoch:02d}_val_dice_{val_dice:.5f}.h5",
            monitor: "val_dice", save_best_only: true, save_weights_only: true,
            verbose: 1, mode: "max"}

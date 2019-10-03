@@ -1,3 +1,25 @@
+"""
+MultiPlanarUNet fusion model training script
+Optimizes a MultiPlanarUNet fusion model in a specified project folder
+
+The fusion model takes a set of class-probability vectors, one from each view
+of a MultiPlanarUNet model, and merges them into a single class-probability
+vector. The fusion model learns to apply additional or reduced weight to each
+class as seen in each view of the MultiPlanar model.
+
+The final fusion computes a simple function, but training is relatively compute
+intensive as the MultiPlanarUNet model needs to be evaluated over all the
+training images in all views. To keep memory load down, the model is optimized
+over sub-sets of the training data one-by-one, controlled by the
+--images_per_round flag.
+
+Typical usage:
+--------------
+cd my_project
+mp train_fusion
+--------------
+"""
+
 from MultiPlanarUNet.image import ImagePairLoader
 from MultiPlanarUNet.models import FusionModel
 from MultiPlanarUNet.models.model_init import init_model
@@ -23,7 +45,7 @@ import os
 
 
 def get_argparser():
-    parser = ArgumentParser(description='Fit the fusion model stage of a '
+    parser = ArgumentParser(description='Fit a fusion model for a '
                                         'MultiPlanarUNet project')
     parser.add_argument("--project_dir", type=str, default="./",
                         help='path to MultiPlanarUNet project folder')
@@ -36,6 +58,17 @@ def get_argparser():
                              " Larger numbers should be preferred but "
                              "requires potentially large amounts of memory."
                              " Defaults to 10.")
+    parser.add_argument("--batch_size", type=int, default=2**17,
+                        help="Sets the batch size used in the fusion model "
+                             "training process. Lowering this number may "
+                             "resolve GPU memory issues. Defaults to 2**17.")
+    parser.add_argument("--epochs", type=int, default=30,
+                        help="Number of epochs to train on each subset of "
+                             "images (default=30)")
+    parser.add_argument("--early_stopping", type=int, default=3,
+                        help="Number of non-improving epochs before premature "
+                             "training round termination is invoked. "
+                             "(default=3)")
     parser.add_argument("--continue_training", action='store_true')
     parser.add_argument("--force_GPU", type=str, default="")
     parser.add_argument("--eval_prob", type=float, default=1.0,
@@ -176,16 +209,6 @@ def _run_fusion_training(sets, logger, hparams, min_val_images, is_validation,
 
 def entry_func(args=None):
 
-    # Minimum images in validation set before also using training images
-    min_val_images = 15
-
-    # Fusion model training params
-    epochs = 30
-    fm_batch_size = 1000000
-
-    # Early stopping params
-    early_stopping = 3
-
     # Project base path
     args = vars(get_argparser().parse_args(args))
     basedir = os.path.abspath(args["project_dir"])
@@ -195,6 +218,16 @@ def entry_func(args=None):
     await_PID = args["wait_for"]
     dice_weight = args["dice_weight"]
     print("Fitting fusion model for project-folder: %s" % basedir)
+
+    # Minimum images in validation set before also using training images
+    min_val_images = 15
+
+    # Fusion model training params
+    epochs = args['epochs']
+    fm_batch_size = args["batch_size"]
+
+    # Early stopping params
+    early_stopping = args["early_stopping"]
 
     # Wait for PID?
     if await_PID:

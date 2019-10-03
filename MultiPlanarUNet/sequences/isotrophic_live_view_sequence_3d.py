@@ -5,14 +5,10 @@ import numpy as np
 
 
 class IsotrophicLiveViewSequence3D(IsotrophicLiveViewSequence):
-    def __init__(self, image_pair_loader, real_box_dim, bg_class, scaler,
-                 no_log=False, **kwargs):
+    def __init__(self, image_pair_loader, real_box_dim, no_log=False, **kwargs):
         super().__init__(image_pair_loader, **kwargs)
 
-        self.bg_class = bg_class
-        self.scaler = scaler
         self.real_box_dim = real_box_dim
-
         self.batch_shape = (self.batch_size, self.sample_dim, self.sample_dim,
                             self.sample_dim, self.n_classes)
 
@@ -46,7 +42,7 @@ class IsotrophicLiveViewSequence3D(IsotrophicLiveViewSequence):
 
         return im, lab
 
-    def get_base_patches_from(self, image, return_y=False, batch_size=1):
+    def get_base_patches_from(self, image, return_y=False):
         real_dims = image.real_shape
 
         # Calculate positions
@@ -141,8 +137,8 @@ class IsotrophicLiveViewSequence3D(IsotrophicLiveViewSequence):
                 if valid_lab or tries > max_tries:
                     # Get interpolated image
                     im = image.interpolator.intrp_image(mgrid)
-
-                    if tries > max_tries or self.is_valid_im(im, image.bg_value):
+                    im_bg_val = image.interpolator.bg_value
+                    if tries > max_tries or self.is_valid_im(im, im_bg_val):
                         # Update foreground counter
                         has_fg += fg_change
 
@@ -151,19 +147,19 @@ class IsotrophicLiveViewSequence3D(IsotrophicLiveViewSequence):
                         scalers.append(image.scaler)
 
                         # Save bg value if needed in potential augmenters
-                        bg_values.append(image.bg_value)
+                        bg_values.append(im_bg_val)
 
                         # Add to batches
                         batch_x.append(im)
                         batch_y.append(lab)
                         batch_w.append(image.sample_weight)
 
+        # Normalize images
+        batch_x = self.scale(batch_x, scalers)
+
         # Apply augmentation if specified
         batch_x, batch_y, batch_w = self.augment(batch_x, batch_y,
                                                  batch_w, bg_values)
-
-        # Normalize images
-        batch_x = self.scale(batch_x, scalers)
 
         # Reshape, one-hot encode etc.
         batch_x, batch_y, batch_w = self.prepare_batches(batch_x,

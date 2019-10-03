@@ -84,18 +84,6 @@ def get_free_GPU_sets(num_GPUs, ignore_gpus=None):
                              (num_GPUs, total_GPUs))
         else:
             raise NotImplementedError
-            # full_sequence = list(map(str, range(0, max(map(int, free_gpus))+1)))
-            # full_sets = _get_GPU_sets(full_sequence, num_GPUs)
-            # valid_sets = []
-            # for s in full_sets:
-            #     ok_len = len(s.split(",")) == num_GPUs
-            #     ok_gpus = all([gpu in free_gpus for gpu in s.split(",")])
-            #     if ok_len and ok_gpus:
-            #         valid_sets.append(s)
-            # if not valid_sets:
-            #     raise ValueError("No free GPU sets")
-            # else:
-            #     return valid_sets
     else:
         return _get_GPU_sets(free_gpus, num_GPUs)
 

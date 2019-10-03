@@ -69,6 +69,8 @@ def create_view_folders(out_dir, n_splits):
 
 
 def pair_by_names(images, common_prefix_length):
+    if common_prefix_length == 0:
+        return images
     from collections import defaultdict
     names = [os.path.split(i)[-1][:common_prefix_length] for i in images]
     inds = defaultdict(list)
@@ -168,19 +170,20 @@ def entry_func(args=None):
     # Get images and pair by subject ID if common_prefix_length > 0
     images = glob(os.path.join(im_dir, regex))
     images = pair_by_names(images, common_prefix_length)
+    print("-----")
+    print("Found {} images".format(len(images)))
 
     # Get validation size
     N_total = len(images)
     if n_splits > 1:
         N_test = N_total // n_splits
     else:
-        N_test = int(N_total * test_frac)
-    N_val = int(N_total * val_frac)
+        N_test = int(np.ceil(N_total * test_frac))
+    N_val = int(np.ceil(N_total * val_frac))
     if N_val + N_test >= N_total:
         raise ValueError("Too large validation_fraction - "
                          "No training samples left!")
     N_train = N_total - N_test - N_val
-    print("-----")
     print("Total images:".ljust(40), N_total)
     print("Train images pr. split:".ljust(40), N_train)
     print("Validation images pr. split:".ljust(40), N_val)
