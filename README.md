@@ -2,10 +2,13 @@
 
 Implementation of the Multi-Planar UNet as described in: 
 
-`Mathias Perslev, Erik Dam, Akshay Pai, and Christian Igel. One Network To 
+Mathias Perslev, Erik Dam, Akshay Pai, and Christian Igel. One Network To 
 Segment Them All: A General, Lightweight System for Accurate 3D Medical Image
 Segmentation. In: Medical Image Computing and Computer Assisted Intervention 
-(MICCAI), 2019`
+(MICCAI), 2019
+
+Pre-print version: https://arxiv.org/abs/1911.01764
+Published version: https://doi.org/10.1007/978-3-030-32245-8_4
 
 ## Quick Start
 #### Installation
