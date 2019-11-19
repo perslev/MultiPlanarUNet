@@ -84,6 +84,10 @@ class GPUMonitor(Process):
             self.stop()
 
     @property
+    def num_currently_visible(self):
+        return len(self.set_GPUs.strip().split(","))
+
+    @property
     def set_GPUs(self):
         try:
             return os.environ["CUDA_VISIBLE_DEVICES"]
