@@ -22,47 +22,49 @@ def _check_deprecated_params(hparams, logger):
         warn_sparse_param(logger)
 
 
-def _check_version(hparams, logger):
+def _check_version(hparams, logger, package="MultiPlanarUNet"):
     from MultiPlanarUNet.bin.version import VersionController
-    vc = VersionController()
+    vc = VersionController(package=package)
     if not vc.check_git():
         logger.warn("Path {} does not contain a Git repository, or Git is not"
-                    " installed on this system. The software verison match "
-                    "could not be varified against the hyperparameter file."
-                    "".format(vc.git_path))
-        return
+                    " installed on this system.\n-- The software verison match "
+                    "could not be varified against the hyperparameter file.\n"
+                    "-- Software version will not be added to the "
+                    "hyperparameter file.".format(vc.git_path))
+        return False
     if "__VERSION__" not in hparams:
         e = "Could not infer the software version used to produce the " \
             "hyperparameter file of this project. Using a later " \
-            "version of the MultiPlanarUNet software on this project " \
+            "version of the {} software on this project " \
             "may produce unexpected results. If you wish to continue " \
             "using this software version on this project dir, " \
             "manually add the following line to the hyperparameter file:" \
-            " \n\n__VERSION__: {}\n".format(vc.version)
+            " \n\n__VERSION__: {}\n".format(package, vc.version)
         logger.warn(e)
         raise RuntimeWarning(e)
     hp_version = hparams["__VERSION__"]
     if isinstance(hp_version, str) and vc.version != hp_version:
         e = "Parameter file indicates that this project was created " \
-            "under MultiPlanarUNet version {}, but the current " \
+            "under {} version {}, but the current " \
             "version is {}. If you wish to continue " \
             "using this software version on this project dir, " \
             "manually add the following line to the hyperparameter " \
-            "file:\n\n__VERSION__: {}\n".format(hp_version, vc.version,
-                                                vc.version)
+            "file:\n\n__VERSION__: {}\n".format(package, hp_version,
+                                                vc.version, vc.version)
         logger.warn(e)
         raise RuntimeWarning(e)
+    return True
 
 
-def _set_version(hparams, logger=None):
+def _set_version(hparams, logger=None, package="MultiPlanarUNet"):
     from MultiPlanarUNet.bin.version import VersionController
-    vc = VersionController()
+    vc = VersionController(package=package)
     if logger:
         vc.log_version(logger)
     v, b, c = vc.version, vc.branch, vc.current_commit
-    hparams.set_value(None, "__VERSION__", v)
-    hparams.set_value(None, "__BRANCH__", b)
-    hparams.set_value(None, "__COMMIT__", c)
+    hparams.set_value(None, "__VERSION__", v, overwrite=True)
+    hparams.set_value(None, "__BRANCH__", b, overwrite=True)
+    hparams.set_value(None, "__COMMIT__", c, overwrite=True)
     hparams.save_current()
 
 
@@ -106,8 +108,10 @@ class YAMLHParams(dict):
         # Version controlling
         _check_deprecated_params(self, self.logger)
         if not no_version_control:
-            _check_version(self, self.logger)
-            _set_version(self, self.logger if not no_log else None)
+            package = kwargs.get('package') or "MultiPlanarUNet"
+            has_git = _check_version(self, self.logger, package)
+            if has_git:
+                _set_version(self, self.logger if not no_log else None, package)
 
     @property
     def groups(self):
@@ -128,10 +132,10 @@ class YAMLHParams(dict):
         group_name = yaml_string.lstrip(" ").lstrip("\n").split(":")[0]
 
         # Set dict version in memory
-        self[group_name] = YAML().load(yaml_string)
+        self[group_name] = YAML().load(yaml_string)[group_name]
 
         # Add pure yaml string to string representation
-        self.string_rep += "\n" + yaml_string
+        self.string_rep += ("\n" + yaml_string.lstrip(" \n") + "\n")
 
     def delete_group(self, group_name):
         self.string_rep = self.string_rep.replace(self.get_group(group_name), "")
@@ -159,84 +163,102 @@ class YAMLHParams(dict):
         for item in self:
             self.logger("%s\t\t%s" % (item, self[item]))
 
-    def set_value_no_group(self, name, value, overwrite=False):
+    def _update_string_line_by_name(self, name, new_value, subdir=None):
+        group = self.string_rep if not subdir else self.get_group(subdir)
+        lines = group.split("\n")
+        found = False
+        for i, line in enumerate(lines):
+            if found:
+                break
+            if line.lstrip().startswith(name):
+                new_line = line.split(":")[0] + ": {}".format(new_value)
+                lines[i] = new_line
+                found = True
+        if not found:
+            raise AttributeError("No field has the name '{}'".format(name))
+        new_group = "\n".join(lines)
+        self.string_rep = self.string_rep.replace(group, new_group)
+
+    def _set_value_no_subdir(self, name, value, str_value, overwrite,
+                             add_if_missing):
+        cur_value = self.get(name, None)
         if name in self:
-            if not overwrite:
-                self.logger("Item of name '{}' already set with value '{}'."
-                            " Skipping.".format(name, value))
-                return False
-            # Remove existing
-            del self[name]
-            before, _, after = self.string_rep.partition(name)
-            after = after.split("\n", 1)[1]
-            self.string_rep = before + after
-        self[name] = value
-        self.string_rep = self.string_rep.rstrip("\n") + "\n{}: {}\n".format(name,
-                                                                             value)
-        return True
-
-    def set_value(self, subdir, name, value, update_string_rep=True,
-                  overwrite=False, err_on_missing_dir=True):
-        if subdir is None:
-            return self.set_value_no_group(name, value, overwrite=True)
-        if subdir not in self:
-            if err_on_missing_dir:
-                raise AttributeError("Subdir '{}' does not exist.".format(subdir))
-            else:
-                if not self.no_log:
-                    self.logger("Subdir {} does not exist. Skipping.".format(subdir))
-                return False
-        exists = name in self[subdir]
-        cur_value = self[subdir].get(name)
-        if not exists or (cur_value is None or cur_value is False) or overwrite:
-            # str rep of value
-            if isinstance(value, np.ndarray):
-                str_value = np.array2string(value, separator=", ")
-            else:
-                str_value = str(value)
-
-            if not self.no_log:
-                self.logger("Setting value '%s' in subdir '%s' with "
-                            "name '%s'" % (str_value, subdir, name))
-
-            # Set the value in memory
-            name_exists = name in self[subdir]
-            self[subdir][name] = value
-
-            # Update the string representation as well?
-            if update_string_rep:
-                # Get relevant group
-                l = len(subdir)
-                group = [g for g in self.groups if g.lstrip()[:l] == subdir][0]
-
-                # Replace None or False with the new value within the group
-                pattern = re.compile(r"%s:[ ]+(.*)[ ]?\n" % name)
-
-                # Find and insert new value
-                def rep_func(match):
-                    """
-                    Returns the full match with the
-                    capture group replaced by str(value)
-                    """
-                    return match.group().replace(match.groups(1)[0], str_value)
-                new_group = re.sub(pattern, rep_func, group)
-
-                if not name_exists:
-                    # Add the field if not existing already
-                    assert new_group == group  # No changes should occur
-                    new_group = new_group.strip("\n")
-                    temp = new_group.split("\n")[1]
-                    indent = len(temp) - len(temp.lstrip())
-                    new_field = (" " * indent) + "%s: %s" % (name, str_value)
-                    new_group = "\n%s\n%s\n" % (new_group, new_field)
-
-                # Update string representation
-                self.string_rep = self.string_rep.replace(group, new_group)
-            return True
+            if cur_value is not None and not overwrite:
+                return "Item of name '{}' already set with value '{}'." \
+                       " Skipping. (overwrite=False)".format(name, value)
+            # Update string representation
+            self._update_string_line_by_name(name, str_value)
+        elif not add_if_missing:
+            raise AttributeError("Entry with name '{}' does not exist and "
+                                 "add_if_missing was set to False."
+                                 "".format(name))
         else:
-            self.logger("Attribute '%s' in subdir '%s' already set "
-                        "with value '%s'" % (name, subdir, cur_value))
-            return False
+            # Add to end of string representation
+            self.string_rep = self.string_rep.rstrip("\n") + \
+                              "\n\n{}: {}\n".format(name, str_value)
+        # Set the value in memory
+        self[name] = value
+
+    def _set_value_in_existing_dir(self, subdir, name, value, str_value,
+                                   overwrite, add_if_missing):
+        cur_value = self[subdir].get(name, None)
+        if name in self[subdir]:
+            if cur_value is not None and not overwrite:
+                return "Entry of name '{}' already set in subdir '{}' "\
+                       "with value '{}'. Skipping "\
+                       "(overwrite=False).".format(name, subdir, value)
+            # Update string representation of new value
+            self._update_string_line_by_name(name, str_value, subdir=subdir)
+        elif not add_if_missing:
+            raise AttributeError("Entry with name '{}' does not exist under "
+                                 "subdir '{}' and add_if_missing was set to "
+                                 "False.".format(name, subdir))
+        else:
+            # Add the line to the group
+            group = self.get_group(subdir).rstrip(" \n")
+            entry = "  {}: {}".format(name, str_value)
+            new_group = "{}\n{}".format(group, entry)
+            self.string_rep = self.string_rep.replace(group, new_group)
+        # Update value in memory
+        self[subdir][name] = value
+
+    def _set_value_in_subdir(self, subdir, name, value, str_value, overwrite,
+                             add_if_missing):
+        if subdir not in self:
+            if not add_if_missing:
+                raise AttributeError("Subdir '{}' does not "
+                                     "exist.".format(subdir))
+            else:
+                new_group = "{}:\n  {}: {}".format(subdir, name, str_value)
+                self.add_group(new_group)
+                return "Subdir '{}' does not exist, creating it now... "\
+                       "(add_if_missing=True)".format(subdir)
+        else:
+            return self._set_value_in_existing_dir(
+                subdir, name, value, str_value, overwrite, add_if_missing
+            )
+
+    def set_value(self, subdir, name, value, overwrite=False, add_if_missing=True):
+        # Get propper str rep of value
+        if isinstance(value, np.ndarray):
+            str_value = np.array2string(value, separator=", ")
+        else:
+            str_value = str(value)
+
+        if subdir is None:
+            status = self._set_value_no_subdir(name, value, str_value,
+                                               overwrite=overwrite,
+                                               add_if_missing=add_if_missing)
+        else:
+            status = self._set_value_in_subdir(subdir, name, value, str_value,
+                                               overwrite=overwrite,
+                                               add_if_missing=add_if_missing)
+
+        # Log what was actually done
+        status = status or "Setting value '{}' (type {}) in subdir '{}' " \
+                           "with name '{}'".format(str_value, type(value),
+                                                   subdir, name)
+        self.logger(status)
 
     def save_current(self, out_path=None):
         # Write to file
