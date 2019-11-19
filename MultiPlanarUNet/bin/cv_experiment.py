@@ -31,7 +31,7 @@ def get_parser():
                         help="OBS: Only in effect when --num_GPUs=0. Sets"
                              " the number of jobs to run in parallel when no"
                              " GPUs are attached to each job.")
-    parser.add_argument("--run_split", type=int, default=None,
+    parser.add_argument("--run_on_split", type=int, default=None,
                         help="Only run a specific split")
     parser.add_argument("--script_prototype", type=str, default="./script",
                         help="Path to text file listing commands and "
@@ -191,14 +191,14 @@ def run_sub_experiment(split_dir, out_dir, script, hparams, no_hparams,
 
 def _assert_run_split(start_from, monitor_GPUs_every, num_jobs):
     if start_from != 0:
-        raise ValueError("Should specify either --run_split <split> or "
+        raise ValueError("Should specify either --run_on_split <split> or "
                          "--start_from <split>, got both.")
     if monitor_GPUs_every is not None:
         raise ValueError("--monitor_GPUs_every is not a valid argument"
-                         " to use with --run_split.")
+                         " to use with --run_on_split.")
     if num_jobs != 1:
         raise ValueError("--num_jobs is not a valid argument to use with"
-                         " --run_split.")
+                         " --run_on_split.")
 
 
 def _assert_force_and_ignore_gpus(force_gpu, ignore_gpu):
@@ -228,7 +228,7 @@ def entry_func(args=None):
     out_dir = os.path.abspath(parser["out_dir"])
     create_folders(out_dir)
     await_PID = parser["wait_for"]
-    run_split = parser["run_split"]
+    run_split = parser["run_on_split"]
     start_from = parser["start_from"] or 0
     num_jobs = parser["num_jobs"] or 1
 
@@ -257,7 +257,7 @@ def entry_func(args=None):
     cv_folders = get_CV_folders(cv_dir)
     if run_split is not None:
         if run_split < 0 or run_split >= len(cv_folders):
-            raise ValueError("--run_split should be in range [0-{}], "
+            raise ValueError("--run_on_split should be in range [0-{}], "
                              "got {}".format(
                 len(cv_folders)-1, run_split
             ))

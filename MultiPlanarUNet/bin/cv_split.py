@@ -167,7 +167,7 @@ def entry_func(args=None):
     # Create sub-folders
     create_view_folders(out_dir, n_splits)
 
-    # Get images and pair by subject ID if common_prefix_length > 0
+    # Get images and pair by subject identifier if common_prefix_length > 0
     images = glob(os.path.join(im_dir, regex))
     images = pair_by_names(images, common_prefix_length)
     print("-----")

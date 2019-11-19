@@ -93,7 +93,7 @@ class ImageQueue(object):
         # Store reference to all running threads
         self.threads = []
 
-        # Store the number of times each image ID is currently in the queue
+        # Store the number of times each image identifier is currently in the queue
         self.items_in_queue = 0
         self._last = 0
         self.no_new_counter = 0

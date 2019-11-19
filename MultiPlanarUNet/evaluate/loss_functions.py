@@ -52,7 +52,7 @@ def sparse_jaccard_distance_loss(y_true, y_pred, smooth=1):
 
 def sparse_dice_loss(y_true, y_pred, smooth=1):
     # Output shape
-    n_classes = y_pred.get_shape()[-1].value
+    n_classes = y_pred.get_shape()[-1]
 
     # One hot encode set shape
     y_true = tf.one_hot(tf.cast(y_true, tf.uint8), depth=n_classes)

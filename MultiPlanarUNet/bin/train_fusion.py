@@ -20,13 +20,15 @@ mp train_fusion
 --------------
 """
 
+import random
+import numpy as np
+import os
 from MultiPlanarUNet.image import ImagePairLoader
 from MultiPlanarUNet.models import FusionModel
 from MultiPlanarUNet.models.model_init import init_model
-from MultiPlanarUNet.train import YAMLHParams
+from MultiPlanarUNet.hyperparameters import YAMLHParams
 from MultiPlanarUNet.utils import await_and_set_free_gpu, get_best_model, \
-                                  create_folders, highlighted, set_gpu, \
-                                  random_split
+                                  create_folders, highlighted, set_gpu
 from MultiPlanarUNet.utils.fusion import predict_and_map, stack_collections
 from MultiPlanarUNet.interpolation.sample_grid import get_voxel_grid_real_space
 from MultiPlanarUNet.logging import Logger
@@ -39,9 +41,6 @@ from tensorflow.keras.callbacks import CSVLogger, EarlyStopping
 from sklearn.utils import shuffle
 
 from argparse import ArgumentParser
-import random
-import numpy as np
-import os
 
 
 def get_argparser():

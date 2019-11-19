@@ -139,8 +139,9 @@ class IsotrophicLiveViewSequence(BaseSequence):
         batch_x = np.asarray(batch_x)
         batch_y = np.asarray(batch_y)
         batch_y = batch_y.reshape(batch_y.shape + (1,))
+        batch_w = np.asarray(batch_w)
 
-        return batch_x, batch_y, np.asarray(batch_w)
+        return batch_x, batch_y, batch_w
 
     def augment(self, batch_x, batch_y, batch_w, bg_values):
         # Apply further augmentation?

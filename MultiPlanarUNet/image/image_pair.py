@@ -39,7 +39,7 @@ class ImagePair(object):
               loaded, but image data is not yet loaded into memory
               Loading of data happens automatically at the first reference to
               the image or label attributes
-            - In ID name is established (filename minus extension)
+            - In identifier name is established (filename minus extension)
             - Placeholder attributes are created that may be used in methods
 
         Args:
@@ -71,7 +71,7 @@ class ImagePair(object):
         if not self.predict_mode:
             self.labels_path = self._validate_path(labels_path)
 
-        # Validate that the image and label data match and get image ID
+        # Validate that the image and label data match and get image identifier
         self.id = self._get_and_validate_id()
 
         # Set variables to store loaded image and label information
@@ -96,7 +96,7 @@ class ImagePair(object):
         self.lab_dtype = lab_dtype
 
     def __str__(self):
-        return "<ImagePair object, ID: %s>" % self.id
+        return "<ImagePair object, identifier: %s>" % self.id
 
     def __repr__(self):
         return self.__str__()
@@ -306,8 +306,8 @@ class ImagePair(object):
 
     def _get_and_validate_id(self):
         """
-        Validates if the image ID and label ID match.
-        Returns the image ID.
+        Validates if the image identifier and label identifier match.
+        Returns the image identifier.
         """
         img_id = os.path.split(self.image_path)[-1].split(".")[0]
         if not self.predict_mode:

@@ -39,7 +39,7 @@ class ImagePairLoader(object):
 
         If initialize_empty=True, the class is initialized but no images are
         loaded. Images can be manually added through the add_image and
-        add_images methods.
+        add_files methods.
 
         Args:
             base_dir:           A path to a directory storing the 'img_subdir'
@@ -108,7 +108,7 @@ class ImagePairLoader(object):
             max_load: Int, maximum number of (loaded) ImagePairs to store in
                       the queue at once
         """
-        # Set dictionary pointing to images by ID
+        # Set dictionary pointing to images by identifier
         if isinstance(max_load, int) and max_load < len(self):
             from MultiPlanarUNet.image.image_queue import ImageQueue
 
@@ -149,7 +149,7 @@ class ImagePairLoader(object):
         Get a specific ImagePair by its string identifier
 
         Args:
-            image_id: String ID of an ImagePair
+            image_id: String identifier of an ImagePair
 
         Returns:
             An ImagePair
