@@ -11,15 +11,18 @@ with open('HISTORY.rst') as history_file:
 with open("requirements.txt") as req_file:
     requirements = list(filter(None, req_file.read().split("\n")))
 
+
 setup(
     name='MultiPlanarUNet',
     version=__version__,
-    description='Multi-Planar UNet for autonomous segmentation of 3D medical images',
+    description='Multi-Planar UNet for autonomous '
+                'segmentation of 3D medical images',
     long_description=readme + "\n\n" + history,
+    long_description_content_type='text/markdown',
     author='Mathias Perslev',
     author_email='map@di.ku.dk',
     url='https://github.com/perslev/MultiPlanarUNet',
-    license="LICENSE.txt",
+    license='LICENSE.txt',
     packages=find_packages(),
     package_dir={'MultiPlanarUNet':
                  'MultiPlanarUNet'},
@@ -37,6 +40,6 @@ setup(
                  'Programming Language :: Python :: 3',
                  'Programming Language :: Python :: 3.5',
                  'Programming Language :: Python :: 3.6',
-                 'Programming Language :: Python :: 3.7'
+                 'Programming Language :: Python :: 3.7',
                  'License :: OSI Approved :: MIT License']
 )
