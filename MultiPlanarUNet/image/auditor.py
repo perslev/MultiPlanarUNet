@@ -188,17 +188,13 @@ class Auditor(object):
         if pattern is None:
             raise ValueError("Unknown model type: '%s'" % model_type)
 
-        changes = False
         for attr in pattern:
             subdirs, names = pattern[attr]
             value = getattr(self, attr)
 
             for s, n in zip(subdirs, names):
-                c = hparams.set_value(s, n, value, update_string_rep=True)
-                if c:
-                    changes = True
-        if changes:
-            hparams.save_current()
+                hparams.set_value(subdir=s, name=n, value=value)
+        hparams.save_current()
 
     def heurestic_sample_dim(self, real_space_span, res, _min, _max):
         valid = np.array([i for i in range(_min, _max+1) if (i*0.5**4).is_integer()])
