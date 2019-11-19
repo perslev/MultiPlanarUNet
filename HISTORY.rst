@@ -74,3 +74,13 @@ History
   them clearer, remove deprecated command-line arguments etc.
 * Evaluation results as stored in .csv files are now always saved and loaded
   with an index column as the first column of the file.
+
+0.2.3 (2019-11-19)
+------------------
+* Simplified the functionality of the Validation callback so that it now only
+  computes the F1/Dice, precision and recall scores. I.e. the callback no longer
+  computes validation metrics. This choice was made to increase stability between
+  TensorFlow versions. The callback should work for most versions of TF now, incl.
+  TF 2.0. Future versions of MultiPlanarUNet will re-introduce validation metrics
+  in a TF 2.0 only setting.
+* Various smaller changes across the code
