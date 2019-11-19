@@ -51,3 +51,27 @@ def init_callback_objects(callbacks, logger):
                                                 ", ".join(["%s=%s" % (a, kwargs[a]) for a in kwargs])))
 
     return cb_objs, cb_dict
+
+
+def remove_validation_callbacks(callbacks, logger=None):
+    """
+    Removes all callbacks that rely on validation data
+
+    Takes a list of uninitialized callbacks data, enumerates them and removes
+    each entry if one or more of its parameters in 'kwargs' mentions 'val'.
+
+    Args:
+        callbacks: A list of dictionaries, each representing a callback
+
+    Returns:
+        None, operates in-place
+    """
+    for i, callback in enumerate(callbacks):
+        val_dependent_params = []
+        for param in callback["kwargs"].values():
+            val_dependent_params.append("val" in str(param).lower())
+        if any(val_dependent_params):
+            if logger:
+                logger("Removing callback with parameters: {} "
+                       "(needs validation data)".format(callback))
+            callbacks.pop(i)
