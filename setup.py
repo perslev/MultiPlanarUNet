@@ -24,6 +24,7 @@ setup(
     package_dir={'MultiPlanarUNet':
                  'MultiPlanarUNet'},
     include_package_data=True,
+    setup_requires=["setuptools_git>=0.3",],
     entry_points={
        'console_scripts': [
            'mp=MultiPlanarUNet.bin.mp:entry_func',
