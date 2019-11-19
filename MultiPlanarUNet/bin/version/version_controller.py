@@ -4,18 +4,20 @@ import pkgutil
 
 
 class VersionController(object):
-    def __init__(self, logger=None):
+    def __init__(self, logger=None, package='MultiPlanarUNet'):
         from MultiPlanarUNet.logging.default_logger import ScreenLogger
-        code_path = pkgutil.get_loader("MultiPlanarUNet").path
+        self.package_name = package
+        self.package_loader = pkgutil.get_loader(package)
         self.logger = logger or ScreenLogger()
-        self.git_path = os.path.split(os.path.split(code_path)[0])[0]
+        self.git_path = os.path.split(os.path.split(self.package_loader.path)[0])[0]
         self._mem_path = None
 
     def log_version(self, logger=None):
         logger = logger or self.logger
-        logger("MultiPlanarUNet version: {} ({}, {})".format(self.version,
-                                                             self.branch,
-                                                             self.current_commit))
+        logger("{} version: {} ({}, {})".format(self.package_name,
+                                                self.version,
+                                                self.branch,
+                                                self.current_commit))
 
     def __enter__(self):
         self._mem_path = os.getcwd()
@@ -49,8 +51,8 @@ class VersionController(object):
 
     @property
     def version(self):
-        from MultiPlanarUNet import __version__
-        return __version__
+        module = self.package_loader.load_module()
+        return module.__version__
 
     @property
     def current_commit(self):
