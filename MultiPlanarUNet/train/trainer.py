@@ -1,18 +1,16 @@
+import os
+import numpy as np
 from MultiPlanarUNet.callbacks import init_callback_objects
 from MultiPlanarUNet.logging import ScreenLogger
-from MultiPlanarUNet.evaluate import loss_functions
-from MultiPlanarUNet.evaluate import metrics as custom_metrics
 from MultiPlanarUNet.callbacks import SavePredictionImages, Validation, \
                                       FGBatchBalancer, DividerLine, \
                                       LearningCurve
-from MultiPlanarUNet.errors import raise_non_sparse_metric_or_loss_error
 from MultiPlanarUNet.utils import ensure_list_or_tuple
-
-import os
-import numpy as np
-from tensorflow.keras import optimizers, losses
-from tensorflow.keras import metrics as TF_metrics
+from MultiPlanarUNet.train.utils import (ensure_sparse,
+                                         init_losses,
+                                         init_metrics)
 from multiprocessing import cpu_count
+from tensorflow.keras import optimizers
 from tensorflow.python.framework.errors_impl import ResourceExhaustedError, \
                                                     InternalError
 
@@ -29,48 +27,37 @@ class Trainer(object):
         self.org_model = org_model or model
 
     def compile_model(self, optimizer, optimizer_kwargs, loss, metrics, **kwargs):
+        """
+        Compile the stored tf.keras Model instance stored in self.model
+        Sets the loss function, optimizer and metrics
+
+        Args:
+            optimizer:        (string) The name of a tf.keras.optimizers Optimizer
+            optimizer_kwargs: (dict)   Key-word arguments passed to the Optimizer
+            loss:             (string) The name of a tf.keras.losses or
+                                       MultiPlanarUnet loss function
+            metrics:          (list)   List of tf.keras.metrics or
+                                       MultiPlanarUNet metrics.
+            **kwargs:         (dict)   Key-word arguments passed to losses
+                                       and/or metrics that accept such.
+        """
+        # Make sure sparse metrics and loss are specified as sparse
+        metrics = ensure_list_or_tuple(metrics)
+        losses = ensure_list_or_tuple(loss)
+        ensure_sparse(metrics+losses)
+
         # Initialize optimizer
-        optimizer = getattr(optimizers, optimizer)
+        optimizer = optimizers.__dict__[optimizer]
         optimizer = optimizer(**optimizer_kwargs)
 
-        # Make sure sparse metrics and loss are specified sparse
-        metrics = ensure_list_or_tuple(metrics)
-        loss = ensure_list_or_tuple(loss)
-        for i, m in enumerate(metrics + loss):
-            if "sparse" not in m:
-                raise_non_sparse_metric_or_loss_error()
-
-        # Initialize loss(es)
-        loss_list = []
-        for l in loss:
-            try:
-                loss_list.append(getattr(losses, l))
-            except AttributeError:
-                import inspect
-                l = getattr(loss_functions, l)
-                if inspect.isclass(l):
-                    loss_list.append(l(logger=self.logger, **kwargs))
-                else:
-                    loss_list.append(l)
-        loss = loss_list
-
-        # Find metrics both from standard keras.metrics module and own custom
-        init_metrics = []
-        for m in metrics:
-            try:
-                init_metrics.append(getattr(TF_metrics, m))
-            except AttributeError:
-                import inspect
-                metric = getattr(custom_metrics, m)
-                if inspect.isclass(metric):
-                    metric = metric(logger=self.logger, **kwargs)
-                init_metrics.append(metric)
+        # Initialize loss(es) and metrics from tf.keras or MultiPlanarUNet
+        losses = init_losses(losses, self.logger, **kwargs)
+        metrics = init_metrics(metrics, self.logger, **kwargs)
 
         # Compile the model
-        self.model.compile(optimizer=optimizer, loss=loss,
-                           metrics=init_metrics)
+        self.model.compile(optimizer=optimizer, loss=losses, metrics=metrics)
         self.logger("Optimizer:   %s" % optimizer)
-        self.logger("Loss funcs:  %s" % loss)
+        self.logger("Loss funcs:  %s" % losses)
         self.logger("Metrics:     %s" % init_metrics)
         return self
 
