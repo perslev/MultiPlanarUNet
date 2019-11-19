@@ -187,7 +187,8 @@ def prepare_for_3d_unet(hparams, just_one=False, no_val=False, logger=None,
                         continue_training=None, base_path="./"):
 
     # Load the data
-    train_data, val_data, logger, auditor = _base_loader_func(hparams, just_one, no_val, logger, "3d")
+    train_data, val_data, logger, auditor = _base_loader_func(hparams, just_one,
+                                                              no_val, logger, "3d")
 
     # Get 3D patch sequence generators
     train = train_data.get_sequencer(n_classes=hparams["build"]["n_classes"],
@@ -207,8 +208,7 @@ def prepare_for_3d_unet(hparams, just_one=False, no_val=False, logger=None,
 
 def prepare_for_multi_task_2d(hparams, just_one=False, no_val=False, logger=None,
                               continue_training=None, base_path="./"):
-    from MultiPlanarUNet.train import YAMLHParams
-
+    from MultiPlanarUNet.hyperparameters import YAMLHParams
     # Get image loaders for all tasks
     tasks = []
     for name, task_hparam_file in zip(*hparams["tasks"].values()):
