@@ -40,8 +40,8 @@ def get_free_gpus(max_allowed_mem_usage=400):
         free = list(map(lambda x: int(x) <= max_allowed_mem_usage, mem_usage))
         return list(gpu_ids[free])
     except FileNotFoundError as e:
-        print("[ERROR] nvidia-smi is not installed.")
-        return []
+        raise FileNotFoundError("[ERROR] nvidia-smi is not installed. "
+                                "Consider setting the --num_GPUs=0 flag.") from e
 
 
 def _get_free_gpu(free_GPUs, N=1):
