@@ -36,11 +36,11 @@ def init_result_dicts(views, all_images, n_classes):
     if n_classes == 1:
         n_classes = 2
 
-    results = {"ID": [image_id for image_id in sorted(all_images)]}
+    results = {"identifier": [image_id for image_id in sorted(all_images)]}
     results.update({str(v): [np.nan for _ in all_images] for v in views})
     results.update({"MJ": [np.nan for _ in all_images]})
     results = pd.DataFrame(results)
-    results = results.set_index("ID")
+    results = results.set_index("identifier")
 
     # Prepare dictionary of per class results
     inner = {"class": range(1, n_classes)}

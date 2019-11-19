@@ -51,7 +51,7 @@ def print_mj_or_detailed(df, round_):
 
 
 def print_res(df, round_):
-    to_drop = ("Unnamed: 0", "ID", "MJ")
+    to_drop = ("Unnamed: 0", "identifier", "MJ")
     for d in to_drop:
         try:
             df = df.drop([d], axis=1)
