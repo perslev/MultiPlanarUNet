@@ -51,10 +51,10 @@ This package implements fully autonomous deep learning based
 segmentation of any 3D medical image. It uses a fixed 
 hyperparameter set and a fixed model topology, eliminating the need for
 conducting hyperparameter tuning experiments. No manual involvement is 
-needed except for supplying the training data.
+required except for supplying the training data.
 
-The system has been evaluated on a wide range of tasks spanning organ and 
-pathology segmentation across tissue types and scanner modalities. 
+The system has been evaluated on a wide range of tasks covering various organ and 
+pathology segmentation tasks, tissue types, and imaging modalities. 
 The model obtained a top-5 position at the 2018 Medical Segmentation Decathlon 
 (http://medicaldecathlon.com/) despite its simplicity and computational 
 efficiency.
@@ -71,8 +71,8 @@ fed images sampled across multiple views onto the image volume simultaneously:
 [Multi-Planar Animation](resources/multi_planar_training.gif)
 
 At test-time, the model predict along each of the views and recreates a set of full segmentation volumes. 
-These volumes are majority voted into one using a learned function that weights
-each class from each view individually to maximuse the performance.
+These volumes are fused into one using a learned function that weights
+each class from each view individually to maximise the performance.
 
 ![](resources/multi_planar_model_updated.png)
 
@@ -80,9 +80,9 @@ each class from each view individually to maximuse the performance.
 
 ## Usage
 
-Project initialization, model training, evaluation, prediction etc. may be 
+Project initialization, model training, evaluation, prediction etc. can be 
 performed using the scripts located in ```MultiPlanarUNet.bin```. The script 
-named ```mp.py``` serves as an entry point to all other scripts, and is used
+named ```mp.py``` serves as an entry point to all other scripts, and it is used
 as follows:
 
 ```bash
@@ -187,7 +187,7 @@ the project folder. Typically, after training, the folder will look as follows:
 ```
 
 #### Fusion Model Training
-When using the MultiPlanar model, a fusion model must also be trained after 
+When using the MultiPlanar model, a fusion model must  be computed after 
 the base model has been trained. This model will learn to map the multiple 
 predictions of the base model through each view to one, stronger segmentation
 volume:
@@ -274,9 +274,9 @@ symlinked to their original position to safe storage.
 
 #### Running a CV Experiment
 A cross-validation experiment can now be performed. On systems with multiple
-GPUs, each fold can be assigned a given number of the total pool of GPUs in 
-which case multiple folds will run in parallel and new once automatically start
-, when previous folds terminate.
+GPUs, each fold can be assigned a given number of the total pool of GPUs'. In 
+this case, multiple folds will run in parallel and new ones automatically start
+when previous folds terminate.
 
 First, we create a new project folder. This time, we do not specify a data 
 folder yet:
@@ -319,7 +319,7 @@ run in parallel. We set ```--monitor_GPUs_every=600``` to scan the system for
 new free GPU resources every 600 seconds (otherwise, only GPUs that we 
 initially available will be cycled and new free ones will be ignored).
 
-The cv_experiment script will create a new project folder for each split 
+The ```cv_experiment``` script will create a new project folder for each split 
 located at ```--out_dir``` (```CV_experiment/splits``` in this case). For each
 fold, each of the commands outlined in the ```script``` file will be launched
 one by one inside the respective project folder of the fold, so that the 
