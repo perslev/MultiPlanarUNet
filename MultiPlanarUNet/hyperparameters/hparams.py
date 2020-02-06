@@ -84,8 +84,7 @@ class YAMLHParams(dict):
             raise OSError("YAML path '%s' does not exist" % self.yaml_path)
         else:
             with open(self.yaml_path, "r") as yaml_file:
-                for line in yaml_file:
-                    self.string_rep += line
+                self.string_rep = yaml_file.read()
             hparams = YAML(typ="safe").load(self.string_rep)
 
         # Set dict elements
@@ -141,7 +140,7 @@ class YAMLHParams(dict):
         self.string_rep = self.string_rep.replace(self.get_group(group_name), "")
         del self[group_name]
 
-    def get_from_anywhere(self, key):
+    def get_from_anywhere(self, key, default=None):
         found = []
         for group_str in self:
             group = self[group_str]
@@ -155,7 +154,7 @@ class YAMLHParams(dict):
             self.logger("[ERROR] Found key '%s' in multiple groups (%s)" %
                         (key, [g[0] for g in found]))
         elif len(found) == 0:
-            return None
+            return default
         else:
             return found[0][1]
 
