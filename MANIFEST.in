@@ -3,3 +3,4 @@ include HISTORY.rst
 include LICENSE.txt
 include README.md
 recursive-include MultiPlanarUNet/bin/defaults *
+prune resources

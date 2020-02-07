@@ -15,6 +15,7 @@ Published version: https://doi.org/10.1007/978-3-030-32245-8_4
 #### Installation
 
 ```
+# From GitHub
 git clone https://github.com/perslev/MultiPlanarUNet
 pip install -e MultiPlanarUNet
 ```
@@ -26,6 +27,12 @@ updated with recent changes on GitHub without re-installing:
 ```
 cd MultiPlanarUNet
 git pull
+```
+
+However, the package is also occasionally updated on PyPi for install with:
+```
+# Note: renamed MultiPlanarUNet -> mpunet in versions 0.2.4)
+pip install mpunet
 ```
 
 #### Usage

@@ -84,3 +84,12 @@ History
   TF 2.0. Future versions of MultiPlanarUNet will re-introduce validation metrics
   in a TF 2.0 only setting.
 * Various smaller changes across the code
+
+0.2.4 (2020-02-07)
+------------------
+* Package was updated to comply with the TensorFlow >= 2.0 API.
+* Package was renamed from 'MultiPlanarUNet' to 'mpunet'. This affects imports as well 
+  as installs from PyPi (i.e. 'pip install mpunet' now), but not the GitHub repo.
+* Now requires the 'psutil' and 'tensorflow-addons' packages.
+* Implements a temporary fix to the issue raised at https://github.com/perslev/MultiPlanarUNet/issues/8
+* Fixed a number of smaller bugs

@@ -13,7 +13,7 @@ with open("requirements.txt") as req_file:
 
 
 setup(
-    name='MultiPlanarUNet',
+    name='mpunet',
     version=__version__,
     description='Multi-Planar UNet for autonomous '
                 'segmentation of 3D medical images',
@@ -21,7 +21,7 @@ setup(
     long_description_content_type='text/markdown',
     author='Mathias Perslev',
     author_email='map@di.ku.dk',
-    url='https://github.com/perslev/mpunet',
+    url='https://github.com/perslev/MultiPlanarUNet',
     license='LICENSE.txt',
     packages=find_packages(),
     package_dir={'mpunet':
