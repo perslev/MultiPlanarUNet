@@ -2,17 +2,28 @@ import os
 import numpy as np
 from MultiPlanarUNet.callbacks import init_callback_objects
 from MultiPlanarUNet.logging import ScreenLogger
-from MultiPlanarUNet.callbacks import SavePredictionImages, Validation, \
-                                      FGBatchBalancer, DividerLine, \
-                                      LearningCurve
+from MultiPlanarUNet.callbacks import (SavePredictionImages, Validation,
+                                       FGBatchBalancer, DividerLine,
+                                       LearningCurve, MemoryConsumption,
+                                       remove_validation_callbacks)
 from MultiPlanarUNet.utils import ensure_list_or_tuple
 from MultiPlanarUNet.train.utils import (ensure_sparse,
+                                         loss_wrapper,
                                          init_losses,
-                                         init_metrics)
+                                         init_metrics,
+                                         init_optimizer)
 from multiprocessing import cpu_count
-from tensorflow.keras import optimizers
-from tensorflow.python.framework.errors_impl import ResourceExhaustedError, \
-                                                    InternalError
+from tensorflow.python.framework.errors_impl import (ResourceExhaustedError,
+                                                     InternalError)
+
+
+def get_steps(sequence, im_per_epoch=None):
+    """ Returns the number of gradient steps to take in an epoch """
+    if im_per_epoch:
+        steps = int(np.ceil(im_per_epoch / sequence.batch_size))
+    else:
+        steps = len(sequence)
+    return steps
 
 
 class Trainer(object):
@@ -20,13 +31,30 @@ class Trainer(object):
     Handles initialization and logging of model fitting sessions.
     """
     def __init__(self, model, org_model=None, logger=None):
+        """
+        Init. simply accepts a model and stores it.
+        Optionally, an 'org_model' (original model) may be passed and stored
+        as well. This is for training multi-GPU models prepared by the
+        tf.keras.utils.multi_gpu_model utility, which returns a new, split
+        model for training (passed as 'model' parameter here). For properly
+        saving the model parameter, however, it is recommended to use the
+        original, non-split model (here passed as 'org_model').
+
+        Args:
+            model:      (tf.keras Model) Initialized model to train
+            org_model:  (tf.keras Model) Optional single-GPU version for the
+                                         passed 'model' parameter.
+            logger:     (Logger)         Optional Logger instance
+        """
         self.model = model
         self.logger = logger if logger is not None else ScreenLogger()
 
-        # Extra reference to original (non GPU-distributed) model
-        self.org_model = org_model or model
+        # Extra reference to original (non multiple-GPU) model
+        # May also be set from a script at a later time (before self.fit call)
+        self.org_model = org_model
 
-    def compile_model(self, optimizer, optimizer_kwargs, loss, metrics, **kwargs):
+    def compile_model(self, optimizer, optimizer_kwargs, loss, metrics,
+                      check_sparse=False, **kwargs):
         """
         Compile the stored tf.keras Model instance stored in self.model
         Sets the loss function, optimizer and metrics
@@ -38,19 +66,20 @@ class Trainer(object):
                                        MultiPlanarUnet loss function
             metrics:          (list)   List of tf.keras.metrics or
                                        MultiPlanarUNet metrics.
+            check_sparse:     TODO
             **kwargs:         (dict)   Key-word arguments passed to losses
                                        and/or metrics that accept such.
         """
         # Make sure sparse metrics and loss are specified as sparse
         metrics = ensure_list_or_tuple(metrics)
         losses = ensure_list_or_tuple(loss)
-        ensure_sparse(metrics+losses)
+        if check_sparse:
+            ensure_sparse(metrics+losses)
 
-        # Initialize optimizer
-        optimizer = optimizers.__dict__[optimizer]
-        optimizer = optimizer(**optimizer_kwargs)
+        # Initialize optimizer, loss(es) and metric(s) from tf.keras or
+        # MultiPlanarUNet
+        optimizer = init_optimizer(optimizer, self.logger, **optimizer_kwargs)
 
-        # Initialize loss(es) and metrics from tf.keras or MultiPlanarUNet
         losses = init_losses(losses, self.logger, **kwargs)
         metrics = init_metrics(metrics, self.logger, **kwargs)
 
@@ -61,21 +90,33 @@ class Trainer(object):
         self.logger("Metrics:     %s" % init_metrics)
         return self
 
-    def fit(self, train, val, callbacks, n_epochs, train_im_per_epoch,
-            val_im_per_epoch, hparams, batch_size=8, verbose=1, init_epoch=0,
-            no_im=False, use_multiprocessing=False, val_ignore_class_zero=True,
-            **unused_fit_kwargs):
+    def fit(self, train, val, batch_size, no_im=False, **fit_kwargs):
+        """
+        Fit the stored tf.keras Model (self.model) on a set of data.
 
+        The 'fit' method is a wrapper around the hidden '_fit' method. It
+        handles KeyboardInterrupts (--> stopping training prematurely), TF
+        GPU memory errors (--> batch_size is reduced by 2 and training
+        restarted), and other exceptions (--> error logged and training
+        terminated).
+
+        Please refer to the self._fit method for 'fit_kwargs' argument details.
+
+        Args:
+            train:      TODO
+            val:        TODO
+            batch_size: (int)  The initial batch size to run training with
+            no_im:      TODO
+            fit_kwargs: (dict) Keyword arguments passed to self._fit
+        """
         # Crop labels?
         if hasattr(self.model, "label_crop"):
             train.label_crop = self.model.label_crop
             val.label_crop = self.model.label_crop
-
         if type(train).__name__ == "MultiTaskSequence":
             self.logger("-- Skipping saving images (not yet implemented for"
                         " MultiTaskSequences).")
             no_im = True
-
         # Save a few images to disk for inspection
         if no_im:
             self.logger("No images saved (--no_images flag is set)")
@@ -88,15 +129,14 @@ class Trainer(object):
         fitting = True
         while fitting:
             try:
-                self._fit_loop(train, val, batch_size, n_epochs, verbose,
-                               callbacks, init_epoch, no_im, train_im_per_epoch,
-                               val_im_per_epoch, hparams, use_multiprocessing,
-                               val_ignore_class_zero)
+                self._fit(train=train,
+                          val=val,
+                          batch_size=batch_size,
+                          **fit_kwargs)
                 fitting = False
             except (ResourceExhaustedError, InternalError):
                 # Reduce batch size
                 batch_size -= 2
-                hparams["fit"]["batch_size"] = batch_size
                 self.logger("\n\n[MEMORY ERROR] Reducing batch size "
                             "by 2 (now %i)" % batch_size)
                 if batch_size < 1:
@@ -122,56 +162,56 @@ class Trainer(object):
         self.logger.print_calling_method = True
         return self.model
 
-    def _fit_loop(self, train, val, batch_size, n_epochs, verbose, callbacks,
-                  init_epoch, no_im, train_im_per_epoch, val_im_per_epoch,
-                  hparams, use_multiprocessing, val_ignore_class_zero):
-
-        if hasattr(train, "batch_size"):
-            # Update batch size on generators (needed after OOM error->reduced
-            # batch size)
-            train.batch_size = batch_size
+    def _fit(self,
+             train,
+             val,
+             batch_size,
+             n_epochs,
+             callbacks,
+             train_im_per_epoch,
+             val_im_per_epoch,
+             val_ignore_class_zero=True,
+             no_im=False,
+             verbose=1,
+             init_epoch=0,
+             use_multiprocessing=False,
+             **unused):
+        train.batch_size = batch_size
 
         # Get number of steps per train epoch
-        if train_im_per_epoch:
-            train_steps = int(np.ceil(train_im_per_epoch/batch_size))
-        else:
-            train_steps = len(train)
-
+        train_steps = get_steps(train, train_im_per_epoch)
         self.logger("Using %i steps per train epoch (total batches=%i)" %
                     (train_steps, len(train)))
 
-        if val is None or len(val) == 0:
-            val = None
-            callbacks = [c for c in callbacks if not any("val" in s for s in [str(v) for v in c["kwargs"].values()])]
+        if val is None:
+            # No validation to be performed, remove callbacks that might need
+            # validation data to function properly
+            remove_validation_callbacks(callbacks, self.logger)
         else:
             val.batch_size = batch_size
-            if val_im_per_epoch:
-                val_steps = int(np.ceil(val_im_per_epoch/batch_size))
-            else:
-                val_steps = len(val)
-            self.logger("Using %i steps per validation epoch "
-                        "(total batches=%i)" % (val_steps, len(val)))
-
+            val_steps = get_steps(val, val_im_per_epoch)
+            self.logger("Using %i steps per val epoch (total batches=%i)" %
+                        (val_steps, len(val)))
             # Add validation callback
-            # IMPORTANT: Should be first in callbacks list as other CBs may
+            # Important: Should be first in callbacks list as other CBs may
             # depend on the validation metrics/loss
-            validation = Validation(val, val_steps, logger=self.logger,
-                                    verbose=verbose,
-                                    ignore_class_zero=val_ignore_class_zero)
+            validation = Validation(val,
+                                    steps=val_steps,
+                                    ignore_class_zero=val_ignore_class_zero,
+                                    logger=self.logger,
+                                    verbose=verbose)
             callbacks = [validation] + callbacks
 
+        # Add various callbacks for plotting learning curves etc.
+        # Get FGBatchBalancer callbacks, etc.
+        if hasattr(train, "n_fg_slices"):
+            callbacks.append(FGBatchBalancer(train, logger=self.logger))
         if not no_im:
             # Add save images cb
             callbacks.append(SavePredictionImages(train, val))
-
-        # Callback for plotting learning curves
-        callbacks.append(LearningCurve())
-
-        # Get FGBatchBalancer callbacks, etc.
-        if hasattr(train, "n_fg_slices"):
-            FGbalancer = FGBatchBalancer(train, logger=self.logger)
-            callbacks = callbacks + [FGbalancer]
-        callbacks = callbacks + [DividerLine(self.logger)]
+        # callbacks.insert(1, MemoryConsumption(logger=self.logger))
+        callbacks.append(LearningCurve(logger=self.logger))
+        callbacks.append(DividerLine(self.logger))
 
         # Get initialized callback objects
         callbacks, cb_dict = init_callback_objects(callbacks, self.logger)
@@ -186,17 +226,15 @@ class Trainer(object):
         # is_queued = bool(train.image_pair_loader.queue)
         self.logger.active_log_file = "training"
         self.logger.print_calling_method = False
-
-        fit_kwargs = {
-            "generator": train,
-            "steps_per_epoch": train_steps,
-            "epochs": n_epochs,
-            "verbose": verbose,
-            "callbacks": callbacks,
-            "initial_epoch": init_epoch,
-            "use_multiprocessing": use_multiprocessing,
-            "workers": min(7, cpu_count()-1),
-            "max_queue_size": 25,
-            "shuffle": False
-        }
-        self.model.fit_generator(**fit_kwargs)
+        self.model.fit(
+            train,
+            steps_per_epoch=train_steps,
+            epochs=n_epochs,
+            callbacks=callbacks,
+            initial_epoch=init_epoch,
+            use_multiprocessing=use_multiprocessing,
+            workers=min(7, cpu_count()-1),
+            max_queue_size=25,
+            shuffle=False,  # Determined by the chosen Sequence class
+            verbose=verbose
+        )
