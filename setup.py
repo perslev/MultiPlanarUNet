@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-from MultiPlanarUNet import __version__
+from mpunet import __version__
 
 with open('README.md') as readme_file:
     readme = readme_file.read()
@@ -21,16 +21,16 @@ setup(
     long_description_content_type='text/markdown',
     author='Mathias Perslev',
     author_email='map@di.ku.dk',
-    url='https://github.com/perslev/MultiPlanarUNet',
+    url='https://github.com/perslev/mpunet',
     license='LICENSE.txt',
     packages=find_packages(),
-    package_dir={'MultiPlanarUNet':
-                 'MultiPlanarUNet'},
+    package_dir={'mpunet':
+                 'mpunet'},
     include_package_data=True,
     setup_requires=["setuptools_git>=0.3",],
     entry_points={
        'console_scripts': [
-           'mp=MultiPlanarUNet.bin.mp:entry_func',
+           'mp=mpunet.bin.mp:entry_func',
        ],
     },
     install_requires=requirements,
