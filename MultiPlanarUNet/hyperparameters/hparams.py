@@ -5,17 +5,6 @@ from MultiPlanarUNet.logging import ScreenLogger
 import numpy as np
 
 
-def _cb_paths_to_abs_paths(callbacks, patterns, project_dir):
-    for cb in callbacks:
-        for arg_name in cb["kwargs"]:
-            if any([bool(re.match(p, arg_name, flags=re.IGNORECASE))
-                    for p in patterns]):
-                path = cb["kwargs"][arg_name]
-                if not os.path.isabs(path):
-                    cb["kwargs"][arg_name] = os.path.abspath(os.path.join(project_dir, path))
-    return callbacks
-
-
 def _check_deprecated_params(hparams, logger):
     if hparams.get('fit') and hparams["fit"].get("sparse"):
         from MultiPlanarUNet.errors.deprecated_warnings import warn_sparse_param
@@ -89,15 +78,6 @@ class YAMLHParams(dict):
 
         # Set dict elements
         self.update({k: hparams[k] for k in hparams if k[:4] != "__CB"})
-
-        if self.get('fit') and self["fit"].get("callbacks"):
-            # Convert potential callback paths to absolute paths
-            cb = _cb_paths_to_abs_paths(callbacks=self["fit"]["callbacks"],
-                                        patterns=("log.?dir",
-                                                  "file.?name",
-                                                  "file.?path"),
-                                        project_dir=self.project_path)
-            self["fit"]["callbacks"] = cb
 
         # Log basic information here...
         self.no_log = no_log
