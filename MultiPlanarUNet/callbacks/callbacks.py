@@ -1,13 +1,13 @@
 import tensorflow as tf
-from tensorflow.keras.callbacks import Callback
-
-from MultiPlanarUNet.logging import ScreenLogger
-from MultiPlanarUNet.utils.plotting import imshow_with_label_overlay, imshow
-
+import psutil
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+from tensorflow.keras.callbacks import Callback
 from datetime import datetime
+from MultiPlanarUNet.logging import ScreenLogger
+from MultiPlanarUNet.utils.plotting import (imshow_with_label_overlay, imshow,
+                                            plot_all_training_curves)
 
 
 class DividerLine(Callback):
@@ -25,6 +25,60 @@ class DividerLine(Callback):
 
     def on_epoch_end(self, epoch, logs=None):
         self.logger("-"*45 + "\n")
+
+
+class LearningCurve(Callback):
+    """
+    On epoch end this callback looks for all csv files matching the 'csv_regex'
+    regex within the dir 'out_dir' and attempts to create a learning curve for
+    each file that will be saved to 'out_dir'.
+
+    Note: Failure to plot a learning curve based on a given csv file will
+          is handled in the plot_all_training_curves function and will not
+          cause the LearningCurve callback to raise an exception.
+    """
+    def __init__(self, log_dir="logs", out_dir="logs", fname="curve.png",
+                 csv_regex="*training.csv", logger=None):
+        """
+        Args:
+            log_dir: Relative path from the
+            out_dir:
+            fname:
+            csv_regex:
+            logger:
+        """
+        super().__init__()
+        out_dir = os.path.abspath(out_dir)
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+        self.csv_regex = os.path.join(os.path.abspath(log_dir), csv_regex)
+        self.save_path = os.path.join(out_dir, fname)
+        self.logger = logger or ScreenLogger()
+
+    def on_epoch_end(self, epoch, logs={}):
+        plot_all_training_curves(self.csv_regex,
+                                 self.save_path,
+                                 logy=True,
+                                 raise_error=False,
+                                 logger=self.logger)
+
+
+class MemoryConsumption(Callback):
+    def __init__(self, max_gib=None, round_=2, logger=None):
+        self.max_gib = max_gib
+        self.logger = logger
+        self.round_ = round_
+
+    def on_epoch_end(self, epoch, logs={}):
+        process = psutil.Process(os.getpid())
+        mem_bytes = process.memory_info().rss
+        mem_gib = round(mem_bytes / (1024**3), self.round_)
+        logs['memory_usage_gib'] = mem_gib
+        if self.max_gib and mem_gib >= self.max_gib:
+            self.warn("Stopping training from callback 'MemoryConsumption'! "
+                      "Total memory consumption of {} GiB exceeds limitation"
+                      " (self.max_gib = {}) ".format(mem_gib, self.max_gib))
+            self.model.stop_training = True
 
 
 class DelayedCallback(object):
@@ -63,9 +117,10 @@ class TrainTimer(Callback):
     If called prior to tf.keras.callbacks.CSVLogger this information will
     be written to disk.
     """
-    def __init__(self, logger=None, verbose=1):
+    def __init__(self, logger=None, max_minutes=None, verbose=1):
         super().__init__()
         self.logger = logger or ScreenLogger()
+        self.max_minutes = int(max_minutes) if max_minutes else None
         self.verbose = bool(verbose)
 
         # Timing attributes
@@ -109,6 +164,12 @@ class TrainTimer(Callback):
                         "- Total train time: %s"
                         % (epoch_time.total_seconds()/60,
                            logs["train_time_total"]))
+        if self.max_minutes and train_time.total_seconds()/60 > self.max_minutes:
+            self.logger("Stopping training. Training ran for {} minutes, "
+                        "max_minutes of {} was specified on the TrainTimer "
+                        "callback.".format(train_time.total_seconds()/60,
+                                           self.max_minutes))
+            self.model.stop_training = True
 
 
 class FGBatchBalancer(Callback):
@@ -298,7 +359,6 @@ class SavePredictionImages(Callback):
 
         self.train_data = train_data
         self.val_data = val_data
-
         self.save_path = os.path.abspath(os.path.join(outdir, "pred_images_at_epoch"))
 
         if not os.path.exists(self.save_path):
@@ -318,6 +378,8 @@ class SavePredictionImages(Callback):
         # Plot each sample in the batch
         for i, (im, lab, p) in enumerate(zip(X, y, pred)):
             fig, (ax1, ax2, ax3) = plt.subplots(ncols=3, figsize=(12, 6))
+            lab = lab.reshape((im.shape[0], im.shape[1], -1))
+            p = p.reshape((im.shape[0], im.shape[1], -1))
 
             # Imshow ground truth on ax2
             # This function will determine which channel, axis and slice to
