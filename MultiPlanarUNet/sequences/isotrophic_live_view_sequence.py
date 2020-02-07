@@ -8,7 +8,7 @@ class IsotrophicLiveViewSequence(BaseSequence):
     def __init__(self, image_pair_loader, dim, batch_size, n_classes,
                  real_space_span=None, noise_sd=0., force_all_fg="auto",
                  fg_batch_fraction=0.50, label_crop=None, logger=None,
-                 is_validation=False, list_of_augmenters=None,
+                 is_validation=False, list_of_augmenters=None, flatten_y=False,
                  **kwargs):
         super().__init__()
 
@@ -34,6 +34,7 @@ class IsotrophicLiveViewSequence(BaseSequence):
         # Batch creation options
         self.batch_size = batch_size
         self.n_classes = n_classes
+        self.flatten_y = flatten_y
 
         # Minimum fraction of slices in each batch with FG
         self.force_all_fg_switch = force_all_fg
@@ -48,7 +49,8 @@ class IsotrophicLiveViewSequence(BaseSequence):
         self.label_crop = np.array([[0, 0], [0, 0]]) if label_crop is None else label_crop
 
     def __len__(self):
-        raise NotImplemented
+        """ Undefined, return some high number - a number is need in keras """
+        return int(10**9)
 
     def __getitem__(self, idx):
         raise NotImplemented
@@ -138,8 +140,15 @@ class IsotrophicLiveViewSequence(BaseSequence):
         # Reshape X and y
         batch_x = np.asarray(batch_x)
         batch_y = np.asarray(batch_y)
-        batch_y = batch_y.reshape(batch_y.shape + (1,))
         batch_w = np.asarray(batch_w)
+
+        if self.flatten_y:
+            # Flatten labels in spatial dimensions; needed for sample weighting
+            # to work correctly in newer versions of TF.
+            # Note: model output must be flattened likewise!
+            batch_y = batch_y.reshape((len(batch_y), -1, 1))
+        elif batch_y.shape[-1] != 1:
+            batch_y = np.asarray(batch_y).reshape(batch_y.shape + (1,))
 
         return batch_x, batch_y, batch_w
 

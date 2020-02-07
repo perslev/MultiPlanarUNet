@@ -26,10 +26,6 @@ class IsotrophicLiveViewSequence2D(IsotrophicLiveViewSequence):
         self.logger("Noise SD:                    %s" % self.noise_sd)
         self.logger("Augmenters:                  %s" % self.list_of_augmenters)
 
-    def __len__(self):
-        n_samples = self.sample_dim * len(self.images) * len(self.views)
-        return int(np.ceil(n_samples / self.batch_size))
-
     def get_view_from(self, image_id, view, n_planes):
         image = [m for m in self.images if m.id == image_id][0]
 

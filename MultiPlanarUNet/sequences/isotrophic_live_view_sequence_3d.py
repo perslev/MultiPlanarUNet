@@ -24,10 +24,6 @@ class IsotrophicLiveViewSequence3D(IsotrophicLiveViewSequence):
         self.logger("Batch size:                  %s" % self.batch_size)
         self.logger("Force all FG:                %s" % self.force_all_fg)
 
-    def __len__(self):
-        """ Controlled in train.py """
-        return 10000
-
     @staticmethod
     def _intrp_and_norm(image, grid, intrp_lab):
         # Interpolate
