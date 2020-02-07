@@ -2,8 +2,9 @@ from MultiPlanarUNet.evaluate import loss_functions as custom_losses
 from MultiPlanarUNet.evaluate import metrics as custom_metrics
 from MultiPlanarUNet.utils import ensure_list_or_tuple
 from MultiPlanarUNet.errors.implementation_change_errors import NotSparseError
-from tensorflow.keras import optimizers, losses
-from tensorflow.keras import metrics
+from tensorflow.keras import optimizers, losses, metrics, activations
+from tensorflow_addons import optimizers as addon_optimizers
+from tensorflow_addons import activations as addon_activations
 
 
 # Default error message to raise with non-sparse losses or metrics passed
@@ -35,7 +36,8 @@ def _init(string_list, tf_funcs, custom_funcs, logger=None, **kwargs):
                                or loss to use for training. The name should
                                refer to a function or class in either tf_funcs
                                or custom_funcs modules.
-        tf_funcs:     (module) A Tensorflow.keras module of losses or metrics
+        tf_funcs:     (module) A Tensorflow.keras module of losses or metrics,
+                               or a list of various modules to look through.
         custom_funcs: (module) A custom module or losses or metrics
         logger:       (Logger) A Logger object
         **kwargs:     (dict)   Parameters passed to all losses or metrics which
@@ -46,10 +48,14 @@ def _init(string_list, tf_funcs, custom_funcs, logger=None, **kwargs):
         or references to loss or metric functions.
     """
     initialized = []
+    tf_funcs = ensure_list_or_tuple(tf_funcs)
     for func_or_class in ensure_list_or_tuple(string_list):
-        if hasattr(tf_funcs, func_or_class):
-            initialized.append(getattr(tf_funcs, func_or_class))
+        modules_found = list(filter(None, [getattr(m, func_or_class, None)
+                                           for m in tf_funcs]))
+        if modules_found:
+            initialized.append(modules_found[0])  # return the first found
         else:
+            # Fall back to look in custom module
             import inspect
             func_or_class = getattr(custom_funcs, func_or_class)
             if inspect.isclass(func_or_class):
@@ -93,3 +99,37 @@ def init_metrics(metric_string_list, logger=None, **kwargs):
     return _init(
         metric_string_list, metrics, custom_metrics, logger, **kwargs
     )
+
+
+def init_optimizer(optimizer_string, logger=None, **kwargs):
+    """
+    Same as 'init_losses', but for optimizers.
+    Please refer to the 'init_losses' docstring.
+    """
+    optimizer = _init(
+        optimizer_string,
+        tf_funcs=[optimizers, addon_optimizers],
+        custom_funcs=None,
+        logger=logger
+    )[0]
+    return optimizer(**kwargs)
+
+
+def init_activation(activation_string, logger=None, **kwargs):
+    """
+    Same as 'init_losses', but for optimizers.
+    Please refer to the 'init_losses' docstring.
+    """
+    activation = _init(
+        activation_string,
+        tf_funcs=[activations, addon_activations],
+        custom_funcs=None,
+        logger=logger
+    )[0]
+    return activation
+
+
+def loss_wrapper(*args, **kwargs):
+    print(args)
+    print(kwargs)
+
