@@ -406,13 +406,13 @@ def entry_func(args=None):
     # Get most important paths
     project_dir = os.path.abspath(args.project_dir)
     out_dir = os.path.abspath(args.out_dir)
-    nii_res_dir = os.path.join(out_dir, "nii_files")
-    create_folders(nii_res_dir, create_deep=True)
 
     # Check if valid dir structures
     validate_folders(project_dir, out_dir,
                      overwrite=args.overwrite,
                      _continue=vars(args)["continue"])
+    nii_res_dir = os.path.join(out_dir, "nii_files")
+    create_folders(nii_res_dir, create_deep=True)
 
     # Get settings from YAML file
     hparams = load_hparams(project_dir)
