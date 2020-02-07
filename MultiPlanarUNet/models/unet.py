@@ -13,7 +13,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras import regularizers
 from tensorflow.keras.layers import Input, BatchNormalization, Cropping2D, \
                                     Concatenate, Conv2D, MaxPooling2D, \
-                                    UpSampling2D
+                                    UpSampling2D, Reshape
 import numpy as np
 
 
@@ -23,10 +23,22 @@ class UNet(Model):
 
     See original paper at http://arxiv.org/abs/1505.04597
     """
-    def __init__(self, n_classes, img_rows=None, img_cols=None, dim=None,
-                 n_channels=1, depth=4, out_activation="softmax",
-                 activation="relu", kernel_size=3, padding="same",
-                 complexity_factor=1, l2_reg=None, logger=None, **kwargs):
+    def __init__(self,
+                 n_classes,
+                 img_rows=None,
+                 img_cols=None,
+                 dim=None,
+                 n_channels=1,
+                 depth=4,
+                 out_activation="softmax",
+                 activation="relu",
+                 kernel_size=3,
+                 padding="same",
+                 complexity_factor=1,
+                 flatten_output=False,
+                 l2_reg=None,
+                 logger=None,
+                 **kwargs):
         """
         n_classes (int):
             The number of classes to model, gives the number of filters in the
@@ -57,6 +69,8 @@ class UNet(Model):
         complexity_factor (int/float):
             Use int(N * sqrt(complexity_factor)) number of filters in each
             2D convolution layer instead of default N.
+        flatten_output (bool):
+            Flatten the output to array of shape [batch_size, -1, n_classes]
         l2_reg (float in [0, 1])
             L2 regularization on Conv2D weights
         logger (MultiPlanarUNet.logging.Logger | ScreenLogger):
@@ -81,6 +95,7 @@ class UNet(Model):
         self.l2_reg = l2_reg
         self.padding = padding
         self.depth = depth
+        self.flatten_output = flatten_output
 
         # Shows the number of pixels cropped of the input image to the output
         self.label_crop = np.array([[0, 0], [0, 0]])
@@ -194,6 +209,9 @@ class UNet(Model):
         Output modeling layer
         """
         out = Conv2D(self.n_classes, 1, activation=self.out_activation)(bn)
+        if self.flatten_output:
+            out = Reshape([self.img_shape[0]*self.img_shape[1],
+                           self.n_classes], name='flatten_output')(out)
 
         return [inputs], [out]
 

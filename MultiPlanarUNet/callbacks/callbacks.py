@@ -378,9 +378,8 @@ class SavePredictionImages(Callback):
         # Plot each sample in the batch
         for i, (im, lab, p) in enumerate(zip(X, y, pred)):
             fig, (ax1, ax2, ax3) = plt.subplots(ncols=3, figsize=(12, 6))
-            lab = lab.reshape((im.shape[0], im.shape[1], -1))
-            p = p.reshape((im.shape[0], im.shape[1], -1))
-
+            lab = lab.reshape(im.shape[:-1] + (lab.shape[-1],))
+            p = p.reshape(im.shape[:-1] + (p.shape[-1],))
             # Imshow ground truth on ax2
             # This function will determine which channel, axis and slice to
             # show and return so that we can use them for the other 2 axes

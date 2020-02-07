@@ -230,6 +230,7 @@ def get_data_sequences(project_dir, hparams, logger, args):
     """
     from MultiPlanarUNet.preprocessing import get_preprocessing_func
     func = get_preprocessing_func(hparams["build"].get("model_class_name"))
+    hparams['fit']['flatten_y'] = True
     train, val, hparams = func(hparams=hparams,
                                logger=logger,
                                just_one=args.just_one,
@@ -266,6 +267,7 @@ def get_model(project_dir, train_seq, hparams, num_GPUs, logger, args):
     """
     from MultiPlanarUNet.models import model_initializer
     # Build new model (or continue training an existing one)
+    hparams["build"]['flatten_output'] = True
     org_model = model_initializer(hparams=hparams,
                                   continue_training=args.continue_training,
                                   project_dir=project_dir,

@@ -29,6 +29,8 @@ def save_images(train, val, out_dir, logger):
                 continue
             X, Y, W = temp
             for i, (xx, yy, ww) in enumerate(zip(X, Y, W)):
+                yy = yy.reshape(xx.shape[:-1] + (yy.shape[-1],))
+
                 # Make figure
                 fig = plt.figure(figsize=(10, 4))
                 ax1 = fig.add_subplot(121)
@@ -203,7 +205,11 @@ def plot_all_training_curves(glob_path, out_path, raise_error=False,
             logger.warn(s)
 
 
-def plot_training_curves(csv_path, save_path, logy=False):
+def plot_training_curves(csv_path, save_path, logy=False,
+                         exclude=("learning_rate", "epoch", "loss",
+                                  "train_time_total", "train_time_epoch",
+                                  'memory_usage_gib'),
+                         include_regex=None):
     # Read CSV file
     df = pd.read_csv(csv_path)
 
@@ -236,12 +242,15 @@ def plot_training_curves(csv_path, save_path, logy=False):
     # Make second plot
     ax2 = fig.add_subplot(312)
 
-    # Get all other columns
-    no_plot = ("learning_rate", "epoch", "loss",
-               "train_time_total", "train_time_epoch")
+    # Get all other columns, optionally only if matching 'include_regex'
+    import re
+    include_regex = re.compile(include_regex or ".*")
+
     plotted = 0
     for col in df.columns:
-        if any([s in col for s in no_plot[1:]]) or col == "lr":
+        if any([s in col for s in exclude[1:]]) or col == "lr":
+            continue
+        elif not re.match(include_regex, col):
             continue
         else:
             plotted += 1

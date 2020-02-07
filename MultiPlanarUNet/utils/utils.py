@@ -179,7 +179,14 @@ def set_bias_weights_on_all_outputs(model, train, hparams, logger):
         layers = model.out_layers
         loaders = [t.image_pair_loader for t in train]
     else:
-        layers = [model.layers[-1]]
+        layers = [None]
+        for layer in model.layers[::-1]:
+            # Start from last layer and go up until one that has an activation
+            # funtion is met (note: this skips layers like Reshape, Cropping
+            # etc.)
+            if hasattr(layer, 'activation'):
+                layers = [layer]
+                break
         loaders = [train.image_pair_loader]
     for layer, loader in zip(layers, loaders):
         set_bias_weights(layer=layer,

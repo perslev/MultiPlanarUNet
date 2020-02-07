@@ -11,9 +11,9 @@ from MultiPlanarUNet.utils.conv_arithmetics import compute_receptive_fields
 
 from tensorflow.keras.models import Model
 from tensorflow.keras import regularizers
-from tensorflow.keras.layers import Input, BatchNormalization, Cropping3D, \
-                                    Concatenate, Conv3D, MaxPooling3D, \
-                                    UpSampling3D
+from tensorflow.keras.layers import (Input, BatchNormalization, Cropping3D,
+                                     Concatenate, Conv3D, MaxPooling3D,
+                                     UpSampling3D, Reshape)
 import numpy as np
 
 
@@ -23,9 +23,18 @@ class UNet3D(Model):
 
     See original paper at http://arxiv.org/abs/1505.04597
     """
-    def __init__(self, n_classes, dim=None, n_channels=1, depth=3,
-                 out_activation="softmax", activation="relu", kernel_size=3,
-                 padding="same", complexity_factor=1, l2_reg=None,
+    def __init__(self,
+                 n_classes,
+                 dim=None,
+                 n_channels=1,
+                 depth=3,
+                 out_activation="softmax",
+                 activation="relu",
+                 kernel_size=3,
+                 padding="same",
+                 complexity_factor=1,
+                 flatten_output=False,
+                 l2_reg=None,
                  logger=None, **kwargs):
         """
         n_classes (int):
@@ -74,6 +83,7 @@ class UNet3D(Model):
         self.l2_reg = l2_reg
         self.padding = padding
         self.depth = depth
+        self.flatten_output = flatten_output
 
         # Shows the number of pixels cropped of the input image to the output
         self.label_crop = np.array([[0, 0], [0, 0], [0, 0]])
@@ -161,6 +171,9 @@ class UNet3D(Model):
         Output modeling layer
         """
         out = Conv3D(self.n_classes, 1, activation=self.out_activation)(bn)
+        if self.flatten_output:
+            out = Reshape([np.prod(self.img_shape[:3]),
+                           self.n_classes], name='flatten_output')(out)
 
         return [inputs], [out]
 
