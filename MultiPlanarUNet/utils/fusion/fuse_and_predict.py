@@ -79,34 +79,10 @@ def predict_single(image, model, hparams, verbose=1):
 
 
 def predict_volume(model, X, batch_size=8, axis=0):
-
+    print("Predicting...")
     # Move axis to front
     X = np.moveaxis(X, source=axis, destination=0)
-
-    # Prepare a prediction volume of zeros
-    # OBS: if a voxel is not covered by the view, it will be assumed background
-    n_classes = model.n_classes
-    if isinstance(n_classes, (list, tuple)):
-        assert len(n_classes) == 1
-        n_classes = n_classes[0]
-    pred = np.zeros(shape=X.shape[:-1]+(n_classes,), dtype=np.float32)
-
-    # Predict on all interpolated views
-    print("Predicting...")
-    for idx in np.arange(0, len(X), batch_size):
-        # Print to know where we are...
-        print("   %i/%i" % (min(idx+batch_size, X.shape[0]), X.shape[0]),
-              end="\r", flush=True)
-
-        # Get batch of image slices
-        X_slices = X[idx:idx + batch_size]
-
-        # Predict, p is shape (batch_size, im_dim, im_dim, n_classes)
-        p = model.predict(X_slices)
-        pred[idx:idx + batch_size, :, :] = p
-
-    # Move back
-    print("")
+    pred = model.predict(X, batch_size=batch_size, verbose=1)
     return np.moveaxis(pred, source=0, destination=axis)
 
 
@@ -150,8 +126,6 @@ def map_real_space_pred(pred, grid, inv_basis, voxel_grid_real_space, method="ne
         # Map the interpolation results into the volume
         mapped[ind] = map
 
-    # Interpolate
-    # mapped = intrp(tuple(transformed_grid))
     print("")
     pool.shutdown()
     return mapped
