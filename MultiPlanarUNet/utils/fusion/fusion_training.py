@@ -39,7 +39,7 @@ def stack_collections(points_collection, targets_collection):
 
 def predict_and_map(model, seq, image, view, batch_size=None,
                     voxel_grid_real_space=None, targets=None, eval_prob=1.0,
-                    n_planes='same+20', torch=False):
+                    n_planes='same+20'):
     """
 
 
@@ -52,7 +52,6 @@ def predict_and_map(model, seq, image, view, batch_size=None,
         voxel_grid_real_space:
         targets:
         n_planes:
-        torch:
 
     Returns:
 
@@ -64,14 +63,8 @@ def predict_and_map(model, seq, image, view, batch_size=None,
 
     # Predict on volume using model
     bs = seq.batch_size if batch_size is None else batch_size
-    if not torch:
-        # Normal prediction
-        from MultiPlanarUNet.utils.fusion import predict_volume
-        pred = predict_volume(model, X, axis=2, batch_size=bs)
-    else:
-        # Predict using a PyTorch model
-        from MultiPlanarUNet.torch.utils.fusion import predict_volume
-        pred = predict_volume(model, X, axis=2, batch_size=bs)
+    from MultiPlanarUNet.utils.fusion import predict_volume
+    pred = predict_volume(model, X, axis=2, batch_size=bs)
 
     # Map the real space coordiante predictions to nearest
     # real space coordinates defined on voxel grid
