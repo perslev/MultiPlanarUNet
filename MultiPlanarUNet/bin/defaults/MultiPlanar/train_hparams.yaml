@@ -14,7 +14,7 @@ __CB_tb: &TB
   # tensorboard
   nickname: "tb"
   class_name: "TensorBoard"
-  kwargs: {log_dir: './tensorboard'}
+  kwargs: {log_dir: './tensorboard', profile_batch: 0}
 
 __CB_mcp_clean: &MCP_CLEAN
   # Model checkpoint
@@ -105,7 +105,7 @@ fit: &FIT
 
   # Loss function
   loss: "sparse_categorical_crossentropy"
-  metrics: []
+  metrics: ["sparse_categorical_accuracy"]
 
   # Optimization
   batch_size: 16

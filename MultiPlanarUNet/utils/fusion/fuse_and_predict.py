@@ -146,7 +146,7 @@ def predict_3D_patches_binary(model, patches, image_id, N_extra=0, logger=None):
         print(status, end="\r", flush=True)
 
         # Predict on patch
-        pred = model.predict(reshape_add_axis(patch, im_dims=3)).squeeze()
+        pred = model.predict_on_batch(reshape_add_axis(patch, im_dims=3)).squeeze()
         mask = pred > 0.5
 
         # Add prediction to reconstructed volume
@@ -174,7 +174,7 @@ def predict_3D_patches(model, patches, image, N_extra=0, logger=None):
         print(status, end="\r", flush=True)
 
         # Predict on patch
-        pred = model.predict(reshape_add_axis(patch, im_dims=3))
+        pred = model.predict_on_batch(reshape_add_axis(patch, im_dims=3))
 
         # Add prediction to reconstructed volume
         recon[i:i+d, k:k+d, v:v+d] += pred.squeeze()
@@ -241,7 +241,7 @@ def pred_3D_iso(model, sequence, image, extra_boxes, min_coverage=None):
             N_extra += 1
 
         # Predict on the box
-        pred = model.predict(np.expand_dims(im, 0))[0]
+        pred = model.predict_on_batch(np.expand_dims(im, 0))[0]
 
         # Apply rotation if needed
         rgrid = image.interpolator.apply_rotation(rgrid)
