@@ -250,13 +250,13 @@ class GeneralizedDiceLoss(object):
 
         # Make array of new weight in which infinite values are replaced by
         # ones.
-        new_weights = tf.where(tf.is_inf(weights),
+        new_weights = tf.where(tf.math.is_inf(weights),
                                tf.zeros_like(weights),
                                weights)
 
         # Set final weights as either original weights or highest observed
         # non-infinite weight
-        weights = tf.where(tf.is_inf(weights), tf.ones_like(weights) *
+        weights = tf.where(tf.math.is_inf(weights), tf.ones_like(weights) *
                            tf.reduce_max(new_weights), weights)
 
         # calculate generalized dice score
