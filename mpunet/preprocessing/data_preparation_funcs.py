@@ -79,7 +79,7 @@ def _base_loader_func(hparams, just_one, no_val, logger, mtype):
                         "version 2.0 and above. OBS: Not including aug data!")
         elif aug_data["include"]:
             logger("\n[*] Adding augmented data with weight ", aug_data["sample_weight"])
-            train_data.add_augmented_images(ImagePairLoader(logger=logger, **aug_data))
+            train_data.add_images(ImagePairLoader(logger=logger, **aug_data))
 
     if just_one:
         # For testing purposes, run only on one train and one val image?
