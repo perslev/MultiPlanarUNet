@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+import tensorflow as tf
 from tensorflow.keras.callbacks import Callback
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
@@ -111,7 +112,6 @@ class Validation(Callback):
         for _ in range(steps):
             # Get prediction and true labels from prediction queue
             pred, true = queue.get(block=True)
-
             for p, y, task_name, n_classes in zip(pred, true, task_names,
                                                   n_classes_list):
                 # Argmax and CM elements
@@ -133,6 +133,7 @@ class Validation(Callback):
                 relevant[task_name] += rel.astype(np.uint64)
                 selected[task_name] += sel.astype(np.uint64)
                 lock.release()
+            queue.task_done()
 
     def evalaute(self):
         """
@@ -186,9 +187,10 @@ class Validation(Callback):
             for p_task, y_task, task in zip(pred, y, self.task_names):
                 # Run all metrics
                 for metric, name in zip(metrics, metrics_names):
-                    m = metric(y_task, p_task)
+                    m = tf.reduce_mean(metric(y_task, p_task))
+                    print(m.shape)
                     batch_wise_metrics[task][name].append(m.numpy())
-        pool.shutdown()
+        pool.shutdown(wait=True)
 
         # Compute the mean over batch-wise metrics
         mean_batch_wise_metrics = {}
@@ -196,6 +198,7 @@ class Validation(Callback):
             mean_batch_wise_metrics[task] = {}
             for metric in metrics_names:
                 ms = batch_wise_metrics[task][metric]
+                print(np.mean(ms).shape)
                 mean_batch_wise_metrics[task][metric] = np.mean(ms)
         self.model.reset_metrics()
         self.logger("")
@@ -203,6 +206,7 @@ class Validation(Callback):
         # Terminate count thread
         print("Waiting for counting queue to terminate...\n")
         count_thread.join()
+        count_queue.join()
 
         # Compute per-class metrics (dice+precision+recall)
         class_wise_metrics = {}

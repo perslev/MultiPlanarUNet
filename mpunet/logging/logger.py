@@ -8,15 +8,20 @@ from threading import Lock
 
 class Logger(object):
     def __init__(self, base_path, print_to_screen=True, active_file=None,
-                 overwrite_existing=False, print_calling_method=True,
-                 no_sub_folder=False, log_prefix=""):
+                 overwrite_existing=False, append_existing=False,
+                 print_calling_method=True, no_sub_folder=False,
+                 log_prefix=""):
         self.base_path = os.path.abspath(base_path)
         if not no_sub_folder:
             self.path = os.path.join(self.base_path, "logs")
         else:
             self.path = self.base_path
         create_folders([self.path])
+        if overwrite_existing and append_existing:
+            raise ValueError("Cannot set both 'overwrite_existing' and "
+                             "'append_existing' to True.")
         self.overwrite_existing = overwrite_existing
+        self.append_existing = append_existing
         self._enabled = True
 
         # Get built in print function
@@ -43,9 +48,9 @@ class Logger(object):
 
     def __str__(self):
         return "Logger(base_path=%s, print_to_screen=%s, " \
-               "overwrite_existing=%s)" % (self.base_path,
-                                           self.print_to_screen,
-                                           self.overwrite_existing)
+               "overwrite_existing=%s, append_existing=%s)" \
+               % (self.base_path, self.print_to_screen,
+                  self.overwrite_existing, self.append_existing)
 
     def new_log_file(self, filename):
         file_path = os.path.join(self.path, "%s.txt" % filename)
@@ -53,10 +58,11 @@ class Logger(object):
         if os.path.exists(file_path):
             if self.overwrite_existing:
                 os.remove(file_path)
-            else:
+            elif not self.append_existing:
                 raise OSError("Logging path: %s already exists. "
-                              "Initialize Logger(overwrite_existing=True) "
-                              "to overwrite." % file_path)
+                              "Initialize Logger with overwrite_existing=True "
+                              "or append_existing=True to overwrite or continue"
+                              " writing to the existing file." % file_path)
 
         self.log_files[filename] = file_path
         self.currently_logging[filename] = None

@@ -132,6 +132,20 @@ class IsotrophicLiveViewSequence(BaseSequence):
             # minimum requirement. Discard the slice and sample again.
             return False, 0
 
+    def augment(self, batch_x, batch_y, batch_w, bg_values):
+        # Apply further augmentation?
+        if self.list_of_augmenters:
+            for aug in self.list_of_augmenters:
+                batch_x, batch_y, batch_w = aug(batch_x=batch_x,
+                                                batch_y=batch_y,
+                                                batch_w=batch_w,
+                                                bg_values=bg_values)
+
+        return batch_x, batch_y, batch_w
+
+    def scale(self, batch_x, scalers):
+        return [scaler.transform(im) for im, scaler in zip(batch_x, scalers)]
+
     def prepare_batches(self, batch_x, batch_y, batch_w):
         # Crop labels if necessary
         if self.label_crop.sum() != 0:
@@ -151,17 +165,3 @@ class IsotrophicLiveViewSequence(BaseSequence):
             batch_y = np.asarray(batch_y).reshape(batch_y.shape + (1,))
 
         return batch_x, batch_y, batch_w
-
-    def augment(self, batch_x, batch_y, batch_w, bg_values):
-        # Apply further augmentation?
-        if self.list_of_augmenters:
-            for aug in self.list_of_augmenters:
-                batch_x, batch_y, batch_w = aug(batch_x=batch_x,
-                                                batch_y=batch_y,
-                                                batch_w=batch_w,
-                                                bg_values=bg_values)
-
-        return batch_x, batch_y, batch_w
-
-    def scale(self, batch_x, scalers):
-        return [scaler.transform(im) for im, scaler in zip(batch_x, scalers)]

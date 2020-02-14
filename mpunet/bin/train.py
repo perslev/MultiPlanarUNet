@@ -10,8 +10,8 @@ mp train --num_GPUs=1
 --------------
 """
 
+
 from argparse import ArgumentParser
-import sys
 import os
 
 
@@ -240,7 +240,7 @@ def get_data_sequences(project_dir, hparams, logger, args):
     return train, val, hparams
 
 
-def get_model(project_dir, train_seq, hparams, num_GPUs, logger, args):
+def get_model(project_dir, train_seq, hparams, logger, args):
     """
     Initializes a tf.keras Model from mpunet.models as specified in
     hparams['build']. If args.continue_training, the best previous model stored
@@ -250,13 +250,10 @@ def get_model(project_dir, train_seq, hparams, num_GPUs, logger, args):
     on the final conv. layer so that a zero-input gives an output of class
     probabilities equal to the class frequencies of the training set.
 
-    If num_GPUs > 1, distribute the model on multiple GPUs
-
     Args:
         project_dir: A path to a mpunet project folder
         train_seq: A mpunet.sequences object for the training data
         hparams: A mpunet YAMLHParams object
-        num_GPUs: An integer, the number of GPUs to train the model on
         logger: A mpunet logging object
         args: argparse arguments
 
@@ -268,25 +265,15 @@ def get_model(project_dir, train_seq, hparams, num_GPUs, logger, args):
     from mpunet.models import model_initializer
     # Build new model (or continue training an existing one)
     hparams["build"]['flatten_output'] = True
-    org_model = model_initializer(hparams=hparams,
-                                  continue_training=args.continue_training,
-                                  project_dir=project_dir,
-                                  logger=logger)
-
+    model = model_initializer(hparams=hparams,
+                              continue_training=args.continue_training,
+                              project_dir=project_dir,
+                              logger=logger)
     # Initialize weights in final layer?
     if not args.continue_training and hparams["build"].get("biased_output_layer"):
         from mpunet.utils.utils import set_bias_weights_on_all_outputs
-        set_bias_weights_on_all_outputs(org_model, train_seq, hparams, logger)
-
-    # Multi-GPU?
-    if num_GPUs > 1:
-        from tensorflow.keras.utils import multi_gpu_model
-        model = multi_gpu_model(org_model, gpus=num_GPUs,
-                                cpu_merge=False, cpu_relocation=False)
-        logger("Creating multi-GPU model: N=%i" % num_GPUs)
-    else:
-        model = org_model
-    return model, org_model
+        set_bias_weights_on_all_outputs(model, train_seq, hparams, logger)
+    return model
 
 
 def save_final_weights(model, project_dir, logger=None):
@@ -332,20 +319,19 @@ def run(project_dir, gpu_mon, logger, args):
                                              logger=logger,
                                              args=args)
 
-    # Set GPU visibility
-    num_GPUs = set_gpu(gpu_mon, args)
+    # Set GPU visibility and create model with MirroredStrategy
+    set_gpu(gpu_mon, args)
+    import tensorflow as tf
+    with tf.distribute.MirroredStrategy().scope():
+        model = get_model(project_dir=project_dir, train_seq=train,
+                          hparams=hparams, logger=logger, args=args)
 
-    # Get model (potentially multi-gpu, 'org_model' refers to
-    # non-distributed model, weights should be saved/loaded into 'org_model')
-    model, org_model = get_model(project_dir=project_dir, train_seq=train,
-                                 hparams=hparams, num_GPUs=num_GPUs,
-                                 logger=logger, args=args)
-
-    # Get trainer and compile model
-    from mpunet.train import Trainer
-    trainer = Trainer(model, org_model=org_model, logger=logger)
-    trainer.compile_model(n_classes=hparams["build"].get("n_classes"),
-                          **hparams["fit"])
+        # Get trainer and compile model
+        from mpunet.train import Trainer
+        trainer = Trainer(model, logger=logger)
+        trainer.compile_model(n_classes=hparams["build"].get("n_classes"),
+                              reduction=tf.keras.losses.Reduction.NONE,
+                              **hparams["fit"])
 
     # Debug mode?
     if args.debug:
@@ -358,7 +344,7 @@ def run(project_dir, gpu_mon, logger, args):
                     train_im_per_epoch=args.train_images_per_epoch,
                     val_im_per_epoch=args.val_images_per_epoch,
                     hparams=hparams, no_im=args.no_images, **hparams["fit"])
-    save_final_weights(org_model, project_dir, logger)
+    save_final_weights(model, project_dir, logger)
 
 
 def entry_func(args=None):

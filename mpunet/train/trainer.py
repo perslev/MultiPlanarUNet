@@ -8,7 +8,6 @@ from mpunet.callbacks import (SavePredictionImages, Validation,
                               remove_validation_callbacks)
 from mpunet.utils import ensure_list_or_tuple
 from mpunet.train.utils import (ensure_sparse,
-                                loss_wrapper,
                                 init_losses,
                                 init_metrics,
                                 init_optimizer)
@@ -30,7 +29,7 @@ class Trainer(object):
     """
     Handles initialization and logging of model fitting sessions.
     """
-    def __init__(self, model, org_model=None, logger=None):
+    def __init__(self, model, logger=None):
         """
         Init. simply accepts a model and stores it.
         Optionally, an 'org_model' (original model) may be passed and stored
@@ -49,12 +48,8 @@ class Trainer(object):
         self.model = model
         self.logger = logger if logger is not None else ScreenLogger()
 
-        # Extra reference to original (non multiple-GPU) model
-        # May also be set from a script at a later time (before self.fit call)
-        self.org_model = org_model
-
     def compile_model(self, optimizer, optimizer_kwargs, loss, metrics,
-                      check_sparse=False, **kwargs):
+                      reduction, check_sparse=False, **kwargs):
         """
         Compile the stored tf.keras Model instance stored in self.model
         Sets the loss function, optimizer and metrics
@@ -66,6 +61,7 @@ class Trainer(object):
                                        MultiPlanarUnet loss function
             metrics:          (list)   List of tf.keras.metrics or
                                        mpunet metrics.
+            reduction:        TODO
             check_sparse:     TODO
             **kwargs:         (dict)   Key-word arguments passed to losses
                                        and/or metrics that accept such.
@@ -79,8 +75,12 @@ class Trainer(object):
         # Initialize optimizer, loss(es) and metric(s) from tf.keras or
         # mpunet
         optimizer = init_optimizer(optimizer, self.logger, **optimizer_kwargs)
-
         losses = init_losses(losses, self.logger, **kwargs)
+        for i, loss in enumerate(losses):
+            try:
+                losses[i] = loss(reduction=reduction)
+            except ValueError:
+                pass
         metrics = init_metrics(metrics, self.logger, **kwargs)
 
         # Compile the model
@@ -220,7 +220,7 @@ class Trainer(object):
         # the correct weights when using multi-GPU models
         cb = cb_dict.get("ModelCheckPointClean")
         if cb:
-            cb.org_model = self.org_model
+            cb.org_model = self.model  # TEMP TODO
 
         # Fit the model
         # is_queued = bool(train.image_pair_loader.queue)

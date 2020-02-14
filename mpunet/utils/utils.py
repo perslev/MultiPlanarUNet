@@ -150,7 +150,12 @@ def get_lr_at_epoch(epoch, log_dir):
 def clear_csv_after_epoch(epoch, csv_file):
     if os.path.exists(csv_file):
         import pandas as pd
-        df = pd.read_csv(csv_file)
+        try:
+            df = pd.read_csv(csv_file)
+        except pd.errors.EmptyDataError:
+            # Remove the file
+            os.remove(csv_file)
+            return
         # Remove any trailing runs and remove after 'epoch'
         try:
             df = df[np.flatnonzero(df["epoch"] == 0)[-1]:]

@@ -127,9 +127,3 @@ def init_activation(activation_string, logger=None, **kwargs):
         logger=logger
     )[0]
     return activation
-
-
-def loss_wrapper(*args, **kwargs):
-    print(args)
-    print(kwargs)
-
