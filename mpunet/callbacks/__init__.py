@@ -3,5 +3,5 @@ from .mcp_clean import ModelCheckPointClean
 from .callbacks import (SavePredictionImages, PrintLayerWeights,
                         FGBatchBalancer, DividerLine,
                         SaveOutputAs2DImage, TrainTimer, LearningCurve,
-                        MemoryConsumption)
+                        MemoryConsumption, MeanReduceLogArrays)
 from .validation import Validation, ValDiceScores

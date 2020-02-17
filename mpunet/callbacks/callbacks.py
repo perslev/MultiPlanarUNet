@@ -218,6 +218,20 @@ class FGBatchBalancer(Callback):
                                                           data.batch_size))
 
 
+class MeanReduceLogArrays(Callback):
+    """
+    On epoch end, goes through the log and replaces any array entries with
+    their mean value.
+    """
+    def __init__(self):
+        super().__init__()
+
+    def on_epoch_end(self, epoch, logs={}):
+        for key, value in logs.items():
+            if isinstance(value, (np.ndarray, list)):
+                logs[key] = np.mean(value)
+
+
 class PrintLayerWeights(Callback):
     """
     Print the weights of a specified layer every some epoch or batch.
