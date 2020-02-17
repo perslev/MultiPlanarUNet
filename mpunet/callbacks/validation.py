@@ -167,7 +167,7 @@ class Validation(Callback):
         count_thread.start()
 
         # Fetch validation batches from the generator(s)
-        pool = ThreadPoolExecutor(max_workers=7)
+        pool = ThreadPoolExecutor(max_workers=5)
         batches = pool.map(self.data.__getitem__, np.arange(self.steps))
 
         # Predict on all
@@ -188,7 +188,6 @@ class Validation(Callback):
                 # Run all metrics
                 for metric, name in zip(metrics, metrics_names):
                     m = tf.reduce_mean(metric(y_task, p_task))
-                    print(m.shape)
                     batch_wise_metrics[task][name].append(m.numpy())
         pool.shutdown(wait=True)
 
@@ -198,7 +197,6 @@ class Validation(Callback):
             mean_batch_wise_metrics[task] = {}
             for metric in metrics_names:
                 ms = batch_wise_metrics[task][metric]
-                print(np.mean(ms).shape)
                 mean_batch_wise_metrics[task][metric] = np.mean(ms)
         self.model.reset_metrics()
         self.logger("")

@@ -52,7 +52,7 @@ def get_argparser():
                         help='overwrite previous fusion weights')
     parser.add_argument("--num_GPUs", type=int, default=1,
                         help='Number of GPUs to assign to this job')
-    parser.add_argument("--images_per_round", type=int, default=10,
+    parser.add_argument("--images_per_round", type=int, default=5,
                         help="Number of images to train on in each sub-round."
                              " Larger numbers should be preferred but "
                              "requires potentially large amounts of memory."
@@ -104,9 +104,8 @@ def make_sets(images, sub_size, N):
 
 
 def _run_fusion_training(sets, logger, hparams, min_val_images, is_validation,
-                         views, n_classes, unet, fusion_model_org, fusion_model,
-                         early_stopping, fm_batch_size, epochs, eval_prob,
-                         fusion_weights_path):
+                         views, n_classes, unet, fusion_model, early_stopping,
+                         fm_batch_size, epochs, eval_prob, fusion_weights_path):
 
     for _round, _set in enumerate(sets):
         s = "Set %i/%i:\n%s" % (_round + 1, len(sets), _set)
@@ -190,7 +189,7 @@ def _run_fusion_training(sets, logger, hparams, min_val_images, is_validation,
         cbs = [val_cb,
                CSVLogger(filename="logs/fusion_training.csv",
                          separator=",", append=True),
-               PrintLayerWeights(fusion_model_org.layers[-1], every=1,
+               PrintLayerWeights(fusion_model.layers[-1], every=1,
                                  first=1000, per_epoch=True, logger=logger)]
 
         es = EarlyStopping(monitor='val_dice', min_delta=0.0,
@@ -203,7 +202,7 @@ def _run_fusion_training(sets, logger, hparams, min_val_images, is_validation,
                              epochs=epochs, callbacks=cbs, verbose=1)
         except KeyboardInterrupt:
             pass
-        fusion_model_org.save_weights(fusion_weights_path)
+        fusion_model.save_weights(fusion_weights_path)
 
 
 def entry_func(args=None):
@@ -239,10 +238,8 @@ def entry_func(args=None):
     # Wait for free GPU
     if not force_gpu:
         await_and_set_free_gpu(N=num_GPUs, sleep_seconds=120)
-        num_GPUs = 1
     else:
         set_gpu(force_gpu)
-        num_GPUs = len(force_gpu.split(","))
 
     # Get logger
     logger = Logger(base_path=basedir, active_file="train_fusion",
@@ -316,44 +313,34 @@ def entry_func(args=None):
 
     # Define fusion model (named 'org' to store reference to orgiginal model if
     # multi gpu model is created below)
-    fusion_model_org = FusionModel(n_inputs=len(views), n_classes=n_classes,
-                                   weight=dice_weight,
-                                   logger=logger, verbose=False)
+    fusion_model = FusionModel(n_inputs=len(views), n_classes=n_classes,
+                               weight=dice_weight,
+                               logger=logger, verbose=False)
 
     if continue_training:
-        fusion_model_org.load_weights(fusion_weights)
+        fusion_model.load_weights(fusion_weights)
         print("\n[OBS] CONTINUED TRAINING FROM:\n", fusion_weights)
 
-    # Define model
-    unet = init_model(hparams["build"], logger)
-    print("\n[*] Loading weights: %s\n" % weights)
-    unet.load_weights(weights, by_name=True)
-
-    if num_GPUs > 1:
-        from tensorflow.keras.utils import multi_gpu_model
-
-        # Set for predictor model
-        n_classes = n_classes
-        unet = multi_gpu_model(unet, gpus=num_GPUs)
-        unet.n_classes = n_classes
-
-        # Set for fusion model
-        fusion_model = multi_gpu_model(fusion_model_org, gpus=num_GPUs)
-    else:
-        fusion_model = fusion_model_org
+    import tensorflow as tf
+    with tf.distribute.MirroredStrategy().scope():
+        # Define model
+        unet = init_model(hparams["build"], logger)
+        print("\n[*] Loading weights: %s\n" % weights)
+        unet.load_weights(weights, by_name=True)
 
     # Compile the model
     logger("Compiling...")
     metrics = ["sparse_categorical_accuracy", sparse_fg_precision, sparse_fg_recall]
-    fusion_model.compile(optimizer=Adam(lr=1e-3), loss=fusion_model_org.loss, metrics=metrics)
-    fusion_model_org._log()
+    fusion_model.compile(optimizer=Adam(lr=1e-3),
+                         loss=fusion_model.loss,
+                         metrics=metrics)
+    fusion_model._log()
 
     try:
         _run_fusion_training(sets, logger, hparams, min_val_images,
                              is_validation, views, n_classes, unet,
-                             fusion_model_org, fusion_model,
-                             early_stopping, fm_batch_size, epochs, eval_prob,
-                             fusion_weights)
+                             fusion_model, early_stopping, fm_batch_size,
+                             epochs, eval_prob, fusion_weights)
     except KeyboardInterrupt:
         pass
     finally:
@@ -361,7 +348,7 @@ def entry_func(args=None):
             os.mkdir(os.path.split(fusion_weights)[0])
         # Save fusion model weights
         # OBS: Must be original model if multi-gpu is performed!
-        fusion_model_org.save_weights(fusion_weights)
+        fusion_model.save_weights(fusion_weights)
 
 
 if __name__ == "__main__":

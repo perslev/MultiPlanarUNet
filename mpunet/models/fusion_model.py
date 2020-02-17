@@ -3,7 +3,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Layer
 from tensorflow.keras.initializers import constant
 from mpunet.logging import ScreenLogger
-from mpunet.evaluate.loss_functions import GeneralizedDiceLoss
+from mpunet.evaluate.loss_functions import SparseGeneralizedDiceLoss
 
 
 def reg(W):
@@ -52,9 +52,8 @@ class FusionModel(Model):
         self.logger = logger or ScreenLogger()
 
         # Set loss
-        self.loss = GeneralizedDiceLoss(n_classes, type_weight=weight,
-                                        logger=logger, sparse=True)
-        # self.loss = tf.keras.losses.categorical_crossentropy
+        self.loss = SparseGeneralizedDiceLoss(tf.keras.losses.Reduction.SUM_OVER_BATCH_SIZE,
+                                              type_weight=weight)
 
         # Init model
         super().__init__(*self.init_model(n_inputs, n_classes))
@@ -63,13 +62,8 @@ class FusionModel(Model):
             self._log()
 
     def init_model(self, n_inputs, n_classes):
-        if self.loss.__name__ == "BatchWeightedCrossEntropyWithLogitsAndSparseTargets":
-            af = tf.identity
-        else:
-            af = tf.nn.softmax
-
         inputs = Input(shape=(n_inputs, n_classes))
-        fusion = FusionLayer(activation_func=af)(inputs)
+        fusion = FusionLayer(activation_func=tf.nn.softmax)(inputs)
 
         return [inputs], [fusion]
 

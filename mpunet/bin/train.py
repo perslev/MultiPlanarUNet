@@ -13,6 +13,7 @@ mp train --num_GPUs=1
 
 from argparse import ArgumentParser
 import os
+import tensorflow as tf
 
 
 def get_argparser():
@@ -20,6 +21,9 @@ def get_argparser():
                                         'in a project folder. '
                                         'Invoke "init_project" to start a '
                                         'new project.')
+    parser.add_argument("--project_dir", type=str, default='./',
+                        help="Path to a mpunet project directory. "
+                             "Defaults to the current directory.")
     parser.add_argument("--num_GPUs", type=int, default=1,
                         help="Number of GPUs to use for this job (default=1)")
     parser.add_argument("--force_GPU", type=str, default="",
@@ -98,8 +102,7 @@ def validate_hparams(hparams):
     """
     # Tests for valid hparams
     if hparams["fit"].get("class_weights") and hparams["fit"]["loss"] not in \
-            ("WeightedSemanticCCE", "GeneralizedDiceLoss",
-             "WeightedCrossEntropyWithLogits", "FocalLoss"):
+            ("SparseFocalLoss",):
         # Only currently supported losses
         raise ValueError("Invalid loss function '{}' used with the "
                          "'class_weights' "
@@ -359,13 +362,14 @@ def entry_func(args=None):
     Args:
         args: None or arguments passed from mp
     """
-    # Check for project dir
-    project_dir = os.path.abspath("./")
-    validate_project_dir(project_dir)
-
     # Get and check args
     args = get_argparser().parse_args(args)
     validate_args(args)
+
+    # Check for project dir
+    project_dir = os.path.abspath(args.project_dir)
+    validate_project_dir(project_dir)
+    os.chdir(project_dir)
 
     # Get project folder and remove previous session if --overwrite
     if args.overwrite:

@@ -183,23 +183,19 @@ def get_results_dicts(out_dir, views, image_pairs_dict, n_classes, _continue):
     return results, detailed_res
 
 
-def get_model(project_dir, num_GPUs, build_hparams):
+def get_model(project_dir, build_hparams):
     from mpunet.models.model_init import init_model
     model_path = get_best_model(project_dir + "/model")
     weights_name = os.path.splitext(os.path.split(model_path)[1])[0]
     print("\n[*] Loading model weights:\n", model_path)
-    model = init_model(build_hparams)
-    model.load_weights(model_path, by_name=True)
-    if num_GPUs > 1:
-        print("[*] Creating multi-GPU model... (N={})".format(num_GPUs))
-        from tensorflow.keras.utils import multi_gpu_model
-        # n_classes = model.n_classes
-        model = multi_gpu_model(model, gpus=num_GPUs)
-        # model.n_classes = n_classes
+    import tensorflow as tf
+    with tf.distribute.MirroredStrategy().scope():
+        model = init_model(build_hparams)
+        model.load_weights(model_path, by_name=True)
     return model, weights_name
 
 
-def get_fusion_model(n_views, n_classes, project_dir, weights_name, num_GPUs):
+def get_fusion_model(n_views, n_classes, project_dir, weights_name):
     from mpunet.models import FusionModel
     fm = FusionModel(n_inputs=n_views, n_classes=n_classes)
     # Load fusion weights
@@ -209,12 +205,6 @@ def get_fusion_model(n_views, n_classes, project_dir, weights_name, num_GPUs):
     fm.load_weights(weights)
     print("\nLoaded weights:\n\n%s\n%s\n---" % tuple(
         fm.layers[-1].get_weights()))
-
-    # Multi-gpu?
-    if num_GPUs > 1:
-        from tensorflow.keras.utils import multi_gpu_model
-        print("Creating multi-GPU fusion model (N={})".format(num_GPUs))
-        fm = multi_gpu_model(fm, gpus=num_GPUs)
     return fm
 
 
@@ -426,7 +416,7 @@ def entry_func(args=None):
         await_PIDs(args.wait_for, check_every=120)
 
     # Set GPU device
-    num_GPUs = set_gpu_vis(args)
+    set_gpu_vis(args)
 
     # Get views
     views = np.load("%s/views.npz" % project_dir)["arr_0"]
@@ -441,14 +431,13 @@ def entry_func(args=None):
                                                       vars(args)["continue"])
 
     # Get model and load weights, assign to one or more GPUs
-    model, weights_name = get_model(project_dir, num_GPUs, hparams['build'])
+    model, weights_name = get_model(project_dir, hparams['build'])
     fusion_model = None
     if not args.sum_fusion:
         fusion_model = get_fusion_model(n_views=len(views),
                                         n_classes=hparams["build"]["n_classes"],
                                         project_dir=project_dir,
-                                        weights_name=weights_name,
-                                        num_GPUs=num_GPUs)
+                                        weights_name=weights_name)
 
     run_predictions_and_eval(
         image_pair_loader=image_pair_loader,
