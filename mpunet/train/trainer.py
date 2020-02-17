@@ -5,7 +5,7 @@ from mpunet.logging import ScreenLogger
 from mpunet.callbacks import (SavePredictionImages, Validation,
                               FGBatchBalancer, DividerLine,
                               LearningCurve, MemoryConsumption,
-                              remove_validation_callbacks)
+                              MeanReduceLogArrays, remove_validation_callbacks)
 from mpunet.utils import ensure_list_or_tuple
 from mpunet.train.utils import (ensure_sparse,
                                 init_losses,
@@ -48,8 +48,9 @@ class Trainer(object):
         self.model = model
         self.logger = logger if logger is not None else ScreenLogger()
 
-    def compile_model(self, optimizer, optimizer_kwargs, loss, metrics,
-                      reduction, check_sparse=False, **kwargs):
+    def compile_model(self, optimizer, loss, metrics, reduction,
+                      check_sparse=False, optimizer_kwargs={}, loss_kwargs={},
+                      **kwargs):
         """
         Compile the stored tf.keras Model instance stored in self.model
         Sets the loss function, optimizer and metrics
@@ -78,9 +79,19 @@ class Trainer(object):
         losses = init_losses(losses, self.logger, **kwargs)
         for i, loss in enumerate(losses):
             try:
-                losses[i] = loss(reduction=reduction)
-            except ValueError:
-                pass
+                losses[i] = loss(reduction=reduction,
+                                 **loss_kwargs)
+            except (ValueError, TypeError):
+                raise TypeError("All loss functions must currently be "
+                                "callable and accept the 'reduction' "
+                                "parameter specifying a "
+                                "tf.keras.losses.Reduction type. If you "
+                                "specified a keras loss function such as "
+                                "'sparse_categorical_crossentropy', change "
+                                "this to its corresponding loss class "
+                                "'SparseCategoricalCrossentropy'. If "
+                                "you implemented a custom loss function, "
+                                "please raise an issue on GitHub.")
         metrics = init_metrics(metrics, self.logger, **kwargs)
 
         # Compile the model
@@ -132,6 +143,7 @@ class Trainer(object):
                 self._fit(train=train,
                           val=val,
                           batch_size=batch_size,
+                          no_im=no_im,
                           **fit_kwargs)
                 fitting = False
             except (ResourceExhaustedError, InternalError):
@@ -209,6 +221,7 @@ class Trainer(object):
         if not no_im:
             # Add save images cb
             callbacks.append(SavePredictionImages(train, val))
+        callbacks.insert(1, MeanReduceLogArrays())
         # callbacks.insert(1, MemoryConsumption(logger=self.logger))
         callbacks.append(LearningCurve(logger=self.logger))
         callbacks.append(DividerLine(self.logger))
@@ -222,6 +235,11 @@ class Trainer(object):
         if cb:
             cb.org_model = self.model  # TEMP TODO
 
+        # Temporary memory leak fix
+        import tensorflow as tf
+        dtypes, shapes = list(zip(*map(lambda x: (x.dtype, x.shape), train[0])))
+        train = tf.data.Dataset.from_generator(train, dtypes, shapes)
+
         # Fit the model
         # is_queued = bool(train.image_pair_loader.queue)
         self.logger.active_log_file = "training"
@@ -233,8 +251,8 @@ class Trainer(object):
             callbacks=callbacks,
             initial_epoch=init_epoch,
             use_multiprocessing=use_multiprocessing,
-            workers=min(7, cpu_count()-1),
-            max_queue_size=25,
+            workers=5,
+            max_queue_size=5,
             shuffle=False,  # Determined by the chosen Sequence class
             verbose=verbose
         )

@@ -2,6 +2,7 @@ from mpunet.sequences import BaseSequence
 from mpunet.utils import get_class_weights as gcw
 from mpunet.logging import ScreenLogger
 import numpy as np
+import tensorflow as tf
 
 
 class IsotrophicLiveViewSequence(BaseSequence):
@@ -50,7 +51,7 @@ class IsotrophicLiveViewSequence(BaseSequence):
 
     def __len__(self):
         """ Undefined, return some high number - a number is need in keras """
-        return int(10**9)
+        return int(10**12)
 
     def __getitem__(self, idx):
         raise NotImplemented
