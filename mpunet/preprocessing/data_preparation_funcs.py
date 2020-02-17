@@ -97,8 +97,8 @@ def _base_loader_func(hparams, just_one, no_val, logger, mtype):
     return train_data, val_data, logger, auditor
 
 
-def add_class_weights_to_hparams(train_data, hparams):
-    if hparams["fit"]["class_weights"] is True:
+def add_class_weights_to_hparams(train_data, hparams, logger):
+    if hparams["fit"].get("class_weights") is True:
         # If train data is queued, unload each image after class counting
         unload = bool(train_data.queue)
 
@@ -106,8 +106,12 @@ def add_class_weights_to_hparams(train_data, hparams):
         weights, counts = train_data.get_class_weights(as_array=True,
                                                        return_counts=True,
                                                        unload=unload)
-        hparams["fit"]["class_weights"] = weights
-        hparams["fit"]["class_counts"] = counts
+        logger("Class weights: %s" % weights)
+        logger("Class counts: %s" % counts)
+
+        if 'loss_kwargs' not in hparams['fit']:
+            hparams['fit']['loss_kwargs'] = {}
+        hparams["fit"]['loss_kwargs']["class_weights"] = weights
 
 
 def load_or_create_views(hparams, continue_training, logger, base_path, auditor):
@@ -176,9 +180,7 @@ def prepare_for_multi_view_unet(hparams, just_one=False, no_val=False,
                                  is_validation=True, **hparams["fit"])
 
     # Compute class weights if specified, added to hparams
-    add_class_weights_to_hparams(train_data, hparams)
-    logger("Class weights: %s" % hparams["fit"].get("class_weights"))
-    logger("Class counts: %s" % hparams["fit"].get("class_counts"))
+    add_class_weights_to_hparams(train_data, hparams, logger)
 
     return train, val, hparams
 
