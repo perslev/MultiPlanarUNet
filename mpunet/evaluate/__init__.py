@@ -1,3 +1,7 @@
 from .metrics import dice_all
-from .loss_functions import WeightedSemanticCCE, OneHotLossWrapper, \
-                            ExponentialLogarithmicLoss
+from .loss_functions import (SparseExponentialLogarithmicLoss,
+                             SparseDiceLoss,
+                             SparseExpLogDice,
+                             SparseFocalLoss,
+                             SparseGeneralizedDiceLoss,
+                             SparseJaccardDistanceLoss)
