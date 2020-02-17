@@ -42,9 +42,9 @@ def get_parser():
     return parser
 
 
-def entry_func():
+def entry_func(args=None):
     # Get the script to execute, parse only first input
-    parsed = get_parser().parse_args()
+    parsed = get_parser().parse_args(args)
     script = parsed.script
 
     # Import the script
