@@ -68,9 +68,6 @@ fit: &FIT
   noise_sd: 0.1
   intrp_style: 'iso_live'
 
-  # Use class weights?
-  class_weights: False
-
   # On-the-fly augmentation?
   # Leave empty or delete entirely if not
   augmenters: [
@@ -79,8 +76,17 @@ fit: &FIT
   ]
 
   # Loss function
-  loss: "sparse_categorical_crossentropy"
+  loss: "SparseCategoricalCrossentropy"
   metrics: ["sparse_categorical_accuracy"]
+
+  # Pass parameters to the loss function here, e.g. class weights
+  # Note: class weights only supported by some loss functions!
+  # Leave empty or remove field if loss takes no parameters
+  loss_kwargs: {
+      # class_weights: [0.2, 0.7, 2.1]
+      # gamma: 0.3
+  }
+  class_weights: False  # Set to True to compute and overwrite class weights in loss_kwargs automatically
 
   # Optimization
   batch_size: 16
