@@ -56,11 +56,7 @@ def _init(string_list, tf_funcs, custom_funcs, logger=None, **kwargs):
             initialized.append(modules_found[0])  # return the first found
         else:
             # Fall back to look in custom module
-            import inspect
-            func_or_class = getattr(custom_funcs, func_or_class)
-            if inspect.isclass(func_or_class):
-                func_or_class = func_or_class(logger=logger, **kwargs)
-            initialized.append(func_or_class)
+            initialized.append(getattr(custom_funcs, func_or_class))
     return initialized
 
 
