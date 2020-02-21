@@ -93,3 +93,15 @@ History
 * Now requires the 'psutil' and 'tensorflow-addons' packages.
 * Implements a temporary fix to the issue raised at https://github.com/perslev/MultiPlanarUNet/issues/8
 * Fixed a number of smaller bugs
+
+0.2.5 (2020-02-21)
+------------------
+* Implements a fix to high memory usage reported during training on some systems
+* Now uses tf.distribution for multi-GPU training and prediction
+* Custom loss functions should now be wrapped by tf.python.keras.losses.LossFunctionWrapper. I.e. any loss function must be 
+  a class which accepts a tf.keras.losses.Reduction parameter and potentially other parameters and returns the compiled loss function.
+    * Consequently, when setting a loss function for MultiPlanarUNet training in train_hparams.yaml one must specify the factory 
+      class verysion of the loss. E.g. for 'sparse_categorical_crossentropy' one must now specify 'SparseCategoricalCrossentropy' instead.
+      The same naming convention applies to all custom losses.
+    * Arbitrary Parameters may now be passed to a loss function in the 'loss_kwargs' entry in train_hparams.yaml
+* Some (deprecated) custom loss functions have been removed.
