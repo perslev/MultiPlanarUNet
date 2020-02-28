@@ -35,6 +35,15 @@ class MultiChannelScaler(object):
         # Store number of channels
         self.n_channels = None
 
+    def __str__(self):
+        return "MultiChannelScaler(scaler_class='{}', ignore_less_eq={})".format(
+            self.scaler_class.__name__,
+            self.ignore_less_eq
+        )
+
+    def __repr__(self):
+        return str(self)
+
     def fit(self, X, *args, **kwargs):
         if X.ndim != 4:
             raise ValueError("Invalid shape for X (%s)" % X.shape)
