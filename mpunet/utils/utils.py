@@ -3,6 +3,7 @@ import os
 import numpy as np
 import glob
 import contextlib
+from mpunet.logging.default_logger import ScreenLogger
 
 
 def _get_system_wide_set_gpus():
@@ -176,13 +177,15 @@ def get_last_epoch(csv_file):
     return epoch
 
 
-def set_bias_weights_on_all_outputs(model, train, hparams, logger):
+def set_bias_weights_on_all_outputs(model, data_queue, hparams, logger):
     # This will bias the softmax output layer to output class confidences
     # equal to the class frequency
     if hasattr(model, "out_layers"):
+        raise NotImplementedError("Multi task models not yet supported in "
+                                  "mpunet >= 0.2.6")
         # Multiple output layers, set bias for each
         layers = model.out_layers
-        loaders = [t.image_pair_loader for t in train]
+        loaders = [t.image_pair_loader for t in data_queue]
     else:
         layers = [None]
         for layer in model.layers[::-1]:
@@ -192,41 +195,50 @@ def set_bias_weights_on_all_outputs(model, train, hparams, logger):
             if hasattr(layer, 'activation'):
                 layers = [layer]
                 break
-        loaders = [train.image_pair_loader]
-    for layer, loader in zip(layers, loaders):
+        data_queues = [data_queue]
+    for layer, data_queue in zip(layers, data_queues):
         set_bias_weights(layer=layer,
-                         train_loader=loader,
+                         data_queue=data_queue,
                          class_counts=hparams.get("class_counts"),
                          logger=logger)
 
 
-def set_bias_weights(layer, train_loader, class_counts=None, logger=None):
+def set_bias_weights(layer, data_queue, class_counts=None, logger=None):
     if layer.activation.__name__ != "softmax":
         raise ValueError("Setting output layer bias currently only supported "
                          "with softmax activation functions. Output layer has "
                          "'%s'" % layer.activation.__name__)
+    logger = logger or ScreenLogger()
+    # Get original and set new weights
+    weights = layer.get_weights()
+    if len(weights) != 2:
+        raise ValueError("Output layer does not have bias weights.")
+    bias_shape = weights[-1].shape
+    n_classes = weights[-1].size
 
-    # Calculate counts if not specified
+    # Estimate counts if not specified
     if class_counts is None:
-        class_counts = train_loader.get_class_weights(return_counts=True,
-                                                      unload=bool(train_loader.queue))[1]
+        class_counts = np.zeros(shape=[n_classes], dtype=np.int)
+        if hasattr(data_queue, 'max_loaded'):
+            # Limitation queue, count once for each image currently in queue
+            n_images = data_queue.max_loaded
+        else:
+            n_images = len(data_queue.dataset)
+        logger("OBS: Estimating class counts from {} images".format(n_images))
+        for _ in range(n_images):
+            with data_queue.get_random_image() as image:
+                class_counts += np.bincount(image.labels.ravel(),
+                                            minlength=n_classes)
 
     # Compute frequencies
     freq = np.asarray(class_counts/np.sum(class_counts))
 
     # Compute bias weights
     bias = np.log(freq * np.sum(np.exp(freq)))
+    weights[-1] = bias.reshape(bias_shape)
 
-    # Get original and set new weights
-    weights = layer.get_weights()
-    s = weights[-1].shape
-    if len(weights) != 2:
-        raise ValueError("Output layer does not have bias weights.")
-    weights[-1] = bias.reshape(s)
     layer.set_weights(weights)
-
-    if logger:
-        logger("Setting bias weights on output layer to:\n%s" % bias)
+    logger("Setting bias weights on output layer to:\n%s" % bias)
 
 
 def get_confidence_dict(path, views):
@@ -239,63 +251,6 @@ def get_confidence_dict(path, views):
     confs = {str(v): confs[i] for i, v in enumerate(views)}
 
     return confs
-
-
-def get_class_counts(samples, unload=False):
-    classes, counts = None, None
-    if isinstance(samples, dict):
-        for v in samples:
-            s = samples[v].flatten()
-            r = np.unique(s, return_counts=True)
-            if counts is None:
-                classes, counts = r
-            else:
-                counts[np.in1d(np.arange(0, len(classes)), r[0])] += r[1]
-    else:
-        try:
-            samples = samples.flatten()
-            classes, counts = np.unique(samples, return_counts=True)
-        except AttributeError:
-            for image in samples.images:
-                r = np.unique(image.labels, return_counts=True)
-                if counts is None:
-                    classes, counts = r
-                else:
-                    counts[np.in1d(np.arange(0, len(classes)), r[0])] += r[1]
-                if unload:
-                    image.unload()
-
-    return classes, counts
-
-
-def get_class_weights(samples, as_array=False, return_counts=False, unload=False):
-    classes, counts = get_class_counts(samples, unload)
-
-    # Get total number of samples
-    n_samples = np.sum(counts)
-
-    # Calculate weights by class as inverse of their abundance
-    weights = {cls: n_samples/(3*c*len(classes)) for cls, c in zip(classes, counts)}
-
-    if as_array:
-        weights = np.array([weights[w] for w in sorted(weights)])
-    else:
-        counts = {cls: c for cls, c in zip(classes, counts)}
-
-    if not return_counts:
-        return weights
-    else:
-        return weights, counts
-
-
-def get_sample_weights_vectorizor(class_weights_dict):
-    return np.vectorize(class_weights_dict.get)
-
-
-def get_sample_weights(samples):
-    # Map class weights to samples
-    class_weights_dict = get_class_weights(samples, as_array=False)
-    return get_sample_weights_vectorizor(class_weights_dict)(samples)
 
 
 def random_split(X, y, fraction):
