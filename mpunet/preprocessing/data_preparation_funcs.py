@@ -1,6 +1,7 @@
 from mpunet.logging import ScreenLogger
 from mpunet.image.auditor import Auditor
 from mpunet.image import ImagePairLoader
+from mpunet.sequences.utils import get_sequence
 import numpy as np
 import os
 
@@ -90,31 +91,34 @@ def _base_loader_func(hparams, just_one, no_val, logger, mtype):
         # Run without performing validation (even if specified in param file)
         val_data.images = []
 
-    # Set queue object if necessary
-    train_data.set_queue(hparams["train_data"].get("max_load"))
-    val_data.set_queue(hparams["val_data"].get("max_load"))
+    # Set per-image properties
+    for dataset in (train_data, val_data):
+        logger("Preparing dataset {}".format(dataset))
+        dataset.set_scaler_and_bg_values(bg_value=hparams.get_from_anywhere('bg_value'),
+                                         scaler=hparams.get_from_anywhere('scaler'),
+                                         compute_now=False)
 
-    return train_data, val_data, logger, auditor
+    from mpunet.image.queue.utils import get_data_queues
+    train_queue, val_queue = get_data_queues(
+        train_dataset=train_data,
+        val_dataset=val_data,
+        train_queue_type='limitation',
+        val_queue_type='eager',
+        max_loaded=hparams['fit'].get('max_loaded'),
+        num_access_before_reload=hparams['fit'].get('num_access'),
+        logger=logger
+    )
 
-
-def add_class_weights_to_hparams(train_data, hparams, logger):
-    if hparams["fit"].get("class_weights") is True:
-        # If train data is queued, unload each image after class counting
-        unload = bool(train_data.queue)
-
-        # Compute the class weights and also return the counts
-        weights, counts = train_data.get_class_weights(as_array=True,
-                                                       return_counts=True,
-                                                       unload=unload)
-        logger("Class weights: %s" % weights)
-        logger("Class counts: %s" % counts)
-
-        if 'loss_kwargs' not in hparams['fit']:
-            hparams['fit']['loss_kwargs'] = {}
-        hparams["fit"]['loss_kwargs']["class_weights"] = weights
+    return train_queue, val_queue, logger, auditor
 
 
 def load_or_create_views(hparams, continue_training, logger, base_path, auditor):
+    """
+    TODO
+
+    Args:
+
+    """
     views = hparams["fit"]["views"]
     if not continue_training:
         if isinstance(views, int):
@@ -149,13 +153,44 @@ def load_or_create_views(hparams, continue_training, logger, base_path, auditor)
         hparams["fit"]["views"] = np.load(view_path)["arr_0"]
 
 
+def get_sequencers(train_queue, val_queue, logger, hparams):
+    """
+    TODO
+
+    Args:
+
+    """
+    # Get Sequence generators
+    logger("Preparing sequence objects...")
+    sequencers = []
+    for queue, is_val in ((train_queue, False), (val_queue, True)):
+        if not queue:
+            sequencers.append(None)
+        else:
+            sequencers.append(get_sequence(
+                data_queue=queue,
+                is_validation=is_val,
+                logger=logger,
+                dim=hparams["build"]["dim"],
+                n_classes=hparams["build"]["n_classes"],
+                **hparams["fit"]
+            ))
+    train, val = sequencers
+    return train, val
+
+
 def prepare_for_multi_view_unet(hparams, just_one=False, no_val=False,
                                 continue_training=False, logger=None,
                                 base_path='./'):
+    """
+    TODO
 
+    Args:
+
+    """
     # Load the data
-    train_data, val_data, logger, auditor = _base_loader_func(hparams, just_one,
-                                                              no_val, logger, "2d")
+    train_queue, val_queue, logger, auditor = _base_loader_func(hparams, just_one,
+                                                                no_val, logger, "2d")
 
     # Load or create a set of views (determined by 'continue_training')
     # This function will add the views to hparams["fit"]["views"] and
@@ -170,46 +205,38 @@ def prepare_for_multi_view_unet(hparams, just_one=False, no_val=False,
     logger("Views:       N=%i" % len(hparams["fit"]["views"]))
     logger("             %s" % ((" " * 13).join([str(v) + "\n" for v in hparams["fit"]["views"]])))
 
-    # Get keras.Sequence generators for training images
-    logger("Preparing views...")
-    train = train_data.get_sequencer(n_classes=hparams["build"]["n_classes"],
-                                     dim=hparams["build"]["dim"],
-                                     is_validation=False, **hparams["fit"])
-    val = val_data.get_sequencer(n_classes=hparams["build"]["n_classes"],
-                                 dim=hparams["build"]["dim"],
-                                 is_validation=True, **hparams["fit"])
-
-    # Compute class weights if specified, added to hparams
-    add_class_weights_to_hparams(train_data, hparams, logger)
-
+    # Get Sequence generators
+    train, val = get_sequencers(train_queue, val_queue, logger, hparams)
     return train, val, hparams
 
 
 def prepare_for_3d_unet(hparams, just_one=False, no_val=False, logger=None,
                         continue_training=None, base_path="./"):
+    """
+    TODO
 
+    Args:
+
+    """
     # Load the data
-    train_data, val_data, logger, auditor = _base_loader_func(hparams, just_one,
-                                                              no_val, logger, "3d")
-
-    # Get 3D patch sequence generators
-    train = train_data.get_sequencer(n_classes=hparams["build"]["n_classes"],
-                                     dim=hparams["build"]["dim"],
-                                     **hparams["fit"])
-    val = val_data.get_sequencer(n_classes=hparams["build"]["n_classes"],
-                                 dim=hparams["build"]["dim"],
-                                 is_validation=True, **hparams["fit"])
-
-    # Compute class weights if specified, added to hparams
-    add_class_weights_to_hparams(train_data, hparams)
-    logger("Class weights: %s" % hparams["fit"].get("class_weights"))
-    logger("Class counts: %s" % hparams["fit"].get("class_counts"))
-
+    train_queue, val_queue, logger, auditor = _base_loader_func(hparams, just_one,
+                                                                no_val, logger, "3d")
+    train, val = get_sequencers(train_queue, val_queue, logger, hparams)
     return train, val, hparams
 
 
 def prepare_for_multi_task_2d(hparams, just_one=False, no_val=False, logger=None,
                               continue_training=None, base_path="./"):
+    """
+    TODO
+
+    Args:
+
+    """
+    raise NotImplementedError(
+        'Multi task training is not yet implemented for mpunet>=0.2.6. '
+        'Please raise an issue on GitHUb.'
+    )
     from mpunet.hyperparameters import YAMLHParams
     # Get image loaders for all tasks
     tasks = []

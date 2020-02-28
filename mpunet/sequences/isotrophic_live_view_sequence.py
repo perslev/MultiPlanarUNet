@@ -1,12 +1,10 @@
 from mpunet.sequences import BaseSequence
-from mpunet.utils import get_class_weights as gcw
 from mpunet.logging import ScreenLogger
 import numpy as np
-import tensorflow as tf
 
 
 class IsotrophicLiveViewSequence(BaseSequence):
-    def __init__(self, image_pair_loader, dim, batch_size, n_classes,
+    def __init__(self, image_pair_queue, dim, batch_size, n_classes,
                  real_space_span=None, noise_sd=0., force_all_fg="auto",
                  fg_batch_fraction=0.50, label_crop=None, logger=None,
                  is_validation=False, list_of_augmenters=None, flatten_y=False,
@@ -25,8 +23,7 @@ class IsotrophicLiveViewSequence(BaseSequence):
         self.noise_sd = noise_sd if not self.is_validation else 0.
 
         # Set data
-        self.image_pair_loader = image_pair_loader
-        self.images = image_pair_loader.images
+        self.image_pair_queue = image_pair_queue
 
         # Augmenter, applied to batch at creation time
         # Do not augment validation data
@@ -86,9 +83,6 @@ class IsotrophicLiveViewSequence(BaseSequence):
             return self.batch_size > len(self.fg_classes)
         else:
             return self.force_all_fg_switch
-
-    def get_class_weights(self, as_array=False):
-        return gcw(self.image_pair_loader, as_array=as_array)
 
     def _crop_labels(self, batch_y):
         return batch_y[:, self.label_crop[0, 0]:-self.label_crop[0, 1],

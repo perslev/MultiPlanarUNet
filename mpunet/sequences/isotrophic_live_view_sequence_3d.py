@@ -5,8 +5,8 @@ import numpy as np
 
 
 class IsotrophicLiveViewSequence3D(IsotrophicLiveViewSequence):
-    def __init__(self, image_pair_loader, real_box_dim, no_log=False, **kwargs):
-        super().__init__(image_pair_loader, **kwargs)
+    def __init__(self, image_pair_queue, real_box_dim, no_log=False, **kwargs):
+        super().__init__(image_pair_queue, **kwargs)
 
         self.real_box_dim = real_box_dim
         self.batch_shape = (self.batch_size, self.sample_dim, self.sample_dim,
@@ -84,6 +84,39 @@ class IsotrophicLiveViewSequence3D(IsotrophicLiveViewSequence):
         else:
             return []
 
+    def _get_valid_box_from(self, image, max_tries, has_fg_vec, has_fg_count, cur_bs):
+        """
+        TODO
+        """
+        tries = 0
+        while tries < max_tries:
+            # Sample a batch from the image
+            tries += 1
+
+            # Get grid and interpolate
+            mgrid = sample_box(sample_dim=self.sample_dim,
+                               real_box_dim=self.real_box_dim,
+                               real_dims=image.real_shape,
+                               noise_sd=self.noise_sd)
+
+            # Get interpolated labels
+            lab = image.interpolator.intrp_labels(mgrid)
+            valid_lab, fg_change = self.validate_lab(lab, has_fg_count, cur_bs)
+
+            if self.force_all_fg and tries < max_tries:
+                valid, has_fg_vec = self.validate_lab_vec(lab, has_fg_vec, cur_bs)
+                if not valid:
+                    continue
+
+            if valid_lab or tries == max_tries:
+                # Get interpolated image
+                im = image.interpolator.intrp_image(mgrid)
+                im_bg_val = image.interpolator.bg_value
+                if tries > max_tries or self.is_valid_im(im, im_bg_val):
+                    # Accept box, update foreground counter
+                    has_fg_vec += fg_change
+                    return im, lab, has_fg_count
+
     def __getitem__(self, idx):
         """
         Used by keras.fit_generator to fetch mini-batches during training
@@ -92,63 +125,37 @@ class IsotrophicLiveViewSequence3D(IsotrophicLiveViewSequence):
         self.seed()
 
         # Store how many slices has fg so far
-        has_fg = 0
+        has_fg_count = 0
         has_fg_vec = np.zeros_like(self.fg_classes)
 
         # Interpolate on a random index for each sample image to generate batch
         batch_x, batch_y, batch_w = [], [], []
 
         # Get a random image
-        max_tries = self.batch_size * 15
-
-        # Number of images to use in each batch. Number should be low enough
-        # to not exhaust queue generator.
-        N = 2 if self.image_pair_loader.queue else self.batch_size
-        cuts = np.round(np.linspace(0, self.batch_size, N+1)[1:])
+        max_tries = self.batch_size * 10
 
         scalers = []
         bg_values = []
-        for i, image in enumerate(self.image_pair_loader.get_random(N=N)):
-            tries = 0
-            # Sample a batch from the image
-            while len(batch_x) < cuts[i]:
-                # Get grid and interpolate
-                mgrid = sample_box(sample_dim=self.sample_dim,
-                                   real_box_dim=self.real_box_dim,
-                                   real_dims=image.real_shape,
-                                   noise_sd=self.noise_sd)
+        for _ in range(self.batch_size):
+            with self.image_pair_queue.get_random_image() as image:
+                im, lab, has_fg_count = self._get_valid_box_from(
+                    image=image,
+                    max_tries=max_tries,
+                    has_fg_vec=has_fg_vec,
+                    has_fg_count=has_fg_count,
+                    cur_bs=len(batch_y)
+                )
 
-                # Get interpolated labels
-                lab = image.interpolator.intrp_labels(mgrid)
-                valid_lab, fg_change = self.validate_lab(lab, has_fg, len(batch_y))
+                # Save scaler to normalize image later (after potential aug)
+                scalers.append(image.scaler)
 
-                if self.force_all_fg and tries < max_tries:
-                    valid, has_fg_vec = self.validate_lab_vec(lab,
-                                                              has_fg_vec,
-                                                              len(batch_y))
-                    if not valid:
-                        tries += 1
-                        continue
+                # Save bg value if needed in potential augmenters
+                bg_values.append(image.interpolator.bg_value)
 
-                if valid_lab or tries > max_tries:
-                    # Get interpolated image
-                    im = image.interpolator.intrp_image(mgrid)
-                    im_bg_val = image.interpolator.bg_value
-                    if tries > max_tries or self.is_valid_im(im, im_bg_val):
-                        # Update foreground counter
-                        has_fg += fg_change
-
-                        # Save scaler to normalize image later (after potential
-                        # augmentation)
-                        scalers.append(image.scaler)
-
-                        # Save bg value if needed in potential augmenters
-                        bg_values.append(im_bg_val)
-
-                        # Add to batches
-                        batch_x.append(im)
-                        batch_y.append(lab)
-                        batch_w.append(image.sample_weight)
+                # Add to batches
+                batch_x.append(im)
+                batch_y.append(lab)
+                batch_w.append(image.sample_weight)
 
         # Normalize images
         batch_x = self.scale(batch_x, scalers)
