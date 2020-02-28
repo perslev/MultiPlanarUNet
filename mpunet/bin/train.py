@@ -54,6 +54,20 @@ def get_argparser():
     parser.add_argument("--val_images_per_epoch", type=int, default=3500,
                         help="Number of training images to sample in each "
                              "epoch")
+    parser.add_argument("--max_loaded_images", type=int, default=30,
+                        help="Set a maximum number of (training) images to "
+                             "keep loaded in memory at a given time. Images "
+                             "will be cycled every '--num_access slices.'. "
+                             "Default=30.")
+    parser.add_argument("--num_access", type=int, default=50,
+                        help="Only effective with --max_loaded_images set. "
+                             "Sets the number of times an images stored in "
+                             "memory may be accessed (e.g. for sampling an "
+                             "image slice) before it is replaced by another "
+                             "image. Higher values makes the data loader "
+                             "less likely to block. Lower values ensures that "
+                             "images are sampled across all images of the "
+                             "dataset. Default=50.")
     return parser
 
 
@@ -234,6 +248,8 @@ def get_data_sequences(project_dir, hparams, logger, args):
     from mpunet.preprocessing import get_preprocessing_func
     func = get_preprocessing_func(hparams["build"].get("model_class_name"))
     hparams['fit']['flatten_y'] = True
+    hparams['fit']['max_loaded'] = args.max_loaded_images
+    hparams['fit']['num_access'] = args.num_access
     train, val, hparams = func(hparams=hparams,
                                logger=logger,
                                just_one=args.just_one,
@@ -275,7 +291,10 @@ def get_model(project_dir, train_seq, hparams, logger, args):
     # Initialize weights in final layer?
     if not args.continue_training and hparams["build"].get("biased_output_layer"):
         from mpunet.utils.utils import set_bias_weights_on_all_outputs
-        set_bias_weights_on_all_outputs(model, train_seq, hparams, logger)
+        set_bias_weights_on_all_outputs(model,
+                                        train_seq.image_pair_queue,
+                                        hparams,
+                                        logger)
     return model
 
 
