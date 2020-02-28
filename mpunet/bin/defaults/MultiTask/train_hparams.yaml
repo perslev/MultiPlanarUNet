@@ -98,7 +98,6 @@ fit: &FIT
 
   # Minimum fraction of image slices with FG labels in each mini-batch
   fg_batch_fraction: 0.50
-  bg_class: 0        # background class label
   bg_value: 1pct
 
   # Normalization, using sklearn.preprocessing scalers

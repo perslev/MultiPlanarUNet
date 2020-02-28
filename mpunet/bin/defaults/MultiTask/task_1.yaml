@@ -2,16 +2,19 @@ train_data: &TRAINDATA
   base_dir: Null
   img_subdir: images
   label_subdir: labels
+  bg_class: 0
 
 val_data: &VALDATA
   base_dir: Null
   img_subdir: images
   label_subdir: labels
+  bg_class: 0
 
 test_data: &TESTDATA
   base_dir: Null
   img_subdir: images
   label_subdir: labels
+  bg_class: 0
 
 aug_data: &AUGDATA
   # Set this to True to include augmented images in the folders described below
@@ -21,6 +24,7 @@ aug_data: &AUGDATA
   img_subdir: images
   label_subdir: labels
   sample_weight: 0.33
+  bg_class: 0
 
 task_specifics:
   # Task defining parameters
