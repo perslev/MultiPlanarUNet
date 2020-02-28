@@ -9,11 +9,13 @@ November 2017
 import os
 import numpy as np
 import nibabel as nib
+from contextlib import contextmanager
 
 from mpunet.preprocessing import get_scaler
 from mpunet.logging import ScreenLogger
 from mpunet.interpolation.sample_grid import get_real_image_size, get_pix_dim
 from mpunet.interpolation.view_interpolator import ViewInterpolator
+from mpunet.utils import ensure_list_or_tuple
 
 # Errors
 from mpunet.errors.image_errors import (NoLabelFileError,
@@ -30,7 +32,8 @@ class ImagePair(object):
     Represents one data point of 1 .nii image file and corresponding labels
     """
     def __init__(self, img_path, labels_path=None, sample_weight=1.0,
-                 logger=None, im_dtype=np.float32, lab_dtype=np.uint8):
+                 bg_class=0, logger=None, im_dtype=np.float32,
+                 lab_dtype=np.uint8):
         """
         Initializes the ImagePair object from two paths to .nii file images
 
@@ -50,6 +53,7 @@ class ImagePair(object):
                            truth label map exists
             sample_weight: A float value assigning an overall weight to the
                            image/label pair - used by some optimization schemas
+            bg_class:       The background class integer value, usually 0
             logger:        A mpunet logger object writing to screen and
                            /or a logfile on disk
             im_dtype:      A numpy data type that the image will be cast to
@@ -72,7 +76,7 @@ class ImagePair(object):
             self.labels_path = self._validate_path(labels_path)
 
         # Validate that the image and label data match and get image identifier
-        self.id = self._get_and_validate_id()
+        self.identifier = self._get_and_validate_id()
 
         # Set variables to store loaded image and label information
         self.image_obj = nib.load(self.image_path)
@@ -83,20 +87,21 @@ class ImagePair(object):
         # Stores the data of the image and labels objects
         self._image = None
         self._labels = None
-        self.scaler = None
+        self._scaler = None
+        self._bg_value = None
+        self._bg_class = int(bg_class)
 
         # ViewInterpolator object initialized with set_interpolator_object
-        self.interpolator = None
-
-        # May be set by various functions to keep track of state of this image
-        self.load_state = None
+        self._interpolator = None
 
         # Data types
         self.im_dtype = im_dtype
         self.lab_dtype = lab_dtype
 
     def __str__(self):
-        return "<ImagePair object, identifier: %s>" % self.id
+        return "ImagePair(id={}, shape={}, real_shape={}, loaded={})".format(
+            self.identifier, self.shape, self.real_center, self.is_loaded
+        )
 
     def __repr__(self):
         return self.__str__()
@@ -106,20 +111,44 @@ class ImagePair(object):
         Log basic stats for this ImagePair.
         """
         self.logger("%s\n"
+                    "--- loaded:     %s\n"
                     "--- shape:      %s\n"
+                    "--- bg class    %i\n"
+                    "--- bg value    %s\n"
+                    '--- scaler      %s\n'
                     "--- real shape: %s\n"
                     "--- pixdim:     %s" % (
-                        self.id, self.shape,
+                        self.identifier,
+                        self.is_loaded,
+                        self.shape,
+                        self._bg_class,
+                        self._bg_value,
+                        ensure_list_or_tuple(self._scaler)[0],
                         np.round(get_real_image_size(self), 3),
                         np.round(get_pix_dim(self), 3)
                     ), print_calling_method=print_calling_method)
+
+    def _get_and_validate_id(self):
+        """
+        Validates if the image identifier and label identifier match.
+        Returns the image identifier.
+        """
+        img_id = os.path.split(self.image_path)[-1].split(".")[0]
+        if not self.predict_mode:
+            labels_id = os.path.split(self.labels_path)[-1].split(".")[0]
+
+            if img_id != labels_id:
+                raise ValueError("Image identifier '%s' does not match labels identifier '%s'"
+                                 % (img_id, labels_id))
+
+        return img_id
 
     @property
     def affine(self):
         return self.image_obj.affine
 
     @affine.setter
-    def affine(self, affine):
+    def affine(self, _):
         raise ReadOnlyAttributeError("Manually setting the affine attribute "
                                      "is not allowed. Initialize a new "
                                      "ImagePair object.")
@@ -129,7 +158,7 @@ class ImagePair(object):
         return self.image_obj.header
 
     @header.setter
-    def header(self, header):
+    def header(self, _):
         raise ReadOnlyAttributeError("Manually setting the header attribute "
                                      "is not allowed. Initialize a new "
                                      "ImagePair object.")
@@ -150,7 +179,7 @@ class ImagePair(object):
         return self._image
 
     @image.setter
-    def image(self, image):
+    def image(self, _):
         raise ReadOnlyAttributeError("Manually setting the image attribute "
                                      "is not allowed. Initialize a new "
                                      "ImagePair object.")
@@ -167,7 +196,7 @@ class ImagePair(object):
         return self._labels
 
     @labels.setter
-    def labels(self, labels):
+    def labels(self, _):
         raise ReadOnlyAttributeError("Manually setting the labels "
                                      "attribute is not allowed. "
                                      "Initialize a new ImagePair object.")
@@ -244,49 +273,130 @@ class ImagePair(object):
     def n_channels(self):
         return self.shape[-1]
 
-    def prepare_for_iso_live(self, bg_value, bg_class, scaler):
-        """
-        Utility method preparing the ImagePair for usage in the iso_live
-        interpolation mode (see mpunet.image.ImagePairLoader class).
+    @property
+    def bg_class(self):
+        return self._bg_class
 
-        Performs the following operations:
-            1) Loads the image and labels if not already loaded (transparent)
-            2) Define proper background value
-            3) Setting multi-channel scaler
-            4) Setting interpolator object
+    @bg_class.setter
+    def bg_class(self, _):
+        raise ReadOnlyAttributeError("Cannot set a new background class. "
+                                     "Initialize a new ImagePair object.")
+
+    @property
+    def bg_value(self):
+        if isinstance(self._bg_value[0], str):
+            self.set_bg_value(self._bg_value, compute_now=True)
+        return self._bg_value
+
+    @bg_value.setter
+    def bg_value(self, _):
+        raise ReadOnlyAttributeError("New background values must be set in the"
+                                     " self.set_bg_value method.")
+
+    def set_bg_value(self, bg_value, compute_now=False):
+        """
+        Set a new background value for this ImagePair.
 
         Args:
-            bg_value: A value defining the space outside of the image region.
-                      bg_value may be a number of string of the format
-                      '[0-100]'pct specifying a percentile value to compute
-                      across the image and use for bg_value
-            bg_class: An interger defining the background class to assign to
-                      pixels getting the 'bg_value' value.
-            scaler:   String indicating which sklearn scaler class to use for
-                      preprocessing of the image.
+            bg_value:    A value defining the space outside of the image region
+                         bg_value may be a number of string of the format
+                         '[0-100]'pct specifying a percentile value to compute
+                         across the image and use for bg_value.
+            compute_now: If a percentile string was passed, compute the
+                         percentile now (True) or lazily when accessed via
+                         self.bg_value at a later time (False).
         """
-        if isinstance(bg_value, str):
-            # assuming '<number>pct' format
-            bg_pct = int(bg_value.lower().replace(" ", "").split("pct")[0])
-            bg_value = [np.percentile(self.image[..., i], bg_pct) for i in range(self.n_channels)]
+        bg_value = self.standardize_bg_val(bg_value)
+        if compute_now and isinstance(self._bg_value[0], str):
+            bg_value = self._bg_pct_string_to_value(self._bg_value)
+        self._bg_value = bg_value
 
-            self.logger("OBS: Using %i percentile BG value of %s" % (
-                bg_pct, bg_value
-            ))
+    @property
+    def scaler(self):
+        """ Return the currently set scaler object """
+        if isinstance(self._scaler, tuple):
+            self.set_scaler(*self._scaler, compute_now=True)
+        return self._scaler
 
-        # Apply scaling
-        if self.scaler is None:
-            self.set_scaler(scaler, ignore_less_eq=bg_value)
+    @scaler.setter
+    def scaler(self, _):
+        raise ReadOnlyAttributeError("New scalers must be set with the "
+                                     "self.set_scaler method.")
 
-        # Set interpolator object
-        self.set_interpolator_with_current(bg_value=bg_value,
-                                           bg_class=bg_class)
+    def set_scaler(self, scaler, ignore_less_eq=None, compute_now=False):
+        """
+        Sets a scaler on the ImagePair fit to the stored image
+        See mpunet.preprocessing.scaling
+
+        Args:
+            scaler:         A string naming a sklearn scaler type
+            ignore_less_eq: A float or list of floats. Only consider values
+                            above 'ignore_less_eq' in a channel when scaling.
+            compute_now:    Initialize (and load data if not already) the
+                            scaler now. Otherwise, the scaler will be
+                            initialized at access time.
+        """
+        if compute_now:
+            scaler = get_scaler(scaler=scaler,
+                                ignore_less_eq=ignore_less_eq).fit(self.image)
+            self._scaler = scaler
+        else:
+            self._scaler = (scaler, ignore_less_eq)
+
+    def apply_scaler(self):
+        """
+        Apply the stored scaler (channel-wise) to the stored image
+        Note: in-place opperation
+        """
+        self._image = self.scaler.transform(self.image)
+
+    @property
+    def interpolator(self):
+        """
+        Return a interpolator for this object.
+        If not already set, will initialize an interpolator and store it
+        """
+        if not self._interpolator:
+            self.set_interpolator_with_current()
+        return self._interpolator
+
+    @interpolator.setter
+    def interpolator(self, _):
+        raise ReadOnlyAttributeError("Cannot set the interpolator property. "
+                                     "Call self.set_interpolator_with_current"
+                                     " to set a new interpolator object.")
+
+    @property
+    def is_loaded(self):
+        return self._image is not None
+
+    def load(self):
+        """
+        Forces a load on any set attributes in
+            (self.image, self.labels,
+            self.interpolator, self.bg_value, self.scaler)
+        """
+        # OBS: Invoking the getter method on these properties invokes a load
+        # No need to store the results!
+        _ = [_ for _ in (self.image, self.labels, self.bg_value,
+                         self.scaler, self.interpolator)]
+
+    @contextmanager
+    def loaded_in_context(self):
+        """
+        Context manager which keeps this ImagePair loaded in the context
+        and unloads it at exit.
+        """
+        try:
+            yield self.load()
+        finally:
+            self.unload()
 
     def unload(self, unload_scaler=False):
         """
         Unloads the ImagePair by un-assigning the image and labels attributes
         Also clears the currently set interpolator object, as this references
-        the image and label arrays and thus might prevent GC.
+        the image and label arrays and thus prevents GC.
 
         Args:
             unload_scaler: boolean indicating whether or not to also clear the
@@ -299,27 +409,11 @@ class ImagePair(object):
         """
         self._image = None
         self._labels = None
-        self.interpolator = None
-        self.load_state = None
+        self._interpolator = None
         if unload_scaler:
-            self.scaler = None
+            self._scaler = None
 
-    def _get_and_validate_id(self):
-        """
-        Validates if the image identifier and label identifier match.
-        Returns the image identifier.
-        """
-        img_id = os.path.split(self.image_path)[-1].split(".")[0]
-        if not self.predict_mode:
-            labels_id = os.path.split(self.labels_path)[-1].split(".")[0]
-
-            if img_id != labels_id:
-                raise ValueError("Image id '%s' does not match labels id '%s'"
-                                 % (img_id, labels_id))
-
-        return img_id
-
-    def get_interpolator_with_current(self, bg_value=None, bg_class=0):
+    def get_interpolator_with_current(self):
         """
         Initialize and return a ViewInterpolator object with references to this
         ImagePair's image and labels arrays. The interpolator performs linear
@@ -328,48 +422,30 @@ class ImagePair(object):
 
         OBS: Does not perform interpolation in voxel space
 
-        Args:
-            bg_value: A number value assigned to interpolated voxels outside
-                      the image domain
-            bg_class: An integer value assigned to the label map for voxels
-                      outside the image volume
-
         Returns:
             A ViewInterpolator object for the ImagePair image and labels arrays
         """
+        if not self.bg_value:
+            raise RuntimeError("Cannot get interpolator without a set "
+                               "background value. Call self.set_bg_value "
+                               "first.")
         # Standardize the bg_value, handles None and False differently from 0
         # or 0.0 - for None and False the 1st percentile of self.image is used
-        bg_value = self.standardize_bg_val(bg_value)
         if not self.predict_mode:
             labels = self.labels
         else:
             labels = None
         return ViewInterpolator(self.image, labels,
-                                bg_value=bg_value,
-                                bg_class=bg_class,
+                                bg_value=self.bg_value,
+                                bg_class=self.bg_class,
                                 affine=self.affine)
 
-    def set_interpolator_with_current(self, *args, **kwargs):
+    def set_interpolator_with_current(self):
         """
         Set an interpolator object in the ImagePair
         See get_interpolator_with_current
         """
-        self.interpolator = self.get_interpolator_with_current(*args, **kwargs)
-
-    def set_scaler(self, scaler, ignore_less_eq=None):
-        """
-        Sets a scaler on the ImagePair fit to the stored image
-        See mpunet.preprocessing.scaling
-        """
-        self.scaler = get_scaler(scaler=scaler,
-                                 ignore_less_eq=ignore_less_eq).fit(self.image)
-
-    def apply_scaler(self):
-        """
-        Apply the stored scaler (channel-wise) to the stored image
-        Note: in-place opperation
-        """
-        self.image = self.scaler.transform(self.image)
+        self._interpolator = self.get_interpolator_with_current()
 
     def standardize_bg_val(self, bg_value):
         """
@@ -387,3 +463,20 @@ class ImagePair(object):
                             else [np.percentile(self.image[..., i], 1) for i in range(self.n_channels)]
         return [bg_value] if not isinstance(bg_value,
                                             (list, tuple, np.ndarray)) else bg_value
+
+    def _bg_pct_string_to_value(self, bg_pct_str):
+        """
+        TODO
+
+        Args:
+            bg_pct_str: TODO
+        """
+        bg_value = []
+        for i, bg_str in enumerate(bg_pct_str):
+            # assuming '<number>pct' format
+            bg_pct = int(bg_str.lower().replace(" ", "").split("pct")[0])
+            bg_value.append(np.percentile(self.image[..., i], bg_pct))
+        self.logger.warn("Image %s: Using %s percentile BG value of %s" % (
+            self.identifier, bg_pct_str, bg_value
+        ),  no_print=True)
+        return bg_value

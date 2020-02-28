@@ -19,11 +19,18 @@ class ImagePairLoader(object):
     ImagePair data loader object
     Represents a collection of ImagePairs
     """
-    def __init__(self, base_dir="./", img_subdir="images",
-                 label_subdir="labels", logger=None,
-                 sample_weight=1.0, predict_mode=False,
+    def __init__(self,
+                 base_dir="./",
+                 img_subdir="images",
+                 label_subdir="labels",
+                 logger=None,
+                 sample_weight=1.0,
+                 bg_class=0,
+                 predict_mode=False,
                  initialize_empty=False,
-                 no_log=False, **kwargs):
+                 no_log=False,
+                 identifier=None,
+                 **kwargs):
         """
         Initializes the ImagePairLoader object from all .nii files in a folder
         or pair of folders if labels are also specified.
@@ -49,6 +56,8 @@ class ImagePairLoader(object):
             logger:             mpunet logger object
             sample_weight:      A float giving a global sample weight assigned
                                 to all images loaded by the ImagePairLoader
+            bg_class            Background class integer to pass to all
+                                ImagePair objects. Usually int(0).
             predict_mode:       Boolean whether labels exist for the images.
                                 If True, the labels are assumed stored in the
                                 label_subdir with names identical to the images
@@ -56,6 +65,7 @@ class ImagePairLoader(object):
                                 This may be useful for manually assigning
                                 individual image files to the object.
             no_log:             Boolean, whether to not log to screen/file
+            identifier:         Optional name for the dataset
             **kwargs:           Other keywords arguments
         """
         self.logger = logger if logger is not None else ScreenLogger()
@@ -63,6 +73,7 @@ class ImagePairLoader(object):
         # Set absolute paths to main folder, image folder and label folder
         self.data_dir = os.path.abspath(base_dir)
         self.images_path = os.path.join(self.data_dir, img_subdir)
+        self.identifier = identifier or os.path.split(self.data_dir)[-1]
 
         # Labels included?
         self.predict_mode = predict_mode or not label_subdir
@@ -84,7 +95,7 @@ class ImagePairLoader(object):
                 self.label_paths = None
 
             # Load all nii objects
-            self.images = self.get_image_objects(sample_weight)
+            self.images = self.get_image_objects(sample_weight, bg_class)
         else:
             self.images = []
 
@@ -93,30 +104,14 @@ class ImagePairLoader(object):
         if not initialize_empty and not predict_mode and not self.label_paths:
             raise OSError("No label files found at %s." % self.labels_path)
 
+        self._id_to_image = self.get_id_to_images_dict()
         if not no_log:
             self._log()
 
-        # Stores ImageQueue object if max_load specified via self.set_queue
-        self.queue = False
-
-    def set_queue(self, max_load):
-        """
-        Add a ImageQueue object to this ImagePairLoader. Images fetched through
-        self.get_random will be taken from the queue object
-
-        Args:
-            max_load: Int, maximum number of (loaded) ImagePairs to store in
-                      the queue at once
-        """
-        # Set dictionary pointing to images by identifier
-        if isinstance(max_load, int) and max_load < len(self):
-            from mpunet.image.image_queue import ImageQueue
-
-            self.logger("OBS: Using max load %i" % max_load)
-            self.queue = ImageQueue(max_load, self)
-
     def __str__(self):
-        return "<ImagePairLoader object : %i images @ %s>" % (len(self), self.data_dir)
+        return "ImagePairLoader(id={}, images={}, data_dir={})".format(
+            self.identifier, len(self), self.data_dir
+        )
 
     def __repr__(self):
         return self.__str__()
@@ -136,13 +131,30 @@ class ImagePairLoader(object):
         self.logger("--- Image subdir: %s\n--- Label subdir: %s" % (self.images_path,
                                                                     self.labels_path))
 
+    def load(self):
+        """ Invokes the 'load' method on all ImagePairs """
+        for image in self:
+            image.load()
+
+    def unload(self):
+        """ Invokes the 'unload' method on all ImagePairs """
+        for image in self:
+            image.unload()
+
     @property
     def id_to_image(self):
         """
         Returns:
             A dictionary of image IDs pointing to image objects
         """
-        return {image.id: image for image in self}
+        return self._id_to_image
+
+    def get_id_to_images_dict(self):
+        return {image.identifier: image for image in self}
+
+    @property
+    def n_loaded(self):
+        return sum([image.is_loaded for image in self.images])
 
     def get_by_id(self, image_id):
         """
@@ -251,7 +263,7 @@ class ImagePairLoader(object):
                              "'%s'?" % img_subdir)
         return [p.replace("/%s/" % img_subdir, "/%s/" % label_subdir) for p in self.image_paths]
 
-    def get_image_objects(self, sample_weight):
+    def get_image_objects(self, sample_weight, bg_class):
         """
         Initialize all ImagePair objects from paths at self.image_paths and
         self.label_paths (if labels exist). Note that data is not loaded
@@ -259,6 +271,7 @@ class ImagePairLoader(object):
 
         Args:
             sample_weight: A float giving the weight to assign to the ImagePair
+            bg_class:      Background (integer) class
 
         Returns:
             A list of initialized ImagePairs
@@ -266,13 +279,16 @@ class ImagePairLoader(object):
         image_objects = []
         if self.predict_mode:
             for img_path in self.image_paths:
-                image = ImagePair(img_path, sample_weight=sample_weight,
+                image = ImagePair(img_path,
+                                  sample_weight=sample_weight,
+                                  bg_class=bg_class,
                                   logger=self.logger)
                 image_objects.append(image)
         else:
             for img_path, label_path in zip(self.image_paths, self.label_paths):
                 image = ImagePair(img_path, label_path,
                                   sample_weight=sample_weight,
+                                  bg_class=bg_class,
                                   logger=self.logger)
                 image_objects.append(image)
 
@@ -286,6 +302,8 @@ class ImagePairLoader(object):
             image_pair: An ImagePair
         """
         self.images.append(image_pair)
+        # Update ID dict
+        self._id_to_image = self.get_id_to_images_dict()
 
     def add_images(self, image_pair_loader):
         """
@@ -303,33 +321,9 @@ class ImagePairLoader(object):
         except AttributeError:
             # Passed as list?
             self.images += list(image_pair_loader)
+        # Update ID dict
+        self._id_to_image = self.get_id_to_images_dict()
         return self
-
-    def get_class_weights(self, as_array=True, return_counts=False, unload=False):
-        """
-        Passes self to the utility function get_class_weights, which computes
-        a class weight for all classes across the stored ImagePairs.
-        Note that labels must exist.
-
-        Args:
-            as_array:       Boolean, return an array of weights instead of dictionary
-                            pointing from class ints to weights
-            return_counts:  Boolean, also return the class counts as an array
-                            or dict (per as_array)
-            unload:         Boolean, unload each image after counting (useful
-                            with queueing as otherwise all images will be kept
-                            in memory)
-
-        Returns:
-            A dictionary mapping class integers to weights or array of weights
-            for each class if as_array=True
-            If return_counts = True, also return a list/dict of class counts
-        """
-        if self.predict_mode:
-            raise ValueError("Cannot compute class weights without labels "
-                             "(predict_mode=True) set for this ImagePairLoader")
-        from mpunet.utils import get_class_weights
-        return get_class_weights(self, as_array, return_counts, unload)
 
     def get_maximum_real_dim(self):
         """
@@ -342,22 +336,7 @@ class ImagePairLoader(object):
         from mpunet.interpolation.sample_grid import get_maximum_real_dim
         return np.max([get_maximum_real_dim(f.image_obj) for f in self])
 
-    def set_normalizer(self, scaler, **kwargs):
-        """
-        Set and fit a scaler on all stored ImagePair objects.
-        The scaler should be a sklearn preprocessing scaler, which will be
-        wrapped by the mpunet MultiChannelScaler object which will fit
-        (and apply when called) the scaler to each channel separately.
-
-        Args:
-            scaler:   String name of sklearn scaler class
-            **kwargs: Other arguments, not used
-        """
-        for image in self:
-            image.set_scaler(scaler)
-            image.log_image()
-
-    def prepare_for_iso_live_views(self, bg_class, bg_value, scaler, **kwargs):
+    def set_scaler_and_bg_values(self, bg_value, scaler, compute_now=False):
         """
         Loads all images and prepares them for iso-live view interpolation
         training by performing the following operations on each:
@@ -367,145 +346,12 @@ class ImagePairLoader(object):
             4) Setting interpolator object
 
         Args:
-            bg_class: See ImagePair.prepare_for_iso_live_views
-            bg_value: See ImagePair.prepare_for_iso_live_views
-            scaler:   See ImagePair.prepare_for_iso_live_views
-            **kwargs: Additional keyword arguments
+            bg_value:     See ImagePair.set_bg_value
+            scaler:       See ImagePair.set_scaler
+            compute_now:  TODO
         """
-        # Log some things...
-        self.logger("Preparing isotrophic live-interpolation...")
-        self.logger("Performing '%s' scaling" % scaler)
-
         # Run over volumes: scale, set interpolator, check for affine
         for image in self.id_to_image.values():
-            image.prepare_for_iso_live(bg_value, bg_class, scaler)
-
-            # Log basic stats for the image
+            image.set_bg_value(bg_value, compute_now=compute_now)
+            image.set_scaler(scaler, compute_now=compute_now)
             image.log_image()
-
-    def get_sequencer(self, intrp_style, is_validation=False, **kwargs):
-        """
-        Prepares the images of the ImagePairLoader for a MultiPlanar.sequence
-        object. These generator-like objects pull data from ImagePairs during
-        training as needed. The sequences are specific to the model type (for
-        instance 2D and 3D models have separate sequence classes) and may
-        differ in the interpolation schema as well (voxel vs. iso scanner space
-        coordinates for instance).
-
-        This method calls various preparation methods on all ImagePair objects.
-        These may perform standardization, setup interpolators etc. The preped
-        ImagePairs are then passed to the appropriate sequencer.
-
-        Note: If the ImagePairLoader is queued with a ImageQueue object, the
-        prep functions are not called immediately but by the queue object
-        when needed. See mpunet.image.image_queue
-
-        Args:
-            intrp_style:   String identifier for the interpolation mode
-                           Must be "iso_live", "iso_live_3d", "patches_3d" or
-                           "sliding_patches_3d"
-            is_validation: Boolean, is this a validation sequence? (otherwise
-                           training)
-            **kwargs:      Additional arguments passed to the prep function
-
-        Raises:
-            ValueError if intrp_style is not valid
-        """
-        aug_list = []
-        if not is_validation:
-            # On the fly augmentation?
-            list_of_aug_dicts = kwargs.get("augmenters")
-            if list_of_aug_dicts:
-                self.logger("Using on-the-fly augmenters:")
-                from mpunet.augmentation import augmenters
-                for aug in list_of_aug_dicts:
-                    aug_cls = augmenters.__dict__[aug["cls_name"]](**aug["kwargs"])
-                    aug_list.append(aug_cls)
-                    self.logger(aug_cls)
-
-        if intrp_style.lower() == "iso_live":
-            # Isotrophic 2D plane sampling
-            from mpunet.sequences import IsotrophicLiveViewSequence2D
-
-            if not self.queue:
-                # Prepare and return Iso live view sequence object
-                self.prepare_for_iso_live_views(**kwargs)
-            else:
-                in_kw = {key: kwargs[key] for key in ("bg_value", "bg_class", "scaler")}
-                self.queue.set_entry_func("prepare_for_iso_live", in_kw)
-                self.queue.set_exit_func("unload")
-
-                # Start queue
-                self.queue.start(n_threads=3)
-                self.queue.await_full()
-
-            return IsotrophicLiveViewSequence2D(self,
-                                                is_validation=is_validation,
-                                                use_queue=bool(self.queue),
-                                                list_of_augmenters=aug_list,
-                                                logger=self.logger,
-                                                **kwargs)
-
-        elif intrp_style.lower() == "iso_live_3d":
-            # Isotrophic 3D box sampling
-            from mpunet.sequences import IsotrophicLiveViewSequence3D
-
-            if not self.queue:
-                # Prepare and return Iso live view sequence object
-                self.prepare_for_iso_live_views(**kwargs)
-            else:
-                in_kw = {key: kwargs[key] for key in ("bg_value", "bg_class", "scaler")}
-                self.queue.set_entry_func("prepare_for_iso_live", in_kw)
-                self.queue.set_exit_func("unload")
-
-                # Start queue
-                self.queue.start(n_threads=3)
-                self.queue.await_full()
-
-            return IsotrophicLiveViewSequence3D(self,
-                                                is_validation=is_validation,
-                                                use_queue=bool(self.queue),
-                                                list_of_augmenters=aug_list,
-                                                logger=self.logger,
-                                                **kwargs)
-
-        elif intrp_style.lower() == "patches_3d":
-            # Random selection of boxes
-            from mpunet.sequences import PatchSequence3D
-
-            if not self.queue:
-                self.set_normalizer(**kwargs)
-            else:
-                in_kw = {key: kwargs[key] for key in ("bg_value", "scaler")}
-                self.queue.set_entry_func("set_scaler", in_kw)
-                self.queue.set_exit_func("unload")
-
-                # Start queue
-                self.queue.start(n_threads=3)
-                self.queue.await_full()
-
-            return PatchSequence3D(self,
-                                   is_validation=is_validation,
-                                   list_of_augmenters=aug_list, **kwargs)
-
-        elif intrp_style.lower() == "sliding_patches_3d":
-            # Sliding window selection of boxes
-            from mpunet.sequences import SlidingPatchSequence3D
-
-            if not self.queue:
-                self.set_normalizer(**kwargs)
-            else:
-                in_kw = {key: kwargs[key] for key in ("bg_value", "scaler")}
-                self.queue.set_entry_func("set_scaler", in_kw)
-                self.queue.set_exit_func("unload")
-
-                # Start queue
-                self.queue.start(n_threads=3)
-                self.queue.await_full()
-            return SlidingPatchSequence3D(self,
-                                          is_validation=is_validation,
-                                          list_of_augmenters=aug_list,
-                                          **kwargs)
-        else:
-            raise ValueError("Invalid interpolator schema '%s' specified"
-                             % intrp_style)
