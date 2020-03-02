@@ -26,7 +26,15 @@ class IsotrophicLiveViewSequence2D(IsotrophicLiveViewSequence):
         self.logger("Noise SD:                    %s" % self.noise_sd)
         self.logger("Augmenters:                  %s" % self.list_of_augmenters)
 
-    def get_view_from(self, image_id, view, n_planes):
+    def get_view_from(self, image, view, n_planes):
+        """
+        TODO
+
+        :param image:
+        :param view:
+        :param n_planes:
+        :return:
+        """
         # Prepare sample plane arguments
         kwargs = {
             "norm_vector": view,
@@ -36,62 +44,61 @@ class IsotrophicLiveViewSequence2D(IsotrophicLiveViewSequence):
             "test_mode": True
         }
 
-        with self.image_pair_queue.get_image_by_id(image_id) as image:
-            sample_res = self.real_space_span/(self.sample_dim-1)
-            if n_planes == "by_radius":
-                # Get sample sphere radius
-                bounds = get_bounding_sphere_real_radius(image)
-                n_planes = int(2 * bounds / sample_res)
-            else:
-                extra = 0
-                if n_planes == "same":
-                    n_planes = self.sample_dim
-                elif isinstance(n_planes, str) and n_planes[:5] == "same+":
-                    extra = int(n_planes.split("+")[-1])
-                    n_planes = self.sample_dim + extra
-                bounds = (self.real_space_span+(extra*sample_res))/2
+        sample_res = self.real_space_span/(self.sample_dim-1)
+        if n_planes == "by_radius":
+            # Get sample sphere radius
+            bounds = get_bounding_sphere_real_radius(image)
+            n_planes = int(2 * bounds / sample_res)
+        else:
+            extra = 0
+            if n_planes == "same":
+                n_planes = self.sample_dim
+            elif isinstance(n_planes, str) and n_planes[:5] == "same+":
+                extra = int(n_planes.split("+")[-1])
+                n_planes = self.sample_dim + extra
+            bounds = (self.real_space_span+(extra*sample_res))/2
 
-            # Define offsets
-            offsets = np.linspace(-bounds, bounds, n_planes)
-            self.logger("Sampling %i planes from "
-                        "offset %.3f to %.3f..." % (n_planes, offsets[0],
-                                                    offsets[-1]))
+        # Define offsets
+        offsets = np.linspace(-bounds, bounds, n_planes)
+        self.logger("Sampling %i planes from "
+                    "offset %.3f to %.3f..." % (n_planes, offsets[0],
+                                                offsets[-1]))
 
-            # Prepare results arrays
-            shape = (self.sample_dim, self.sample_dim, n_planes)
-            Xs = np.empty(shape + (image.n_channels,), dtype=image.image.dtype)
+        # Prepare results arrays
+        shape = (self.sample_dim, self.sample_dim, n_planes)
+        Xs = np.empty(shape + (image.n_channels,), dtype=image.image.dtype)
+        if not image.predict_mode:
+            ys = np.empty(shape, dtype=image.labels.dtype)
+        else:
+            ys = None
+
+        # Prepare thread pool
+        from concurrent.futures import ThreadPoolExecutor
+        pool = ThreadPoolExecutor(max_workers=7)
+
+        def _do(offset, ind):
+            im, lab, real_axis, inv_basis = self.sample_at(offset,
+                                                           image.interpolator,
+                                                           image.scaler,
+                                                           kwargs)
+            return im, lab, real_axis, inv_basis, ind
+
+        # Perform interpolation
+        inds = np.arange(offsets.shape[0])
+        result = pool.map(_do, offsets, inds)
+
+        i = 1
+        for im, lab, real_axis, inv_basis, ind in result:
+            print("   %i/%i" % (i, len(offsets+1)), end="\r", flush=True)
+            i += 1
+
+            # Add planes to volumes
+            Xs[..., ind, :] = im
             if not image.predict_mode:
-                ys = np.empty(shape, dtype=image.labels.dtype)
-            else:
-                ys = None
+                ys[..., ind] = lab
 
-            # Prepare thread pool
-            from concurrent.futures import ThreadPoolExecutor
-            pool = ThreadPoolExecutor(max_workers=7)
-
-            def _do(offset, ind):
-                im, lab, real_axis, inv_basis = self.sample_at(offset,
-                                                               image.interpolator,
-                                                               image.scaler,
-                                                               kwargs)
-                return im, lab, real_axis, inv_basis, ind
-
-            # Perform interpolation
-            inds = np.arange(offsets.shape[0])
-            result = pool.map(_do, offsets, inds)
-
-            i = 1
-            for im, lab, real_axis, inv_basis, ind in result:
-                print("   %i/%i" % (i, len(offsets+1)), end="\r", flush=True)
-                i += 1
-
-                # Add planes to volumes
-                Xs[..., ind, :] = im
-                if not image.predict_mode:
-                    ys[..., ind] = lab
-
-            print('')
-            return Xs, ys, (real_axis, real_axis, offsets), inv_basis
+        print('')
+        return Xs, ys, (real_axis, real_axis, offsets), inv_basis
 
     def sample_at(self, offset, interpolator, scaler, kwargs):
         """
