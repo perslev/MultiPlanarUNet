@@ -284,7 +284,7 @@ class ImagePair(object):
 
     @property
     def bg_value(self):
-        if isinstance(self._bg_value[0], str):
+        if self._bg_value is None or isinstance(self._bg_value[0], str):
             self.set_bg_value(self._bg_value, compute_now=True)
         return self._bg_value
 
@@ -307,8 +307,8 @@ class ImagePair(object):
                          self.bg_value at a later time (False).
         """
         bg_value = self.standardize_bg_val(bg_value)
-        if compute_now and isinstance(self._bg_value[0], str):
-            bg_value = self._bg_pct_string_to_value(self._bg_value)
+        if compute_now and isinstance(bg_value[0], str):
+            bg_value = self._bg_pct_string_to_value(bg_value)
         self._bg_value = bg_value
 
     @property
@@ -460,7 +460,7 @@ class ImagePair(object):
             A list of float(s)/int(s) image background value pr. channel
         """
         bg_value = bg_value if (bg_value is not None and bg_value is not False) \
-                            else [np.percentile(self.image[..., i], 1) for i in range(self.n_channels)]
+                            else "1pct"
         return [bg_value] if not isinstance(bg_value,
                                             (list, tuple, np.ndarray)) else bg_value
 

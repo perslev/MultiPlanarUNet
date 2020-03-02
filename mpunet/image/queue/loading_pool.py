@@ -20,7 +20,7 @@ def _load_func(load_queue, results_queue, load_errors_queue, lock, logger):
         except Exception as e:
             with lock:
                 logger.warn("[ERROR in LoadingPool] "
-                            "Could not load image '{}'".format(to_load))
+                            "Could not load image '{}': {}".format(to_load, e))
             load_errors_queue.put((to_load, dataset_id))
         finally:
             results_queue.put((to_load, dataset_id))
