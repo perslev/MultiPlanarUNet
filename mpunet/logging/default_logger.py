@@ -12,6 +12,7 @@ class ScreenLogger(object):
     def __call__(self,
                  *args,
                  print_to_screen=None,
+                 print_calling_method=None,
                  no_print=None,
                  **kwargs):
         if self.print_to_screen and not no_print:
