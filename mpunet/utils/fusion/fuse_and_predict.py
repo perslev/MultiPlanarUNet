@@ -57,7 +57,7 @@ def predict_single(image, model, hparams, verbose=1):
         for n_view, v in enumerate(kwargs["views"]):
             print("\nView %i/%i: %s" % (n_view+1, len(kwargs["views"]), v))
             # Sample the volume along the view
-            X, y, grid, inv_basis = sequence.get_view_from(image.id, v,
+            X, y, grid, inv_basis = sequence.get_view_from(image, v,
                                                            n_planes="same+20")
 
             # Predict on volume using model

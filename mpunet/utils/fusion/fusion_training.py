@@ -59,7 +59,7 @@ def predict_and_map(model, seq, image, view, batch_size=None,
 
     # Sample planes from the image at grid_real_space grid
     # in real space (scanner RAS) coordinates.
-    X, y, grid, inv_basis = seq.get_view_from(image.id, view, n_planes=n_planes)
+    X, y, grid, inv_basis = seq.get_view_from(image, view, n_planes=n_planes)
 
     # Predict on volume using model
     bs = seq.batch_size if batch_size is None else batch_size

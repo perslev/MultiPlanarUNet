@@ -56,7 +56,7 @@ def get_argparser():
                         help="Number of images to train on in each sub-round."
                              " Larger numbers should be preferred but "
                              "requires potentially large amounts of memory."
-                             " Defaults to 10.")
+                             " Defaults to 5.")
     parser.add_argument("--batch_size", type=int, default=2**17,
                         help="Sets the batch size used in the fusion model "
                              "training process. Lowering this number may "
@@ -92,11 +92,17 @@ def log(logger, hparams, views, weights, fusion_weights):
 
 
 def contains_all_images(sets, images):
+    """
+    TODO
+    """
     l = [i for s in sets for i in s]
     return all([m in l for m in images])
 
 
 def make_sets(images, sub_size, N):
+    """
+    TODO
+    """
     sets = []
     for i in range(N):
         sets.append(set(np.random.choice(images, sub_size, replace=False)))
@@ -106,6 +112,9 @@ def make_sets(images, sub_size, N):
 def _run_fusion_training(sets, logger, hparams, min_val_images, is_validation,
                          views, n_classes, unet, fusion_model, early_stopping,
                          fm_batch_size, epochs, eval_prob, fusion_weights_path):
+    """
+    TODO
+    """
 
     for _round, _set in enumerate(sets):
         s = "Set %i/%i:\n%s" % (_round + 1, len(sets), _set)
@@ -117,7 +126,21 @@ def _run_fusion_training(sets, logger, hparams, min_val_images, is_validation,
             images.add_images(ImagePairLoader(**hparams["train_data"]))
 
         # Get list of ImagePair objects to run on
-        image_set_dict = {m.id: m for m in images if m.id in _set}
+        image_set_dict = {m.identifier: m for m in images if m.identifier in _set}
+
+        # Set scaler and bg values
+        images.set_scaler_and_bg_values(
+            bg_value=hparams.get_from_anywhere('bg_value'),
+            scaler=hparams.get_from_anywhere('scaler'),
+            compute_now=False
+        )
+
+        # Init LazyQueue and get its sequencer
+        from mpunet.sequences.utils import get_sequence
+        seq = get_sequence(data_queue=images,
+                           is_validation=True,
+                           views=views,
+                           **hparams["fit"], **hparams["build"])
 
         # Fetch points from the set images
         points_collection = []
@@ -131,43 +154,32 @@ def _run_fusion_training(sets, logger, hparams, min_val_images, is_validation,
                                                             is_validation[
                                                                 image_id] else "train")))
 
-            # Set the current ImagePair
-            image = image_set_dict[image_id]
-            images.images = [image]
+            with seq.image_pair_queue.get_image_by_id(image_id) as image:
+                # Get voxel grid in real space
+                voxel_grid_real_space = get_voxel_grid_real_space(image)
 
-            # Load views
-            kwargs = hparams["fit"]
-            kwargs.update(hparams["build"])
-            seq = images.get_sequencer(views=views, **kwargs)
+                # Get array to store predictions across all views
+                targets = image.labels.reshape(-1, 1)
+                points = np.empty(shape=(len(targets), len(views), n_classes),
+                                  dtype=np.float32)
+                points.fill(np.nan)
 
-            # Get voxel grid in real space
-            voxel_grid_real_space = get_voxel_grid_real_space(image)
+                # Predict on all views
+                for k, v in enumerate(views):
+                    print("\n%s" % "View: %s" % v)
+                    points[:, k, :] = predict_and_map(model=unet,
+                                                      seq=seq,
+                                                      image=image,
+                                                      view=v,
+                                                      voxel_grid_real_space=voxel_grid_real_space,
+                                                      n_planes='same+20',
+                                                      targets=targets,
+                                                      eval_prob=eval_prob).reshape(-1, n_classes)
 
-            # Get array to store predictions across all views
-            targets = image.labels.reshape(-1, 1)
-            points = np.empty(shape=(len(targets), len(views), n_classes),
-                              dtype=np.float32)
-            points.fill(np.nan)
-
-            # Predict on all views
-            for k, v in enumerate(views):
-                print("\n%s" % "View: %s" % v)
-                points[:, k, :] = predict_and_map(model=unet,
-                                                  seq=seq,
-                                                  image=image,
-                                                  view=v,
-                                                  voxel_grid_real_space=voxel_grid_real_space,
-                                                  n_planes='same+20',
-                                                  targets=targets,
-                                                  eval_prob=eval_prob).reshape(-1, n_classes)
-
-            # Clean up a bit
-            del image_set_dict[image_id]
-            del image  # Should be GC at this point anyway
-
-            # add to collections
-            points_collection.append(points)
-            targets_collection.append(targets)
+                # add to collections
+                points_collection.append(points)
+                targets_collection.append(targets)
+            print(image.is_loaded)
 
         # Stack points into one matrix
         logger("Stacking points...")
@@ -278,11 +290,11 @@ def entry_func(args=None):
 
     # Load validation data
     images = ImagePairLoader(**hparams["val_data"], logger=logger)
-    is_validation = {m.id: True for m in images}
+    is_validation = {m.identifier: True for m in images}
 
     # Define random sets of images to train on simul. (cant be all due
     # to memory constraints)
-    image_IDs = [m.id for m in images]
+    image_IDs = [m.identifier for m in images]
 
     if len(images) < min_val_images:
         # Pick N random training images
@@ -296,8 +308,8 @@ def entry_func(args=None):
         # Add the images to the image set set
         train_add = [train[i] for i in indx]
         for m in train_add:
-            is_validation[m.id] = False
-            image_IDs.append(m.id)
+            is_validation[m.identifier] = False
+            image_IDs.append(m.identifier)
         images.add_images(train_add)
 
     # Append to length % sub_size == 0
