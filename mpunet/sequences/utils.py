@@ -1,4 +1,5 @@
 from mpunet.logging.default_logger import ScreenLogger
+from mpunet.image.queue import LazyQueue, BaseQueue
 
 
 def get_sequence(data_queue,
@@ -28,6 +29,10 @@ def get_sequence(data_queue,
         ValueError if intrp_style is not valid
     """
     logger = logger or ScreenLogger()
+    # If data_queue in ImagePairDataset
+    if not isinstance(data_queue, BaseQueue):
+        # Wrap the passed ImagePairLoader in a LazyQueue
+        data_queue = LazyQueue(data_queue)
     aug_list = []
     if not is_validation:
         # On the fly augmentation?
