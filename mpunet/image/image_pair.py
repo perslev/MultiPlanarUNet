@@ -190,9 +190,8 @@ class ImagePair(object):
         if self._labels is None:
             try:
                 self._labels = self.labels_obj.get_fdata(caching="unchanged").astype(self.lab_dtype)
-            except AttributeError as e:
-                raise NoLabelFileError("No label file attached to "
-                                       "this ImagePair object.") from e
+            except AttributeError:
+                return None
         return self._labels
 
     @labels.setter
