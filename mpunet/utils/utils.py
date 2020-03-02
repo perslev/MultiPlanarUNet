@@ -3,7 +3,6 @@ import os
 import numpy as np
 import glob
 import contextlib
-from mpunet.logging.default_logger import ScreenLogger
 
 
 def _get_system_wide_set_gpus():
@@ -208,6 +207,7 @@ def set_bias_weights(layer, data_queue, class_counts=None, logger=None):
         raise ValueError("Setting output layer bias currently only supported "
                          "with softmax activation functions. Output layer has "
                          "'%s'" % layer.activation.__name__)
+    from mpunet.logging.default_logger import ScreenLogger
     logger = logger or ScreenLogger()
     # Get original and set new weights
     weights = layer.get_weights()
