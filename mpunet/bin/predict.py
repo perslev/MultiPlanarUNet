@@ -67,6 +67,9 @@ def get_argparser():
 
 
 def validate_folders(base_dir, out_dir, overwrite, _continue):
+    """
+    TODO
+    """
     # Check base (model) dir contains required files
     must_exist = ("train_hparams.yaml", "views.npz",
                   "model")
@@ -89,22 +92,25 @@ def validate_folders(base_dir, out_dir, overwrite, _continue):
 
 
 def save_nii_files(merged, image_pair, nii_res_dir, save_input_files):
+    """
+    TODO
+    """
     # Extract data if nii files
     try:
         merged = merged.get_data()
     except AttributeError:
         merged = nib.Nifti1Image(merged, affine=image_pair.affine)
     volumes = [merged, image_pair.image_obj, image_pair.labels_obj]
-    labels = ["%s_PRED.nii.gz" % image_pair.id,
-              "%s_IMAGE.nii.gz" % image_pair.id,
-              "%s_LABELS.nii.gz" % image_pair.id]
+    labels = ["%s_PRED.nii.gz" % image_pair.identifier,
+              "%s_IMAGE.nii.gz" % image_pair.identifier,
+              "%s_LABELS.nii.gz" % image_pair.identifier]
     if not save_input_files:
         volumes = volumes[:1]
         labels = labels[:1]
         p = os.path.abspath(nii_res_dir)  # Save file directly in nii_res_dir
     else:
         # Create sub-folder under nii_res_dir
-        p = os.path.join(nii_res_dir, image_pair.id)
+        p = os.path.join(nii_res_dir, image_pair.identifier)
     create_folders(p)
 
     for nii, fname in zip(volumes, labels):
@@ -116,6 +122,9 @@ def save_nii_files(merged, image_pair, nii_res_dir, save_input_files):
 
 
 def remove_already_predicted(all_images, out_dir):
+    """
+    TODO
+    """
     nii_dir = os.path.join(out_dir, "nii_files")
     already_pred = [i.replace("_PRED", "").split(".")[0]
                     for i in filter(None, os.listdir(nii_dir))]
@@ -125,15 +134,24 @@ def remove_already_predicted(all_images, out_dir):
 
 
 def load_hparams(base_dir):
+    """
+    TODO
+    """
     from mpunet.hyperparameters import YAMLHParams
     return YAMLHParams(os.path.join(base_dir, "train_hparams.yaml"))
 
 
 def set_test_set(hparams, dataset):
+    """
+    TODO
+    """
     hparams['test_dataset'] = hparams[dataset.strip("_dataset") + "_dataset"]
 
 
 def set_gpu_vis(args):
+    """
+    TODO
+    """
     force_gpu = args.force_GPU
     if not force_gpu:
         # Wait for free GPU
@@ -148,6 +166,9 @@ def set_gpu_vis(args):
 
 
 def get_image_pair_loader(args, hparams, out_dir):
+    """
+    TODO
+    """
     from mpunet.image import ImagePairLoader, ImagePair
     if not args.f:
         # No single file was specified with -f flag, load the desired dataset
@@ -162,8 +183,7 @@ def get_image_pair_loader(args, hparams, out_dir):
 
     # Put image pairs into a dict and remove from image_pair_loader to gain
     # more control with garbage collection
-    image_pair_dict = {image.id: image for image in image_pair_loader.images}
-    image_pair_loader.images = None
+    image_pair_dict = {image.identifier: image for image in image_pair_loader.images}
     if vars(args)["continue"]:
         # Remove images that were already predicted
         image_pair_dict = remove_already_predicted(image_pair_dict, out_dir)
@@ -171,6 +191,9 @@ def get_image_pair_loader(args, hparams, out_dir):
 
 
 def get_results_dicts(out_dir, views, image_pairs_dict, n_classes, _continue):
+    """
+    TODO
+    """
     from mpunet.logging import init_result_dicts, save_all, load_result_dicts
     if _continue:
         csv_dir = os.path.join(out_dir, "csv")
@@ -184,6 +207,9 @@ def get_results_dicts(out_dir, views, image_pairs_dict, n_classes, _continue):
 
 
 def get_model(project_dir, build_hparams):
+    """
+    TODO
+    """
     from mpunet.models.model_init import init_model
     model_path = get_best_model(project_dir + "/model")
     weights_name = os.path.splitext(os.path.split(model_path)[1])[0]
@@ -196,6 +222,9 @@ def get_model(project_dir, build_hparams):
 
 
 def get_fusion_model(n_views, n_classes, project_dir, weights_name):
+    """
+    TODO
+    """
     from mpunet.models import FusionModel
     fm = FusionModel(n_inputs=n_views, n_classes=n_classes)
     # Load fusion weights
@@ -209,6 +238,9 @@ def get_fusion_model(n_views, n_classes, project_dir, weights_name):
 
 
 def evaluate(pred, true, n_classes, ignore_zero=False):
+    """
+    TODO
+    """
     pred = pred_to_class(pred, img_dims=3, has_batch_dim=False)
     return dice_all(y_true=true,
                     y_pred=pred,
@@ -219,6 +251,9 @@ def evaluate(pred, true, n_classes, ignore_zero=False):
 
 def _per_view_evaluation(image_id, pred, true, mapped_pred, mapped_true, view,
                          n_classes, results, per_view_results, out_dir, args):
+    """
+    TODO
+    """
     if np.random.rand() > args.eval_prob:
         print("Skipping evaluation for view %s... "
               "(eval_prob=%.3f)" % (view, args.eval_prob))
@@ -244,6 +279,9 @@ def _per_view_evaluation(image_id, pred, true, mapped_pred, mapped_true, view,
 
 def _merged_eval(image_id, pred, true, n_classes, results,
                  per_view_results, out_dir):
+    """
+    TODO
+    """
     # Calculate combined prediction dice
     dices = evaluate(pred, true, n_classes, ignore_zero=True)
     mean_dice = dices[~np.isnan(dices)].mean()
@@ -257,20 +295,13 @@ def _merged_eval(image_id, pred, true, n_classes, results,
     save_all(results, per_view_results, out_dir)
 
 
-def _multi_view_predict_on(image_pair, image_pair_loader, model,
-                           views, hparams, results, per_view_results,
-                           out_dir, args):
+def _multi_view_predict_on(image_pair, seq, model, views, results,
+                           per_view_results, out_dir, args):
+    """
+    TODO
+    """
     from mpunet.utils.fusion import predict_volume, map_real_space_pred
     from mpunet.interpolation.sample_grid import get_voxel_grid_real_space
-
-    # Set image_pair_loader object with only the given file
-    image_pair_loader.images = [image_pair]
-    n_classes = hparams["build"]["n_classes"]
-
-    # Load views
-    kwargs = hparams["fit"]
-    kwargs.update(hparams["build"])
-    seq = image_pair_loader.get_sequencer(views=views, **kwargs)
 
     # Get voxel grid in real space
     voxel_grid_real_space = get_voxel_grid_real_space(image_pair)
@@ -278,7 +309,7 @@ def _multi_view_predict_on(image_pair, image_pair_loader, model,
     # Prepare tensor to store combined prediction
     d = image_pair.image.shape[:-1]
     combined = np.empty(
-        shape=(len(views), d[0], d[1], d[2], n_classes),
+        shape=(len(views), d[0], d[1], d[2], seq.n_classes),
         dtype=np.float32
     )
     print("Predicting on brain hyper-volume of shape:", combined.shape)
@@ -291,7 +322,7 @@ def _multi_view_predict_on(image_pair, image_pair_loader, model,
 
         # Sample planes from the image at grid_real_space grid
         # in real space (scanner RAS) coordinates.
-        X, y, grid, inv_basis = seq.get_view_from(image_pair.id, view,
+        X, y, grid, inv_basis = seq.get_view_from(image_pair, view,
                                                   n_planes="same+20")
 
         # Predict on volume using model
@@ -305,13 +336,13 @@ def _multi_view_predict_on(image_pair, image_pair_loader, model,
         combined[n_view] = mapped_pred
 
         if not args.no_eval:
-            _per_view_evaluation(image_id=image_pair.id,
+            _per_view_evaluation(image_id=image_pair.identifier,
                                  pred=pred,
                                  true=y,
                                  mapped_pred=mapped_pred,
                                  mapped_true=image_pair.labels,
                                  view=view,
-                                 n_classes=n_classes,
+                                 n_classes=seq.n_classes,
                                  results=results,
                                  per_view_results=per_view_results,
                                  out_dir=out_dir,
@@ -320,6 +351,9 @@ def _multi_view_predict_on(image_pair, image_pair_loader, model,
 
 
 def merge_multi_view_preds(multi_view_preds, fusion_model, args):
+    """
+    TODO
+    """
     fm = fusion_model
     if not args.sum_fusion:
         # Combine predictions across views using Fusion model
@@ -339,49 +373,65 @@ def merge_multi_view_preds(multi_view_preds, fusion_model, args):
 def run_predictions_and_eval(image_pair_loader, image_pair_dict, model,
                              fusion_model, views, hparams, args, results,
                              per_view_results, out_dir, nii_res_dir):
+    """
+    TODO
+    """
+    # Set scaler and bg values
+    image_pair_loader.set_scaler_and_bg_values(
+        bg_value=hparams.get_from_anywhere('bg_value'),
+        scaler=hparams.get_from_anywhere('scaler'),
+        compute_now=False
+    )
+
+    # Init LazyQueue and get its sequencer
+    from mpunet.sequences.utils import get_sequence
+    seq = get_sequence(data_queue=image_pair_loader,
+                       is_validation=True,
+                       views=views,
+                       **hparams["fit"], **hparams["build"])
+
+    from mpunet.utils.fusion.fuse_and_predict import predict_single
+    o = predict_single(image_pair_loader.images[0], model, hparams)
+    print(o.shape)
+
     image_ids = sorted(image_pair_dict)
     n_images = len(image_ids)
     for n_image, image_id in enumerate(image_ids):
         print("\n[*] (%i/%s) Running on: %s" % (n_image + 1, n_images, image_id))
-        image_pair = image_pair_dict[image_id]
 
-        # Get prediction through all views
-        multi_view_preds = _multi_view_predict_on(
-            image_pair=image_pair,
-            image_pair_loader=image_pair_loader,
-            model=model,
-            views=views,
-            hparams=hparams,
-            results=results,
-            per_view_results=per_view_results,
-            out_dir=out_dir,
-            args=args
-        )
-
-        # Merge the multi view predictions into a final segmentation
-        merged, merged_map = merge_multi_view_preds(multi_view_preds,
-                                                    fusion_model, args)
-        if not args.no_eval:
-            _merged_eval(
-                image_id=image_id,
-                pred=merged_map,
-                true=image_pair.labels,
-                n_classes=hparams["build"]["n_classes"],
+        with seq.image_pair_queue.get_image_by_id(image_id) as image_pair:
+            # Get prediction through all views
+            multi_view_preds = _multi_view_predict_on(
+                image_pair=image_pair,
+                seq=seq,
+                model=model,
+                views=views,
                 results=results,
                 per_view_results=per_view_results,
-                out_dir=out_dir
+                out_dir=out_dir,
+                args=args
             )
 
-        # Save combined prediction volume as .nii file
-        print("Saving .nii files...")
-        save_nii_files(merged=merged_map if not args.no_argmax else merged,
-                       image_pair=image_pair,
-                       nii_res_dir=nii_res_dir,
-                       save_input_files=args.save_input_files)
+            # Merge the multi view predictions into a final segmentation
+            merged, merged_map = merge_multi_view_preds(multi_view_preds,
+                                                        fusion_model, args)
+            if not args.no_eval:
+                _merged_eval(
+                    image_id=image_id,
+                    pred=merged_map,
+                    true=image_pair.labels,
+                    n_classes=hparams["build"]["n_classes"],
+                    results=results,
+                    per_view_results=per_view_results,
+                    out_dir=out_dir
+                )
 
-        # Remove image from dictionary and image_pair_loader to free memory
-        del image_pair_dict[image_id]
-        image_pair_loader.images = []
+            # Save combined prediction volume as .nii file
+            print("Saving .nii files...")
+            save_nii_files(merged=merged_map if not args.no_argmax else merged,
+                           image_pair=image_pair,
+                           nii_res_dir=nii_res_dir,
+                           save_input_files=args.save_input_files)
 
 
 def assert_args(args):

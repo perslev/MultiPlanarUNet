@@ -137,11 +137,20 @@ def entry_func(args=None):
         image_pair_loader = ImagePairLoader(predict_mode=predict_mode,
                                             initialize_empty=True)
         image_pair_loader.add_image(ImagePair(_file, label))
+    all_images = {image.identifier: image for image in image_pair_loader.images}
 
-    # Put them into a dict and remove from image_pair_loader to gain more control with
-    # garbage collection
-    all_images = {image.id: image for image in image_pair_loader.images}
-    image_pair_loader.images = None
+    # Set scaler and bg values
+    image_pair_loader.set_scaler_and_bg_values(
+        bg_value=hparams.get_from_anywhere('bg_value'),
+        scaler=hparams.get_from_anywhere('scaler'),
+        compute_now=False
+    )
+
+    # Init LazyQueue and get its sequencer
+    from mpunet.sequences.utils import get_sequence
+    seq = get_sequence(data_queue=image_pair_loader,
+                       is_validation=True,
+                       **hparams["fit"], **hparams["build"])
 
     """ Define UNet model """
     from mpunet.models import model_initializer
@@ -166,52 +175,47 @@ def entry_func(args=None):
     for n_image, image_id in enumerate(image_ids):
         print("\n[*] Running on: %s" % image_id)
 
-        # Set image_pair_loader object with only the given file
-        image = all_images[image_id]
-        image_pair_loader.images = [image]
-
-        seq = image_pair_loader.get_sequencer(n_classes=n_classes,
-                                              no_log=True,
-                                              dim=dim,
-                                              **hparams["fit"])
-
-        if mode.lower() == "iso_live_3d":
-            pred = pred_3D_iso(model=unet, sequence=seq, image=image,
-                               extra_boxes=N_extra, min_coverage=None)
-        else:
-            # Predict on volume using model
-            if n_classes > 1:
-                pred = predict_3D_patches(model=unet, patches=seq,
-                                          image=image, N_extra=N_extra)
+        with seq.image_pair_queue.get_image_by_id(image_id) as image_pair:
+            if mode.lower() == "iso_live_3d":
+                pred = pred_3D_iso(model=unet,
+                                   sequence=seq,
+                                   image=image_pair,
+                                   extra_boxes=N_extra,
+                                   min_coverage=None)
             else:
-                pred = predict_3D_patches_binary(model=unet, patches=seq,
-                                                 image_id=image_id, N_extra=N_extra)
+                # Predict on volume using model
+                if n_classes > 1:
+                    pred = predict_3D_patches(model=unet,
+                                              patches=seq,
+                                              image=image_pair,
+                                              N_extra=N_extra)
+                else:
+                    pred = predict_3D_patches_binary(model=unet,
+                                                     patches=seq,
+                                                     image_id=image_id,
+                                                     N_extra=N_extra)
 
-        if not predict_mode:
-            # Get patches for the current image
-            y = image.labels
+            if not predict_mode:
+                # Get patches for the current image
+                y = image_pair.labels
 
-            # Calculate dice score
-            print("Mean dice: ", end="", flush=True)
-            p = pred_to_class(pred, img_dims=3, has_batch_dim=False)
-            dices = dice_all(y, p, n_classes=n_classes, ignore_zero=True)
-            mean_dice = dices[~np.isnan(dices)].mean()
-            print("Dices: ", dices)
-            print("%s (n=%i)" % (mean_dice, len(dices)))
+                # Calculate dice score
+                print("Mean dice: ", end="", flush=True)
+                p = pred_to_class(pred, img_dims=3, has_batch_dim=False)
+                dices = dice_all(y, p, n_classes=n_classes, ignore_zero=True)
+                mean_dice = dices[~np.isnan(dices)].mean()
+                print("Dices: ", dices)
+                print("%s (n=%i)" % (mean_dice, len(dices)))
 
-            # Add to results
-            results[image_id] = [mean_dice]
-            detailed_res[image_id] = dices
+                # Add to results
+                results[image_id] = [mean_dice]
+                detailed_res[image_id] = dices
 
-            # Overwrite with so-far results
-            save_all_3D(results, detailed_res, out_dir)
+                # Overwrite with so-far results
+                save_all_3D(results, detailed_res, out_dir)
 
-            # Save results
-            save_nii_files(p, image, nii_res_dir, save_only_pred)
-
-        # Remove image from dictionary and image_pair_loader to free memory
-        del all_images[image_id]
-        image_pair_loader.images.remove(image)
+                # Save results
+                save_nii_files(p, image_pair, nii_res_dir, save_only_pred)
 
     if not predict_mode:
         # Write final results

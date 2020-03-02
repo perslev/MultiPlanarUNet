@@ -4,6 +4,7 @@ from mpunet.interpolation.regular_grid_interpolator import RegularGridInterpolat
 from mpunet.preprocessing import reshape_add_axis
 from mpunet.interpolation.linalg import mgrid_to_points, points_to_mgrid
 from mpunet.interpolation.sample_grid import get_voxel_grid, get_voxel_axes_real_space, get_voxel_grid_real_space
+from mpunet.sequences.utils import get_sequence
 
 
 def predict_single(image, model, hparams, verbose=1):
@@ -20,14 +21,6 @@ def predict_single(image, model, hparams, verbose=1):
     mode = hparams["fit"]["intrp_style"].lower()
     assert mode in ("iso_live", "iso_live_3d")
 
-    # Prepare image for prediction
-    kwargs = hparams["fit"]
-    kwargs.update(hparams["build"])
-
-    # Set verbose memory
-    verb_mem = kwargs["verbose"]
-    kwargs["verbose"] = verbose
-
     # Create a ImagePairLoader with only the given file
     from mpunet.image import ImagePairLoader
     image_pair_loader = ImagePairLoader(predict_mode=True,
@@ -35,50 +28,60 @@ def predict_single(image, model, hparams, verbose=1):
                                         no_log=bool(verbose))
     image_pair_loader.add_image(image)
 
-    # Get N classes
-    n_classes = kwargs["n_classes"]
+    # Set scaler and bg values
+    image_pair_loader.set_scaler_and_bg_values(
+        bg_value=hparams.get_from_anywhere('bg_value'),
+        scaler=hparams.get_from_anywhere('scaler'),
+        compute_now=False
+    )
 
     if mode == "iso_live":
-        # Add views if SMMV model
-        kwargs["views"] = np.load(hparams.project_path + "/views.npz")["arr_0"]
+        # Init LazyQueue and get its sequencer
+        seq = get_sequence(data_queue=image_pair_loader,
+                           views=np.load(hparams.project_path + "/views.npz")["arr_0"],
+                           is_validation=True,
+                           **hparams["fit"], **hparams["build"])
 
-        # Get sequence object
-        sequence = image_pair_loader.get_sequencer(**kwargs)
+        with seq.image_pair_queue.get_image_by_id(image.identifier) as image:
+            # Get voxel grid in real space
+            voxel_grid_real_space = get_voxel_grid_real_space(image)
 
-        # Get voxel grid in real space
-        voxel_grid_real_space = get_voxel_grid_real_space(image)
+            # Prepare tensor to store combined prediction
+            d = image.image.shape
+            predicted = np.empty(shape=(len(seq.views), d[0], d[1], d[2], seq.n_classes),
+                                 dtype=np.float32)
+            print("Predicting on brain hyper-volume of shape:", predicted.shape)
 
-        # Prepare tensor to store combined prediction
-        d = image.image.shape
-        predicted = np.empty(shape=(len(kwargs["views"]), d[0], d[1], d[2], n_classes),
-                             dtype=np.float32)
-        print("Predicting on brain hyper-volume of shape:", predicted.shape)
+            for n_view, v in enumerate(seq.views):
+                print("\nView %i/%i: %s" % (n_view+1, len(seq.views), v))
+                # Sample the volume along the view
+                X, y, grid, inv_basis = seq.get_view_from(image, v,
+                                                          n_planes="same+20")
 
-        for n_view, v in enumerate(kwargs["views"]):
-            print("\nView %i/%i: %s" % (n_view+1, len(kwargs["views"]), v))
-            # Sample the volume along the view
-            X, y, grid, inv_basis = sequence.get_view_from(image, v,
-                                                           n_planes="same+20")
+                # Predict on volume using model
+                pred = predict_volume(model, X, axis=2)
 
-            # Predict on volume using model
-            pred = predict_volume(model, X, axis=2)
-
-            # Map the real space coordiante predictions to nearest
-            # real space coordinates defined on voxel grid
-            predicted[n_view] = map_real_space_pred(pred, grid, inv_basis,
-                                                    voxel_grid_real_space,
-                                                    method="nearest")
+                # Map the real space coordiante predictions to nearest
+                # real space coordinates defined on voxel grid
+                predicted[n_view] = map_real_space_pred(pred, grid, inv_basis,
+                                                        voxel_grid_real_space,
+                                                        method="nearest")
     else:
-        predicted = pred_3D_iso(model=model, sequence=image_pair_loader.get_sequencer(**kwargs),
-                                image=image, extra_boxes="3x", min_coverage=None)
-
-    # Revert verbose mem
-    kwargs["verbose"] = verb_mem
+        # Init LazyQueue and get its sequencer
+        seq = get_sequence(data_queue=image_pair_loader,
+                           is_validation=True,
+                           **hparams["fit"], **hparams["build"])
+        predicted = pred_3D_iso(model=model, sequence=seq,
+                                image=image, extra_boxes="3x",
+                                min_coverage=None)
 
     return predicted
 
 
 def predict_volume(model, X, batch_size=8, axis=0):
+    """
+    TODO
+    """
     print("Predicting...")
     # Move axis to front
     X = np.moveaxis(X, source=axis, destination=0)
@@ -87,6 +90,9 @@ def predict_volume(model, X, batch_size=8, axis=0):
 
 
 def map_real_space_pred(pred, grid, inv_basis, voxel_grid_real_space, method="nearest"):
+    """
+    TODO
+    """
     print("Mapping to real coordinate space...")
 
     # Prepare fill value vector, we set this to 1.0 background
@@ -132,6 +138,9 @@ def map_real_space_pred(pred, grid, inv_basis, voxel_grid_real_space, method="ne
 
 
 def predict_3D_patches_binary(model, patches, image_id, N_extra=0, logger=None):
+    """
+    TODO
+    """
     # Get box dim and image dim
     d = patches.dim
     i1, i2, i3 = patches.im_dim
@@ -146,7 +155,7 @@ def predict_3D_patches_binary(model, patches, image_id, N_extra=0, logger=None):
         print(status, end="\r", flush=True)
 
         # Predict on patch
-        pred = model.predict_on_batch(reshape_add_axis(patch, im_dims=3)).squeeze()
+        pred = model.predict_on_batch(reshape_add_axis(patch, im_dims=3)).numpy().squeeze()
         mask = pred > 0.5
 
         # Add prediction to reconstructed volume
@@ -159,7 +168,9 @@ def predict_3D_patches_binary(model, patches, image_id, N_extra=0, logger=None):
 
 
 def predict_3D_patches(model, patches, image, N_extra=0, logger=None):
-
+    """
+    TODO
+    """
     # Get box dim and image dim
     d = patches.dim
     i1, i2, i3 = image.shape[:3]
@@ -174,7 +185,7 @@ def predict_3D_patches(model, patches, image, N_extra=0, logger=None):
         print(status, end="\r", flush=True)
 
         # Predict on patch
-        pred = model.predict_on_batch(reshape_add_axis(patch, im_dims=3))
+        pred = model.predict_on_batch(reshape_add_axis(patch, im_dims=3)).numpy()
 
         # Add prediction to reconstructed volume
         recon[i:i+d, k:k+d, v:v+d] += pred.squeeze()
@@ -187,6 +198,9 @@ def predict_3D_patches(model, patches, image, N_extra=0, logger=None):
 
 
 def pred_3D_iso(model, sequence, image, extra_boxes, min_coverage=None):
+    """
+    TODO
+    """
     total_extra_boxes = extra_boxes
 
     # Get reference to the image
@@ -241,7 +255,7 @@ def pred_3D_iso(model, sequence, image, extra_boxes, min_coverage=None):
             N_extra += 1
 
         # Predict on the box
-        pred = model.predict_on_batch(np.expand_dims(im, 0))[0]
+        pred = model.predict_on_batch(np.expand_dims(im, 0))[0].numpy()
 
         # Apply rotation if needed
         rgrid = image.interpolator.apply_rotation(rgrid)
