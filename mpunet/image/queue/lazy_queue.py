@@ -21,10 +21,10 @@ class LazyQueue(BaseQueue):
             dataset=dataset,
             logger=logger
         )
-        logger("'Lazy' queue created:\n"
-               "  Dataset:      {}".format(self.dataset))
-        logger("Images will be loaded just-in-time and unloaded when "
-               "not in use.".format(len(dataset)))
+        self.logger("'Lazy' queue created:\n"
+                    "  Dataset:      {}".format(self.dataset))
+        self.logger("Images will be loaded just-in-time and unloaded when "
+                    "not in use.".format(len(dataset)))
 
     @contextmanager
     def get_random_image(self):

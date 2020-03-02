@@ -21,9 +21,9 @@ class EagerQueue(BaseQueue):
             dataset=dataset,
             logger=logger
         )
-        logger("'Eager' queue created:\n"
-               "  Dataset:      {}".format(self.dataset))
-        logger("Preloading all {} images now... (eager)".format(len(dataset)))
+        self.logger("'Eager' queue created:\n"
+                    "  Dataset:      {}".format(self.dataset))
+        self.logger("Preloading all {} images now... (eager)".format(len(dataset)))
         self.dataset.load()
 
     @staticmethod

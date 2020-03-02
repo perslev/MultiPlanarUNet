@@ -74,10 +74,10 @@ class LimitationQueue(BaseQueue):
         self.max_offset = int(self.num_access_before_reload * 0.75)
         self.n_offset = self.max_loaded
 
-        logger("'Limitation' queue created:\n"
-               "  Dataset:      {}\n"
-               "  Max loaded:   {}\n"
-               "  Reload limit: {}".format(
+        self.logger("'Limitation' queue created:\n"
+                    "  Dataset:      {}\n"
+                    "  Max loaded:   {}\n"
+                    "  Reload limit: {}".format(
             self.dataset, self.max_loaded, self.num_access_before_reload
         ))
         if preload_now:
