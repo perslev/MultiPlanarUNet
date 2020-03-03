@@ -12,18 +12,19 @@ def save_images(train, val, out_dir, logger):
     if not os.path.exists(im_path):
         os.mkdir(im_path)
 
-    training = train[0]
+    # Sample two batches of training and (if passed) validation data
+    training = [train[0], train[1]]
     if val is not None and len(val) != 0:
-        validation = val[0]
-        v_len = len(validation[0])
+        validation = [val[0], val[1]]
+        val_bs = val.batch_size
     else:
         validation = None
-        v_len = 0
+        val_bs = 0
 
     logger("Saving %i sample images in '<project_dir>/images' folder"
-           % ((len(training[0]) + v_len) * 2))
-    for rr in range(2):
-        for k, temp in enumerate((training, validation)):
+           % ((train.batch_size + val_bs) * 2))
+    for rr, (train_batch, val_batch) in enumerate(zip(training, validation)):
+        for k, temp in enumerate((train_batch, val_batch)):
             if temp is None:
                 # No validation data
                 continue
