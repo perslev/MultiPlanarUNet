@@ -155,7 +155,7 @@ class IsotrophicLiveViewSequence2D(IsotrophicLiveViewSequence):
                 # Get interpolated image
                 im = image.interpolator.intrp_image(mgrid)
                 im_bg_val = image.interpolator.bg_value
-                if tries > max_tries or self.is_valid_im(im, im_bg_val):
+                if tries == max_tries or self.is_valid_im(im, im_bg_val):
                     # Accept slice + update foreground counter
                     has_fg_count += fg_change
                     return im, lab, has_fg_count
