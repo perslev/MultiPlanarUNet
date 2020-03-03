@@ -235,6 +235,7 @@ def set_bias_weights(layer, data_queue, class_counts=None, logger=None):
 
     # Compute bias weights
     bias = np.log(freq * np.sum(np.exp(freq)))
+    bias /= np.linalg.norm(bias)
     weights[-1] = bias.reshape(bias_shape)
 
     layer.set_weights(weights)
