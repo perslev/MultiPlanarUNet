@@ -23,7 +23,8 @@ def _to_tensor(x, dtype):
 def _get_shapes_and_one_hot(y_true, y_pred):
     shape = y_pred.get_shape()
     n_classes = shape[-1]
-    y_true = tf.one_hot(tf.cast(tf.squeeze(y_true, -1), tf.uint8), depth=n_classes)
+    y_true = tf.squeeze(y_true)
+    y_true = tf.one_hot(tf.cast(y_true, tf.uint8), depth=n_classes)
     return y_true, shape, n_classes
 
 
