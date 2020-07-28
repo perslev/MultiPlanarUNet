@@ -79,8 +79,7 @@ class Trainer(object):
         losses = init_losses(losses, self.logger, **kwargs)
         for i, loss in enumerate(losses):
             try:
-                losses[i] = loss(reduction=reduction,
-                                 **loss_kwargs)
+                losses[i] = loss(reduction=reduction, **loss_kwargs)
             except (ValueError, TypeError):
                 raise TypeError("All loss functions must currently be "
                                 "callable and accept the 'reduction' "

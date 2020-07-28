@@ -115,7 +115,9 @@ class Validation(Callback):
             for p, y, task_name, n_classes in zip(pred, true, task_names,
                                                   n_classes_list):
                 # Argmax and CM elements
-                p = p.numpy().argmax(-1).ravel()
+                if not isinstance(p, np.ndarray):
+                    p = p.numpy()
+                p = p.argmax(-1).ravel()
                 y = y.ravel()
 
                 # Compute relevant CM elements
@@ -142,7 +144,10 @@ class Validation(Callback):
         :return:
         """
         # Get tensors to run and their names
-        metrics = self.model.loss_functions + self.model.metrics
+        if hasattr(self.model, "loss_functions"):
+            metrics = self.model.loss_functions + self.model.metrics
+        else:
+            metrics = self.model.metrics
         metrics_names = self.model.metrics_names
         self.model.reset_metrics()
         assert len(metrics_names) == len(metrics)
@@ -167,7 +172,7 @@ class Validation(Callback):
         count_thread.start()
 
         # Fetch validation batches from the generator(s)
-        pool = ThreadPoolExecutor(max_workers=5)
+        pool = ThreadPoolExecutor(max_workers=3)
         batches = pool.map(self.data.__getitem__, np.arange(self.steps))
 
         # Predict on all
