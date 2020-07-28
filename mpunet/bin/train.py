@@ -54,11 +54,11 @@ def get_argparser():
     parser.add_argument("--val_images_per_epoch", type=int, default=3500,
                         help="Number of training images to sample in each "
                              "epoch")
-    parser.add_argument("--max_loaded_images", type=int, default=30,
+    parser.add_argument("--max_loaded_images", type=int, default=None,
                         help="Set a maximum number of (training) images to "
                              "keep loaded in memory at a given time. Images "
                              "will be cycled every '--num_access slices.'. "
-                             "Default=30.")
+                             "Default=None (all loaded).")
     parser.add_argument("--num_access", type=int, default=50,
                         help="Only effective with --max_loaded_images set. "
                              "Sets the number of times an images stored in "
