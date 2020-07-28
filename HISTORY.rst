@@ -105,3 +105,8 @@ History
       The same naming convention applies to all custom losses.
     * Arbitrary Parameters may now be passed to a loss function in the 'loss_kwargs' entry in train_hparams.yaml
 * Some (deprecated) custom loss functions have been removed.
+
+0.2.6 (2020-07-28)
+------------------
+* Implemented ability to load training images from a queue of a given max size during training to reduce memory consumption (--max_images flag).
+* Updated to work with TensorFlow 2.2
