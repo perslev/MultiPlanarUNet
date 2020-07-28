@@ -1,8 +1,10 @@
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pyplot as plt
 import tensorflow as tf
 import psutil
 import numpy as np
 import os
-import matplotlib.pyplot as plt
 from tensorflow.keras.callbacks import Callback
 from datetime import datetime
 from mpunet.logging import ScreenLogger

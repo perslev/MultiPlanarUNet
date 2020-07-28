@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('agg')
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -150,33 +152,6 @@ def imshow_with_label_overlay(ax, image, label, channel=None, axis=None,
     ax.imshow(masked_lab, alpha=lab_alpha, cmap=lab_cmap)
 
     return channel, axis, slice
-
-
-def imshow_orientation(*args, show=False, cmap="gray"):
-
-    fig = plt.figure()
-    ind = 1
-    for i in range(3):
-        for j, im in enumerate(args):
-            ax = fig.add_subplot(3, len(args), ind)
-            im_ind = np.random.randint(0, im.shape[i], 1)[0]
-            if i == 0:
-                im_slice = im[im_ind]
-            elif i == 2:
-                im_slice = im[:, im_ind]
-            else:
-                im_slice = im[..., im_ind]
-
-            ax.imshow(im_slice, cmap=cmap)
-            ax.set_title("Image %i" % j)
-            ax.axis("off")
-            ind += 1
-
-    fig.tight_layout()
-    if show:
-        plt.show()
-    else:
-        return fig
 
 
 def plot_all_training_curves(glob_path, out_path, raise_error=False,
