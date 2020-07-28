@@ -129,15 +129,6 @@ class TrainTimer(Callback):
         self.train_begin_time = None
         self.prev_epoch_time = None
 
-    @staticmethod
-    def parse_dtime(tdelta, fmt):
-        # https://stackoverflow.com/questions/8906926/
-        # formatting-python-timedelta-objects/17847006
-        d = {"days": tdelta.days}
-        d["hours"], rem = divmod(tdelta.seconds, 3600)
-        d["minutes"], d["seconds"] = divmod(rem, 60)
-        return fmt.format(**d)
-
     def on_train_begin(self, logs=None):
         self.train_begin_time = datetime.now()
 
@@ -154,23 +145,19 @@ class TrainTimer(Callback):
         self.prev_epoch_time = end_time
 
         # Add to logs
-        logs["train_time_epoch"] = self.parse_dtime(epoch_time,
-                                                    "{days:02}d:{hours:02}h:"
-                                                    "{minutes:02}m:{seconds:02}s")
-        logs["train_time_total"] = self.parse_dtime(train_time,
-                                                    "{days:02}d:{hours:02}h:"
-                                                    "{minutes:02}m:{seconds:02}s")
+        train_hours = round(train_time.total_seconds() / 3600, 4)
+        epoch_minutes = round(epoch_time.total_seconds() / 60, 4)
+        logs["epoch_minutes"] = epoch_minutes
+        logs["train_hours"] = train_hours
 
         if self.verbose:
-            self.logger("[TrainTimer] Epoch time: %.1f minutes "
-                        "- Total train time: %s"
-                        % (epoch_time.total_seconds()/60,
-                           logs["train_time_total"]))
-        if self.max_minutes and train_time.total_seconds()/60 > self.max_minutes:
+            self.logger("[TrainTimer] Epoch time: %.2f minutes "
+                        "- Total train time: %.2f hours"
+                        % (epoch_minutes, train_hours))
+        if self.max_minutes and train_hours*60 > self.max_minutes:
             self.logger("Stopping training. Training ran for {} minutes, "
                         "max_minutes of {} was specified on the TrainTimer "
-                        "callback.".format(train_time.total_seconds()/60,
-                                           self.max_minutes))
+                        "callback.".format(train_hours*60, self.max_minutes))
             self.model.stop_training = True
 
 
