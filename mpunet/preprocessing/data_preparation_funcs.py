@@ -99,12 +99,13 @@ def _base_loader_func(hparams, just_one, no_val, logger, mtype):
                                          compute_now=False)
 
     from mpunet.image.queue.utils import get_data_queues
+    max_loaded = hparams['fit'].get('max_loaded')
     train_queue, val_queue = get_data_queues(
         train_dataset=train_data,
         val_dataset=val_data,
-        train_queue_type='limitation',
+        train_queue_type='limitation' if max_loaded else "eager",
         val_queue_type='eager',
-        max_loaded=hparams['fit'].get('max_loaded'),
+        max_loaded=max_loaded,
         num_access_before_reload=hparams['fit'].get('num_access'),
         logger=logger
     )
