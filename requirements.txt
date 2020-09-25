@@ -8,5 +8,5 @@ scikit_learn>=0.23.0
 h5py>=2.10.0
 psutil>=5.7.0
 tensorflow-addons==0.10.0
-tensorflow-gpu==2.2.0
+tensorflow-gpu==2.2.1
 #tensorflow==2.2.0
