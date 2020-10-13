@@ -110,3 +110,7 @@ History
 ------------------
 * Implemented ability to load training images from a queue of a given max size during training to reduce memory consumption (--max_images flag).
 * Updated to work with TensorFlow 2.2
+
+0.2.7 (2020-10-13)
+------------------
+* Minor changes to LearningCurve callback and plot_training_curves function to no longer plot training time in default learning curves.
