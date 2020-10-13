@@ -183,7 +183,7 @@ def plot_all_training_curves(glob_path, out_path, raise_error=False,
 
 def plot_training_curves(csv_path, save_path, logy=False,
                          exclude=("learning_rate", "epoch", "loss",
-                                  "train_time_total", "train_time_epoch",
+                                  "epoch_minutes", "train_hours",
                                   'memory_usage_gib'),
                          include_regex=None):
     # Read CSV file

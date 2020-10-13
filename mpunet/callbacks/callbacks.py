@@ -40,7 +40,7 @@ class LearningCurve(Callback):
           cause the LearningCurve callback to raise an exception.
     """
     def __init__(self, log_dir="logs", out_dir="logs", fname="curve.png",
-                 csv_regex="*training.csv", logger=None):
+                 csv_regex="*training.csv", logger=None, **plot_kwargs):
         """
         Args:
             log_dir: Relative path from the
@@ -56,13 +56,15 @@ class LearningCurve(Callback):
         self.csv_regex = os.path.join(os.path.abspath(log_dir), csv_regex)
         self.save_path = os.path.join(out_dir, fname)
         self.logger = logger or ScreenLogger()
+        self.plot_kwargs = plot_kwargs
 
     def on_epoch_end(self, epoch, logs={}):
         plot_all_training_curves(self.csv_regex,
                                  self.save_path,
                                  logy=True,
                                  raise_error=False,
-                                 logger=self.logger)
+                                 logger=self.logger,
+                                 **self.plot_kwargs)
 
 
 class MemoryConsumption(Callback):
