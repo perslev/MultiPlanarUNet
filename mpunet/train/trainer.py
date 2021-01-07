@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import tensorflow as tf
 from mpunet.callbacks import init_callback_objects
 from mpunet.logging import ScreenLogger
 from mpunet.callbacks import (SavePredictionImages, Validation,
@@ -11,7 +12,6 @@ from mpunet.train.utils import (ensure_sparse,
                                 init_losses,
                                 init_metrics,
                                 init_optimizer)
-from multiprocessing import cpu_count
 from tensorflow.python.framework.errors_impl import (ResourceExhaustedError,
                                                      InternalError)
 
@@ -122,7 +122,8 @@ class Trainer(object):
         # Crop labels?
         if hasattr(self.model, "label_crop"):
             train.label_crop = self.model.label_crop
-            val.label_crop = self.model.label_crop
+            if val is not None:
+                val.label_crop = self.model.label_crop
         if type(train).__name__ == "MultiTaskSequence":
             self.logger("-- Skipping saving images (not yet implemented for"
                         " MultiTaskSequences).")
@@ -234,8 +235,7 @@ class Trainer(object):
         if cb:
             cb.org_model = self.model  # TEMP TODO
 
-        # Temporary memory leak fix
-        import tensorflow as tf
+        # Init TF dataset with DATA autosharding
         dtypes, shapes = list(zip(*map(lambda x: (x.dtype, x.shape), train[0])))
         train = tf.data.Dataset.from_generator(train, dtypes, shapes)
 
