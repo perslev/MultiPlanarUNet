@@ -6,11 +6,11 @@ University of Copenhagen
 November 2017
 """
 
-import os
 import numpy as np
 import nibabel as nib
 from contextlib import contextmanager
 
+from pathlib import Path
 from mpunet.preprocessing import get_scaler
 from mpunet.logging import ScreenLogger
 from mpunet.interpolation.sample_grid import get_real_image_size, get_pix_dim
@@ -18,8 +18,7 @@ from mpunet.interpolation.view_interpolator import ViewInterpolator
 from mpunet.utils import ensure_list_or_tuple
 
 # Errors
-from mpunet.errors.image_errors import (NoLabelFileError,
-                                        ReadOnlyAttributeError)
+from mpunet.errors.image_errors import ReadOnlyAttributeError
 
 # w2 negative threshold is too strict for this data set
 nib.Nifti1Header.quaternion_threshold = -1e-6
@@ -133,14 +132,12 @@ class ImagePair(object):
         Validates if the image identifier and label identifier match.
         Returns the image identifier.
         """
-        img_id = os.path.split(self.image_path)[-1].split(".")[0]
+        img_id = self.image_path.stem.split('.')[0]
         if not self.predict_mode:
-            labels_id = os.path.split(self.labels_path)[-1].split(".")[0]
-
+            labels_id = self.labels_path.stem.split('.')[0]
             if img_id != labels_id:
                 raise ValueError("Image identifier '%s' does not match labels identifier '%s'"
                                  % (img_id, labels_id))
-
         return img_id
 
     @property
@@ -202,7 +199,8 @@ class ImagePair(object):
 
     @staticmethod
     def _validate_path(path):
-        if os.path.exists(path) and path.split(".")[-1] in ("nii", "mat", "gz"):
+        path = Path(path)
+        if path.exists() and path.suffix in (".nii", ".mat", ".gz"):
             return path
         else:
             raise FileNotFoundError("File '%s' not found or not a "

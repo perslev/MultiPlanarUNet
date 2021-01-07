@@ -10,6 +10,7 @@ import glob
 import os
 import numpy as np
 
+from pathlib import Path
 from .image_pair import ImagePair
 from mpunet.logging import ScreenLogger
 
@@ -71,14 +72,14 @@ class ImagePairLoader(object):
         self.logger = logger if logger is not None else ScreenLogger()
 
         # Set absolute paths to main folder, image folder and label folder
-        self.data_dir = os.path.abspath(base_dir)
-        self.images_path = os.path.join(self.data_dir, img_subdir)
-        self.identifier = identifier or os.path.split(self.data_dir)[-1]
+        self.data_dir = Path(base_dir).absolute()
+        self.images_path = self.data_dir / img_subdir
+        self.identifier = self.data_dir.name
 
         # Labels included?
         self.predict_mode = predict_mode or not label_subdir
         if not predict_mode:
-            self.labels_path = os.path.join(self.data_dir, label_subdir)
+            self.labels_path = self.data_dir / label_subdir
         else:
             self.labels_path = None
 
@@ -214,7 +215,7 @@ class ImagePairLoader(object):
         """
         # Check if a file listing paths exists instead of actual files at the
         # image sub folder path
-        list_file_path = os.path.join(base_path, fname)
+        list_file_path = base_path / fname
         images = []
         if os.path.exists(list_file_path):
             with open(list_file_path, "r") as in_f:
@@ -233,14 +234,14 @@ class ImagePairLoader(object):
         Return a list of paths to all image files in the self.images_path folder
 
         Returns:
-            A list of path strings
+            A list of pathlib.Path
         """
-        images = sorted(glob.glob(self.images_path + "/*.nii*"))
+        images = sorted(glob.glob(str(self.images_path / "*.nii*")))
         if not images:
             # Try to load from a file listing paths at the location
             # This is sometimes a format created by the cv_split.py script
             images = self._get_paths_from_list_file(self.images_path)
-        return images
+        return [Path(p) for p in images]
 
     def get_label_paths(self, img_subdir, label_subdir):
         """
@@ -253,15 +254,15 @@ class ImagePairLoader(object):
             label_subdir: String, name of the label sub-folder
 
         Returns:
-            A list of path strings
+            A list of pathlib.Path
         """
-        if any([img_subdir not in p for p in self.image_paths]):
+        if any([img_subdir not in str(p) for p in self.image_paths]):
             raise ValueError("Mismatch between image paths and specified "
                              "img_subdir. The subdir was not found in one or"
                              " more image paths - Do the paths in "
                              "LIST_OF_FILES.txt point to a subdir of name "
                              "'%s'?" % img_subdir)
-        return [p.replace("/%s/" % img_subdir, "/%s/" % label_subdir) for p in self.image_paths]
+        return [p.parent.parent / label_subdir / p.name for p in self.image_paths]
 
     def get_image_objects(self, sample_weight, bg_class):
         """
