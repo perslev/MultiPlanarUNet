@@ -20,7 +20,7 @@ def save_images(train, val, out_dir, logger):
         validation = [val[0], val[1]]
         val_bs = val.batch_size
     else:
-        validation = None
+        validation = [None] * len(training)
         val_bs = 0
 
     logger("Saving %i sample images in '<project_dir>/images' folder"
