@@ -47,6 +47,7 @@ class Validation(Callback):
         self.ignore_bg = ignore_class_zero
         self.print_round = 3
         self.log_round = 4
+        self._supports_tf_logs = True  # ensures correct logs passed from tf.keras
 
         self.n_classes = self.data.n_classes
         if isinstance(self.n_classes, int):
