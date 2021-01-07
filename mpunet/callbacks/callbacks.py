@@ -371,7 +371,7 @@ class SavePredictionImages(Callback):
 
     def pred_and_save(self, data, subdir):
         # Get a random batch
-        X, y, _ = data[np.random.randint(len(data))]
+        X, y, _ = data[np.random.randint(len(data), dtype=np.int64)]
 
         # Predict on the batch
         pred = self.model.predict(X)
