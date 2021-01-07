@@ -114,3 +114,7 @@ History
 0.2.7 (2020-10-13)
 ------------------
 * Minor changes to LearningCurve callback and plot_training_curves function to no longer plot training time in default learning curves.
+
+0.2.9 (2021-01-07)
+------------------
+* Improved Windows compatability
