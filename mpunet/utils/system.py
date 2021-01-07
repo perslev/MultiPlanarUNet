@@ -1,14 +1,14 @@
-from multiprocessing import Process, Event, Queue
 import time
 import os
 
+from multiprocessing import Process, Event, Queue
 from mpunet.utils.utils import get_free_gpus, _get_free_gpu, set_gpu
 from mpunet.logging import ScreenLogger
 
 
 class GPUMonitor(Process):
-    def __init__(self, logger=None):
-        self.logger = logger or ScreenLogger()
+    def __init__(self):
+        self.logger = ScreenLogger()
 
         # Prepare signal
         self.stop_signal = Event()

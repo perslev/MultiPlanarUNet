@@ -192,7 +192,7 @@ def get_gpu_monitor(num_GPUs, logger):
     if num_GPUs >= 0:
         # Initialize GPUMonitor in separate fork now before memory builds up
         from mpunet.utils.system import GPUMonitor
-        gpu_mon = GPUMonitor(logger)
+        gpu_mon = GPUMonitor()
     else:
         gpu_mon = None
     return gpu_mon
