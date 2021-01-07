@@ -58,6 +58,9 @@ def get_argparser():
                              "keep loaded in memory at a given time. Images "
                              "will be cycled every '--num_access slices.'. "
                              "Default=None (all loaded).")
+    parser.add_argument("--epochs", type=int, default=None,
+                        help="Overwrite the number of epochs as specified in "
+                             "the hyperparameters file")
     parser.add_argument("--num_access", type=int, default=50,
                         help="Only effective with --max_loaded_images set. "
                              "Sets the number of times an images stored in "
@@ -361,11 +364,16 @@ def run(project_dir, gpu_mon, logger, args):
         K.set_session(tfdbg.LocalCLIDebugWrapperSession(K.get_session()))
 
     # Fit the model
-    _ = trainer.fit(train=train, val=val,
-                    train_im_per_epoch=args.train_images_per_epoch,
-                    val_im_per_epoch=args.val_images_per_epoch,
-                    hparams=hparams, no_im=args.no_images, **hparams["fit"])
-    save_final_weights(model, project_dir, logger)
+    hparams["fit"]["n_epochs"] = args.epochs or hparams["fit"]["n_epochs"]
+    try:
+        _ = trainer.fit(train=train, val=val,
+                        train_im_per_epoch=args.train_images_per_epoch,
+                        val_im_per_epoch=args.val_images_per_epoch,
+                        hparams=hparams, no_im=args.no_images, **hparams["fit"])
+    except KeyboardInterrupt:
+        gpu_mon.stop()
+    finally:
+        save_final_weights(model, project_dir, logger)
 
 
 def entry_func(args=None):
