@@ -7,9 +7,6 @@ March 2018
 
 import os
 from argparse import ArgumentParser
-import readline
-
-readline.parse_and_bind('tab: complete')
 
 
 def get_argparser():

@@ -1,10 +1,11 @@
 import os
+import argparse
+import subprocess
+
 from multiprocessing import Process, Lock, Queue, Event
 from mpunet.utils import create_folders
 from mpunet.bin.init_project import copy_yaml_and_set_data_dirs
 from mpunet.logging import Logger
-import argparse
-import subprocess
 
 
 def get_parser():

@@ -5,19 +5,15 @@ Mathias Perslev
 March 2018
 """
 
-# Direct import of some mpunet modules, others are loaded when needed
-# in individual functions below
-from mpunet.utils.utils import create_folders, get_best_model, \
-                                        pred_to_class, await_PIDs
-from mpunet.logging.log_results import save_all
-from mpunet.evaluate.metrics import dice_all
-
-from argparse import ArgumentParser
 import os
 import numpy as np
 import nibabel as nib
-import readline
-readline.parse_and_bind('tab: complete')
+
+from mpunet.utils.utils import (create_folders, get_best_model,
+                                pred_to_class, await_PIDs)
+from mpunet.logging.log_results import save_all
+from mpunet.evaluate.metrics import dice_all
+from argparse import ArgumentParser
 
 
 def get_argparser():

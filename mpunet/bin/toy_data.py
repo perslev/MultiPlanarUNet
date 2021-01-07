@@ -1,13 +1,10 @@
 import os
-from argparse import ArgumentParser
-import readline
 import numpy as np
 import nibabel as nib
 
+from argparse import ArgumentParser
 from scipy.ndimage.filters import gaussian_filter
 from mpunet.utils.utils import create_folders
-
-readline.parse_and_bind('tab: complete')
 
 
 def get_argparser():

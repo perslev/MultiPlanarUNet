@@ -39,7 +39,6 @@ from mpunet.evaluate.metrics import sparse_fg_precision, \
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import CSVLogger, EarlyStopping
 from sklearn.utils import shuffle
-
 from argparse import ArgumentParser
 
 

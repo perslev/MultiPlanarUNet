@@ -1,5 +1,5 @@
-from argparse import ArgumentParser
 import os
+from argparse import ArgumentParser
 
 
 def copy_yaml_and_set_data_dirs(in_path, out_path, data_dir):

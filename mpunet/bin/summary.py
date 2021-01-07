@@ -4,13 +4,10 @@ TODO: Add description
 
 import os
 import sys
-from glob import glob
-from argparse import ArgumentParser
-import readline
 import numpy as np
 import pandas as pd
-
-readline.parse_and_bind('tab: complete')
+from glob import glob
+from argparse import ArgumentParser
 
 
 def get_argparser():

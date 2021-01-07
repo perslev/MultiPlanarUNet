@@ -1,10 +1,10 @@
-from glob import glob
-import sys
 import os
 import numpy as np
 import random
-from mpunet.utils import create_folders
 import argparse
+
+from mpunet.utils import create_folders
+from glob import glob
 
 
 def get_parser():

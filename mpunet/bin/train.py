@@ -13,7 +13,6 @@ mp train --num_GPUs=1
 
 from argparse import ArgumentParser
 import os
-import tensorflow as tf
 
 
 def get_argparser():
