@@ -1,15 +1,24 @@
-# Multi-Planar UNet
+# Multi-Planar U-Net
 
-Implementation of the Multi-Planar UNet as described in: 
+Implementation of the Multi-Planar U-Net as described in: 
 
 Mathias Perslev, Erik Dam, Akshay Pai, and Christian Igel. One Network To 
 Segment Them All: A General, Lightweight System for Accurate 3D Medical Image
 Segmentation. In: Medical Image Computing and Computer Assisted Intervention 
 (MICCAI), 2019
 
-Pre-print version: https://arxiv.org/abs/1911.01764
+Pre-print version: [https://arxiv.org/abs/1911.01764](https://arxiv.org/abs/1911.01764)
 
-Published version: https://doi.org/10.1007/978-3-030-32245-8_4
+Published version: [https://doi.org/10.1007/978-3-030-32245-8_4](https://doi.org/10.1007/978-3-030-32245-8_4)#
+
+---
+
+#### Other publications
+The Multi-Planar U-Net as implemented here was also used in the following context(s):
+
+* <i>The International Workshop on Osteoarthritis Imaging Knee MRI Segmentation Challenge</i>, described in [https://arxiv.org/abs/2004.14003](https://arxiv.org/abs/2004.14003). Data supporting our team's contribution may be found [here](https://sid.erda.dk/wsgi-bin/ls.py?share_id=d0s7yd7Sgk) (hyperparameter files, parameter files, test-set predictions etc.).
+
+---
 
 ## Quick Start
 #### Installation
@@ -30,6 +39,7 @@ git pull
 ```
 
 However, the package is also occasionally updated on PyPi for install with:
+
 ```
 # Note: renamed MultiPlanarUNet -> mpunet in versions 0.2.4
 pip install mpunet
@@ -71,7 +81,7 @@ get started. It may also serve as a strong baseline method for general purpose
 semantic segmentation of medical images.
 
 ## Method
-The base model is a slightly modified 2D UNet (https://arxiv.org/abs/1505.04597) 
+The base model is a slightly modified 2D U-Net (https://arxiv.org/abs/1505.04597) 
 trained under a multi-planar framework. Specifically, the 2D model is
 fed images sampled across multiple views onto the image volume simultaneously:
 
