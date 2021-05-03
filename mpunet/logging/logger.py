@@ -7,7 +7,7 @@ from threading import Lock
 
 
 class Logger(object):
-    def __init__(self, base_path, print_to_screen=True, active_file=None,
+    def __init__(self, base_path, print_to_screen=True, active_file="log.txt",
                  overwrite_existing=False, append_existing=False,
                  print_calling_method=True, no_sub_folder=False,
                  log_prefix="", warnings_file="warnings"):
@@ -38,7 +38,7 @@ class Logger(object):
         self.log_files = {}
         self.currently_logging = {}
         self.prefix = "" if log_prefix is None else str(log_prefix)
-        self.active_log_file = active_file or "log"
+        self.active_log_file = active_file
         self.warnings_file = warnings_file
 
         # For using the logger from multiple threads
@@ -54,8 +54,7 @@ class Logger(object):
                   self.overwrite_existing, self.append_existing)
 
     def new_log_file(self, filename):
-        ext = os.path.splitext(filename)[-1] or ".txt"
-        file_path = os.path.join(self.path, "%s.%s" % (filename, ext))
+        file_path = os.path.join(self.path, filename)
 
         if os.path.exists(file_path):
             if self.overwrite_existing:
@@ -120,6 +119,8 @@ class Logger(object):
         if self.prefix:
             file_name = file_name.replace(self.prefix + "_", "")
             file_name = self.prefix.rstrip("_") + "_" + file_name
+        file_name, ext = os.path.splitext(file_name)
+        file_name = "%s%s" % (file_name, ext or ".txt")
         self._active_log_file = file_name
         if file_name not in self.log_files:
             self.new_log_file(file_name)
