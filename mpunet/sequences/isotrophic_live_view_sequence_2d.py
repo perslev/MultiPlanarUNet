@@ -175,7 +175,7 @@ class IsotrophicLiveViewSequence2D(IsotrophicLiveViewSequence):
         batch_x, batch_y, batch_w = [], [], []
 
         # Maximum number of sampling trails
-        max_tries = self.batch_size * 10
+        max_tries = 10
 
         scalers = []
         bg_values = []
