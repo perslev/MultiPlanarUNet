@@ -1,9 +1,10 @@
 from multiprocessing import current_process
+from tensorflow.keras.utils import Sequence
 from abc import ABC, abstractmethod
 import numpy as np
 
 
-class BaseSequence(ABC):
+class BaseSequence(Sequence, ABC):
     def __init__(self):
         super().__init__()
 
