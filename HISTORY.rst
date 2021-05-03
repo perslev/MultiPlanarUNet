@@ -122,3 +122,7 @@ History
 0.2.10 (2021-05-03)
 -------------------
 * Reduced maximum time spent looking for valid batches which may speed up training on sparsely labelled images at the cost of using samples with few labels on average. Minor changes to logging.
+
+0.2.11 (2021-05-03)
+-------------------
+* Fixed logging file path bug
