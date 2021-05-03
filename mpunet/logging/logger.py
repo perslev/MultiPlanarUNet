@@ -10,7 +10,7 @@ class Logger(object):
     def __init__(self, base_path, print_to_screen=True, active_file=None,
                  overwrite_existing=False, append_existing=False,
                  print_calling_method=True, no_sub_folder=False,
-                 log_prefix=""):
+                 log_prefix="", warnings_file="warnings"):
         self.base_path = os.path.abspath(base_path)
         if not no_sub_folder:
             self.path = os.path.join(self.base_path, "logs")
@@ -39,6 +39,7 @@ class Logger(object):
         self.currently_logging = {}
         self.prefix = "" if log_prefix is None else str(log_prefix)
         self.active_log_file = active_file or "log"
+        self.warnings_file = warnings_file
 
         # For using the logger from multiple threads
         self.lock = Lock()
@@ -53,7 +54,8 @@ class Logger(object):
                   self.overwrite_existing, self.append_existing)
 
     def new_log_file(self, filename):
-        file_path = os.path.join(self.path, "%s.txt" % filename)
+        ext = os.path.splitext(filename)[-1] or ".txt"
+        file_path = os.path.join(self.path, "%s.%s" % (filename, ext))
 
         if os.path.exists(file_path):
             if self.overwrite_existing:
@@ -158,5 +160,5 @@ class Logger(object):
     def warn(self, *args, **kwargs):
         self.__call__("[WARNING]", *args,
                       print_calling_method=False,
-                      out_file="warnings",
+                      out_file=self.warnings_file,
                       **kwargs)
