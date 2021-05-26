@@ -386,10 +386,6 @@ def run_predictions_and_eval(image_pair_loader, image_pair_dict, model,
                        views=views,
                        **hparams["fit"], **hparams["build"])
 
-    from mpunet.utils.fusion.fuse_and_predict import predict_single
-    o = predict_single(image_pair_loader.images[0], model, hparams)
-    print(o.shape)
-
     image_ids = sorted(image_pair_dict)
     n_images = len(image_ids)
     for n_image, image_id in enumerate(image_ids):
