@@ -126,3 +126,7 @@ History
 0.2.11 (2021-05-03)
 -------------------
 * Fixed logging file path bug
+
+0.2.12 (2021-05-26)
+-------------------
+* Removed unnecessary prediction code from the predict.py script which slowed down execution.
