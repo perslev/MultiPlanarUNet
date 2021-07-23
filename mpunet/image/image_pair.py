@@ -456,10 +456,15 @@ class ImagePair(object):
         Returns:
             A list of float(s)/int(s) image background value pr. channel
         """
-        bg_value = bg_value if (bg_value is not None and bg_value is not False) \
-                            else "1pct"
-        return [bg_value] if not isinstance(bg_value,
-                                            (list, tuple, np.ndarray)) else bg_value
+        if not isinstance(bg_value, (list, tuple, np.ndarray)):
+            bg_value = [bg_value]
+        standardized_bg_values = []
+        for value in bg_value:
+            value = value if (bg_value is not None and bg_value is not False) else "1pct"
+            standardized_bg_values.append(value)
+        if len(standardized_bg_values) == 1 and self.n_channels != 1:
+            standardized_bg_values *= self.n_channels
+        return standardized_bg_values
 
     def _bg_pct_string_to_value(self, bg_pct_str):
         """
